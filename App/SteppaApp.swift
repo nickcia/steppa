@@ -10,7 +10,7 @@ struct SteppaApp: App {
     init() {
         let container = Persistence.makeContainer(inMemory: DemoData.isRequested)
         self.container = container
-        let model = AppModel(context: container.mainContext)
+        let model = AppModel(container: container)
         DemoData.seedIfRequested(model)
         _model = State(initialValue: model)
     }
@@ -43,7 +43,10 @@ struct RootView: View {
         .animation(.default, value: model.plan == nil)
         .environment(\.unitSystem, model.units)
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.reload() }
+            if phase == .active {
+                model.reload()
+                model.reviewPlan()
+            }
         }
         .alert("Something went wrong", isPresented: Binding(get: { model.lastError != nil },
                                                            set: { if !$0 { model.lastError = nil } })) {
@@ -61,6 +64,10 @@ struct MainTabs: View {
                 .tabItem { Label("Today", systemImage: "sun.max") }
             PlanView()
                 .tabItem { Label("Plan", systemImage: "calendar") }
+            RacesView()
+                .tabItem { Label("Races", systemImage: "flag.checkered") }
+            TrainingProgressView()
+                .tabItem { Label("Progress", systemImage: "chart.bar") }
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }

@@ -131,6 +131,18 @@ func expectSoundRevision(_ old: TrainingPlan, _ new: TrainingPlan, today: LocalD
         #expect(future.filter { $0.kind == .long }.allSatisfy { $0.date.weekday == .saturday })
     }
 
+    @Test func withoutTrainingAssessmentOnlyTheTriggerApplies() throws {
+        // No runs logged at all would normally read as a break; with an incomplete log it must not.
+        let later = plan.inputs.raceDate.adding(days: 14)
+        let revision = try PlanAdapter.adapt(plan, log: TrainingLog(), trigger: .raceDateChanged(later),
+                                             today: today, assessTraining: false)
+        #expect(revision.reasons == [.raceDateChanged(later)])
+        let review = try PlanAdapter.adapt(plan, log: TrainingLog(), trigger: .review, today: today, assessTraining: false)
+        #expect(!review.changed)
+        let assessed = try PlanAdapter.adapt(plan, log: TrainingLog(), trigger: .review, today: today)
+        #expect(assessed.reasons.contains { if case .returningFromBreak = $0 { true } else { false } })
+    }
+
     @Test func newRaceResultResetsFitness() throws {
         let result = RacePerformance(.tenK, timeSeconds: 44 * 60, date: today.adding(days: -1))
         let revision = try PlanAdapter.adapt(plan, log: TrainingLog(), trigger: .newRaceResult(result), today: today)

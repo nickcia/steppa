@@ -74,7 +74,7 @@ struct DisplayFormat {
 }
 
 extension LocalDate {
-    static var today: LocalDate { LocalDate(Date()) }
+    nonisolated static var today: LocalDate { LocalDate(Date()) }
 
     func formatted(_ style: Date.FormatStyle) -> String { date().formatted(style) }
 

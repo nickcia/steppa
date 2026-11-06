@@ -10,6 +10,7 @@ struct TodayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                     header
+                    PlanChangeBanner()
                     WeekStrip(selected: $selected)
                     if let workout = model.workout(on: selected) {
                         WorkoutCard(workout: workout)
@@ -158,6 +159,10 @@ struct WorkoutCard: View {
                             .font(.subheadline).foregroundStyle(Theme.secondaryInk)
                     }
                     Spacer()
+                    MoveWorkoutButton(workout: workout)
+                        .labelStyle(.iconOnly)
+                        .font(.title3)
+                        .accessibilityLabel("Move workout")
                     NavigationLink(value: workout) {
                         Image(systemName: "info.circle").font(.title3)
                     }

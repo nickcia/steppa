@@ -81,6 +81,66 @@ final class ProfileRecord {
     }
 }
 
+/// A race other than the plan's goal race (e.g. a tune-up 10K), or a past result.
+@Model
+final class RaceRecord {
+    var raceID: UUID = UUID()
+    var name: String = ""
+    var distanceRaw: String = RaceDistance.tenK.rawValue
+    /// `YYYY-MM-DD`; stored as text so a time-zone change can never move the race.
+    var dateString: String = ""
+    var goalSeconds: Double?
+    var resultSeconds: Double?
+    var createdAt: Date = Date.now
+
+    init(name: String, distance: RaceDistance, date: LocalDate, goalSeconds: Double? = nil, resultSeconds: Double? = nil) {
+        self.name = name
+        self.distanceRaw = distance.rawValue
+        self.dateString = date.description
+        self.goalSeconds = goalSeconds
+        self.resultSeconds = resultSeconds
+    }
+
+    var distance: RaceDistance {
+        get { RaceDistance(rawValue: distanceRaw) ?? .tenK }
+        set { distanceRaw = newValue.rawValue }
+    }
+
+    var date: LocalDate {
+        get { LocalDate(iso: dateString) ?? .today }
+        set { dateString = newValue.description }
+    }
+}
+
+/// A record of why the plan changed, shown as "Your plan changed because…".
+@Model
+final class PlanChangeRecord {
+    var planID: UUID?
+    var createdAt: Date = Date.now
+    var reasonsData: Data?
+    var seen: Bool = false
+    /// The plan as it was before this change, so the athlete can undo it.
+    @Attribute(.externalStorage) var previousPlanData: Data?
+
+    init(planID: UUID, reasons: [AdaptationReason], previous: TrainingPlan? = nil) {
+        self.planID = planID
+        self.reasonsData = try? JSONEncoder.plan.encode(reasons)
+        self.previousPlanData = previous.flatMap { try? JSONEncoder.plan.encode($0) }
+    }
+
+    var reasons: [AdaptationReason] {
+        get {
+            guard let reasonsData else { return [] }
+            return (try? JSONDecoder().decode([AdaptationReason].self, from: reasonsData)) ?? []
+        }
+        set { reasonsData = try? JSONEncoder.plan.encode(newValue) }
+    }
+
+    var previousPlan: TrainingPlan? {
+        previousPlanData.flatMap { try? JSONDecoder().decode(TrainingPlan.self, from: $0) }
+    }
+}
+
 extension JSONEncoder {
     /// Stable output: sorted keys keep stored plans byte-identical for identical content.
     nonisolated static var plan: JSONEncoder {
@@ -91,7 +151,8 @@ extension JSONEncoder {
 }
 
 enum Persistence {
-    static let models: [any PersistentModel.Type] = [PlanRecord.self, WorkoutLogRecord.self, ProfileRecord.self]
+    static let models: [any PersistentModel.Type] = [PlanRecord.self, WorkoutLogRecord.self, ProfileRecord.self,
+                                                     RaceRecord.self, PlanChangeRecord.self]
 
     /// Local-only store for now. iCloud sync is switched on in a later milestone by changing
     /// `cloudKitDatabase` once the iCloud container exists.

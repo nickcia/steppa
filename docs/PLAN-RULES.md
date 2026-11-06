@@ -119,7 +119,7 @@ you enter a new race result. Three rules always hold:
 | No run for 56+ days | 25% |
 | Less than 85% of planned distance over the last 14 days | That share, but never below 60% (partial training is never treated as worse than a full two-week break) |
 
-The completion check only starts after the plan's first week. A reduction is applied once. Reviewing
+Missed-training and pace checks only run when the app has a real record of your running. In the app, that means once you've started ticking runs off (later, once Apple Health is connected). A plan is never cut back just because nothing was logged. The completion check also waits until after the plan's first week. A reduction is applied once. Reviewing
 again on the same data doesn't lower volume again.
 
 ### Fitness

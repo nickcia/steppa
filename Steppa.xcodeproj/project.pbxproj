@@ -10,15 +10,31 @@
 		5E7A0000000000000000000A /* PlanEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 5E7A0000000000000000000B /* PlanEngine */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		5E7A00000000000000000046 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5E7A00000000000000000009 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5E7A00000000000000000006;
+			remoteInfo = Steppa;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		5E7A00000000000000000001 /* Steppa.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Steppa.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E7A0000000000000000000D /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
+		5E7A00000000000000000040 /* SteppaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SteppaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5E7A00000000000000000002 /* App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = App;
+			sourceTree = "<group>";
+		};
+		5E7A00000000000000000041 /* AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AppTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +48,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5E7A00000000000000000043 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -39,6 +62,7 @@
 			isa = PBXGroup;
 			children = (
 				5E7A00000000000000000002 /* App */,
+				5E7A00000000000000000041 /* AppTests */,
 				5E7A0000000000000000000E /* Config */,
 				5E7A00000000000000000005 /* Products */,
 			);
@@ -56,6 +80,7 @@
 			isa = PBXGroup;
 			children = (
 				5E7A00000000000000000001 /* Steppa.app */,
+				5E7A00000000000000000040 /* SteppaTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -86,6 +111,27 @@
 			productReference = 5E7A00000000000000000001 /* Steppa.app */;
 			productType = "com.apple.product-type.application";
 		};
+		5E7A00000000000000000045 /* SteppaTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5E7A00000000000000000048 /* Build configuration list for PBXNativeTarget "SteppaTests" */;
+			buildPhases = (
+				5E7A00000000000000000042 /* Sources */,
+				5E7A00000000000000000043 /* Frameworks */,
+				5E7A00000000000000000044 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5E7A00000000000000000047 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5E7A00000000000000000041 /* AppTests */,
+			);
+			name = SteppaTests;
+			productName = SteppaTests;
+			productReference = 5E7A00000000000000000040 /* SteppaTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -98,6 +144,10 @@
 				TargetAttributes = {
 					5E7A00000000000000000006 = {
 						CreatedOnToolsVersion = 26.1;
+					};
+					5E7A00000000000000000045 = {
+						CreatedOnToolsVersion = 26.1;
+						TestTargetID = 5E7A00000000000000000006;
 					};
 				};
 			};
@@ -119,12 +169,20 @@
 			projectRoot = "";
 			targets = (
 				5E7A00000000000000000006 /* Steppa */,
+				5E7A00000000000000000045 /* SteppaTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		5E7A00000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5E7A00000000000000000044 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -141,7 +199,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5E7A00000000000000000042 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5E7A00000000000000000047 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5E7A00000000000000000006 /* Steppa */;
+			targetProxy = 5E7A00000000000000000046 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		5E7A00000000000000000013 /* Debug */ = {
@@ -252,6 +325,42 @@
 			};
 			name = Release;
 		};
+		5E7A00000000000000000049 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5E7A0000000000000000000D /* App.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID_PREFIX).runcoach.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Steppa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Steppa";
+			};
+			name = Debug;
+		};
+		5E7A0000000000000000004A /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5E7A0000000000000000000D /* App.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID_PREFIX).runcoach.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Steppa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Steppa";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -269,6 +378,15 @@
 			buildConfigurations = (
 				5E7A00000000000000000013 /* Debug */,
 				5E7A00000000000000000014 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5E7A00000000000000000048 /* Build configuration list for PBXNativeTarget "SteppaTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5E7A00000000000000000049 /* Debug */,
+				5E7A0000000000000000004A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

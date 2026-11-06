@@ -71,11 +71,15 @@ public enum PlanAdapter {
 
     // MARK: Adapt
 
+    /// - Parameter assessTraining: Whether `log` is a complete record of the athlete's running. Pass
+    ///   false when it may not be (e.g. no runs synced or logged yet): missed-training and pace checks are
+    ///   then skipped, so a plan is never cut back just because nothing was recorded.
     public static func adapt(
         _ plan: TrainingPlan,
         log: TrainingLog,
         trigger: AdaptationTrigger,
-        today: LocalDate
+        today: LocalDate,
+        assessTraining: Bool = true
     ) throws(PlanError) -> PlanRevision {
         guard today < plan.inputs.raceDate else { throw .planFinished }
         var inputs = plan.inputs
@@ -106,7 +110,8 @@ public enum PlanAdapter {
             reasons.append(.newRaceResult(score: fitness.score))
         }
 
-        if case .newRaceResult = trigger {} else if let updated = fitnessFromTraining(plan, log: log, today: today) {
+        if case .newRaceResult = trigger {} else if assessTraining,
+                                                    let updated = fitnessFromTraining(plan, log: log, today: today) {
             reasons.append(updated.score > fitness.score
                 ? .fitnessImproved(from: fitness.score, to: updated.score)
                 : .fitnessDeclined(from: fitness.score, to: updated.score))
@@ -114,7 +119,7 @@ public enum PlanAdapter {
             fitnessUpdatedOn = today
         }
 
-        let volume = volumeCheck(plan, log: log, today: today)
+        let volume = assessTraining ? volumeCheck(plan, log: log, today: today) : (cap: nil, reason: nil)
         if let reason = volume.reason { reasons.append(reason) }
 
         guard !reasons.isEmpty else { return PlanRevision(plan: plan, reasons: []) }

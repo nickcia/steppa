@@ -2,33 +2,33 @@ import SwiftUI
 import PlanEngine
 
 struct PlanView: View {
+    enum Mode: String, CaseIterable, Identifiable {
+        case overview, calendar
+        var id: String { rawValue }
+        var name: String { self == .overview ? String(localized: "Overview") : String(localized: "Calendar") }
+    }
+
     @Environment(AppModel.self) private var model
+    @State private var mode: Mode = .overview
 
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    if let plan = model.plan {
-                        LazyVStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                            RaceHeader(plan: plan)
-                            Card {
-                                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                                    Text("Weekly distance").font(.headline).foregroundStyle(Theme.ink)
-                                    WeeklyVolumeChart(plan: plan, highlight: model.today)
-                                    PhaseLegend(phases: Phase.allCases.filter { p in plan.weeks.contains { $0.phase == p } })
-                                }
-                            }
-                            ForEach(plan.weeks, id: \.index) { week in
-                                WeekCard(week: week, isCurrent: week.startDate == model.today.startOfWeek)
-                                    .id(week.index)
+                    VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                        if let plan = model.plan {
+                            switch mode {
+                            case .overview: overview(plan)
+                            case .calendar: CalendarView()
                             }
                         }
-                        .padding(.horizontal, Theme.Spacing.m)
-                        .padding(.bottom, Theme.Spacing.xl)
                     }
+                    .padding(.horizontal, Theme.Spacing.m)
+                    .padding(.bottom, Theme.Spacing.xl)
                 }
-                .task {
+                .task(id: mode) {
                     // Wait a frame so the lazy stack has laid out before scrolling to this week.
+                    guard mode == .overview else { return }
                     try? await Task.sleep(for: .milliseconds(50))
                     if let current = model.week(containing: model.today), current.index > 0 {
                         proxy.scrollTo(current.index, anchor: .top)
@@ -37,7 +37,35 @@ struct PlanView: View {
             }
             .screenBackground()
             .navigationTitle("Plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // In the bar so it stays reachable after the list scrolls to this week.
+                ToolbarItem(placement: .principal) {
+                    Picker("View", selection: $mode) {
+                        ForEach(Mode.allCases) { Text($0.name).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 240)
+                }
+            }
             .navigationDestination(for: Workout.self) { WorkoutDetailView(workout: $0) }
+        }
+    }
+
+    private func overview(_ plan: TrainingPlan) -> some View {
+        LazyVStack(alignment: .leading, spacing: Theme.Spacing.m) {
+            RaceHeader(plan: plan)
+            Card {
+                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                    Text("Weekly distance").font(.headline).foregroundStyle(Theme.ink)
+                    WeeklyVolumeChart(plan: plan, highlight: model.today)
+                    PhaseLegend(phases: Phase.allCases.filter { p in plan.weeks.contains { $0.phase == p } })
+                }
+            }
+            ForEach(plan.weeks, id: \.index) { week in
+                WeekCard(week: week, isCurrent: week.startDate == model.today.startOfWeek)
+                    .id(week.index)
+            }
         }
     }
 }
@@ -128,6 +156,11 @@ struct WorkoutDetailView: View {
                     }
                 }
                 .padding(.top, Theme.Spacing.s)
+                if let moved = workout.movedFrom {
+                    Label(String(localized: "Moved from \(moved.formatted(.dateTime.weekday(.wide)))"), systemImage: "calendar.badge.clock")
+                        .font(.caption)
+                        .foregroundStyle(Theme.secondaryInk)
+                }
                 Card {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                         WorkoutMetrics(workout: workout)
@@ -141,6 +174,8 @@ struct WorkoutDetailView: View {
                     }
                 }
                 WorkoutStatusButtons(workout: workout)
+                MoveWorkoutButton(workout: workout)
+                    .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, Theme.Spacing.m)
             .padding(.bottom, Theme.Spacing.xl)
