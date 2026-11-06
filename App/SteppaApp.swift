@@ -12,7 +12,9 @@ struct SteppaApp: App {
         self.container = container
         let model = AppModel(container: container,
                              runSource: DemoData.isRequested ? nil : HealthKitRunSource(),
-                             reminders: ReminderService(), watch: WatchService())
+                             reminders: ReminderService(), watch: WatchService(),
+                             intervals: DemoData.isRequested ? nil : IntervalsClient(),
+                             intervalsOAuth: .configured)
         DemoData.seedIfRequested(model)
         _model = State(initialValue: model)
     }

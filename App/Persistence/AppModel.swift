@@ -17,6 +17,10 @@ final class AppModel {
     private let runSource: RunSource?
     private let reminders: ReminderService?
     private let watch: WatchService?
+    private let intervals: IntervalsClient?
+    private let intervalsKeychain: IntervalsKeychain
+    /// "Sign in with Intervals.icu"; nil in builds without a client ID, which connect with an API key instead.
+    let intervalsOAuth: IntervalsOAuth?
 
     private(set) var plan: TrainingPlan?
     private(set) var planID: UUID?
@@ -34,16 +38,30 @@ final class AppModel {
     private(set) var watchAutoSync = false
     /// Workouts currently scheduled on the watch (by WorkoutKit plan ID).
     private(set) var watchScheduledIDs: Set<UUID> = []
+    /// The Intervals.icu connection (from the Keychain); nil when not connected.
+    private(set) var intervalsAccount: IntervalsCredentials?
+    /// The athlete's Intervals.icu settings: which watch services are linked and receiving workouts.
+    private(set) var intervalsAthlete: IntervalsAthlete?
+    private(set) var intervalsLastSync: Date?
+    private(set) var intervalsSyncing = false
+    /// What was last sent, so coming back to the app doesn't re-sync an unchanged plan every time.
+    private var intervalsSyncedIDs: Set<String>?
     /// Set when saving fails or an edit is refused, so the UI can tell the user.
     var lastError: String?
 
     init(container: ModelContainer, clock: @escaping () -> LocalDate = { .today },
-         runSource: RunSource? = nil, reminders: ReminderService? = nil, watch: WatchService? = nil) {
+         runSource: RunSource? = nil, reminders: ReminderService? = nil, watch: WatchService? = nil,
+         intervals: IntervalsClient? = nil, intervalsOAuth: IntervalsOAuth? = nil,
+         intervalsKeychain: IntervalsKeychain = IntervalsKeychain()) {
         self.container = container
         self.clock = clock
         self.runSource = runSource
         self.reminders = reminders
         self.watch = watch
+        self.intervals = intervals
+        self.intervalsKeychain = intervalsKeychain
+        self.intervalsOAuth = intervalsOAuth
+        self.intervalsAccount = intervals == nil ? nil : intervalsKeychain.load()
         reload()
         if Persistence.syncsWithICloud {
             // Another device changed something: re-read so the UI shows it.
@@ -421,11 +439,110 @@ final class AppModel {
         }
     }
 
-    /// Keeps reminders and the watch in step after the plan changes.
+    // MARK: Intervals.icu (Garmin, Coros and others)
+
+    var intervalsAvailable: Bool { intervals != nil }
+
+    /// Swaps the sign-in redirect for an access token, then connects.
+    func finishIntervalsSignIn(callback: URL, attempt: IntervalsOAuth.Attempt) async throws {
+        guard let intervals, let intervalsOAuth else { return }
+        let code = try IntervalsOAuth.code(from: callback, attempt: attempt)
+        try await connect(try await intervals.signIn(code: code, attempt: attempt, oauth: intervalsOAuth))
+    }
+
+    /// Connects with a personal API key (builds without an OAuth client ID). Throws if the key is wrong.
+    func connectIntervals(apiKey: String) async throws {
+        guard let intervals else { return }
+        try await connect(try await intervals.signIn(apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines)))
+    }
+
+    private func connect(_ credentials: IntervalsCredentials) async throws {
+        try intervalsKeychain.save(credentials)
+        intervalsAccount = credentials
+        intervalsSyncedIDs = nil
+        intervalsAthlete = nil
+        // Linked watches start receiving workouts straight away, so there's nothing to switch on by hand.
+        await refreshIntervalsLinks(enableAll: true)
+        await syncIntervals(force: true)
+    }
+
+    /// Re-reads which watch services are linked, and switches on workout upload for any service linked since
+    /// the last look (or for all of them with `enableAll`, when connecting). So linking Garmin on Intervals.icu
+    /// and coming back is all it takes, while a service the athlete later turns off by hand stays off.
+    func refreshIntervalsLinks(enableAll: Bool = false) async {
+        guard let intervals, let account = intervalsAccount else { return }
+        do {
+            var athlete = try await intervals.athlete(account)
+            let previous = intervalsAthlete.map { Set($0.links.map(\.service)) }
+            let toEnable = athlete.links.filter { link in
+                !link.uploading && (enableAll || previous.map { !$0.contains(link.service) } ?? false)
+            }
+            if !toEnable.isEmpty {
+                try await intervals.enableUpload(for: toEnable, credentials: account)
+                athlete = try await intervals.athlete(account)
+            }
+            intervalsAthlete = athlete
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Switches on workout upload for one linked service (the "Turn on" button in Settings).
+    func enableIntervalsUpload(_ link: IntervalsAthlete.Link) async {
+        guard let intervals, let account = intervalsAccount else { return }
+        do {
+            try await intervals.enableUpload(for: [link], credentials: account)
+            intervalsAthlete = try await intervals.athlete(account)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Where the athlete links Garmin (and other watches) to Intervals.icu.
+    static let intervalsConnectionsURL = URL(string: "https://intervals.icu/settings")!
+
+    /// Removes this app's upcoming workouts from Intervals.icu (best effort), then forgets the key.
+    func disconnectIntervals() async {
+        if let intervals, let account = intervalsAccount {
+            _ = try? await intervals.sync([], from: today, through: intervalsSyncEnd, credentials: account)
+        }
+        intervalsKeychain.delete()
+        intervalsAccount = nil
+        intervalsAthlete = nil
+        intervalsLastSync = nil
+        intervalsSyncedIDs = nil
+    }
+
+    /// Makes the Intervals.icu calendar match the plan from today on. Skipped when nothing changed since the
+    /// last sync, unless `force` (the "Sync now" button).
+    func syncIntervals(force: Bool = false) async {
+        guard let intervals, let account = intervalsAccount, !intervalsSyncing else { return }
+        let events = (plan?.workouts ?? []).filter { $0.date >= today }
+            .map { IntervalsWorkoutBuilder.event(for: $0, format: format) }
+        let ids = Set(events.map(\.external_id))
+        if !force, ids == intervalsSyncedIDs { return }
+        intervalsSyncing = true
+        defer { intervalsSyncing = false }
+        do {
+            _ = try await intervals.sync(events, from: today, through: intervalsSyncEnd, credentials: account)
+            intervalsSyncedIDs = ids
+            intervalsLastSync = .now
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Far enough ahead to cover the whole plan, and to clear workouts left over from a longer earlier plan.
+    private var intervalsSyncEnd: LocalDate {
+        max(plan?.workouts.last?.date ?? today, today.adding(days: 400))
+    }
+
+    /// Keeps reminders, the watch and Intervals.icu in step after the plan changes.
     private func planDidChange() {
         Task {
             await syncReminders()
             await syncWatch()
+            await syncIntervals()
         }
     }
 
@@ -437,6 +554,10 @@ final class AppModel {
         await syncReminders()
         await syncWatch()
         await refreshWatchState()
+        if intervalsAccount != nil {
+            await refreshIntervalsLinks()
+            await syncIntervals()
+        }
     }
 
     // MARK: Preferences
@@ -444,6 +565,8 @@ final class AppModel {
     func setUnits(_ newUnits: UnitSystem) {
         profile().units = newUnits
         save()
+        // Paces on Intervals.icu are written per km or per mile.
+        Task { await syncIntervals() }
     }
 
     func acceptDisclaimer() {

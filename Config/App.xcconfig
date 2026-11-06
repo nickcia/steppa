@@ -24,7 +24,13 @@ CODE_SIGN_ENTITLEMENTS = $(ENTITLEMENTS_ICLOUD_$(ENABLE_ICLOUD))
 CONDITION_ICLOUD_YES = ICLOUD
 SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(CONDITION_ICLOUD_$(ENABLE_ICLOUD))
 INFOPLIST_ICLOUD_YES = Config/Info-iCloud.plist
+INFOPLIST_ICLOUD_NO = Config/Info.plist
 INFOPLIST_FILE = $(INFOPLIST_ICLOUD_$(ENABLE_ICLOUD))
+
+// "Sign in with Intervals.icu" (sends workouts on to Garmin, COROS, Suunto and Wahoo). Register an OAuth app at
+// intervals.icu/oauth/apply, mark it as a public client, and add the redirect URI
+// <your bundle ID in lower case>://intervals-oauth. Leave blank to connect with a personal API key instead.
+INTERVALS_CLIENT_ID =
 
 // Shown when asking for Apple Health access. Read-only: the app never writes to Health.
 INFOPLIST_KEY_NSHealthShareUsageDescription = Your runs are read from Apple Health (including runs from Apple Watch, Garmin, Coros and other apps that sync to Health) to tick off planned workouts and adapt your plan. Nothing leaves your device.

@@ -1,3 +1,4 @@
+import AuthenticationServices
 import CoreTransferable
 import SwiftUI
 import UniformTypeIdentifiers
@@ -67,6 +68,10 @@ struct SettingsView: View {
                     Text("Apple Watch")
                 } footer: {
                     Text("Workouts appear in the Workout app on your watch with each step and pace alerts, ready to start.")
+                }
+
+                if model.intervalsAvailable {
+                    IntervalsSection()
                 }
 
                 Section {
@@ -152,6 +157,189 @@ nonisolated struct ExportFile: Transferable {
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .json) { file in try file.bundle.encoded() }
             .suggestedFileName("training-export.json")
+    }
+}
+
+/// Garmin, COROS and other watches, through the athlete's own (free) Intervals.icu account.
+private struct IntervalsSection: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+    @Environment(\.openURL) private var openURL
+    @State private var enteringKey = false
+    @State private var signingIn = false
+    @State private var confirmDisconnect = false
+    @State private var signInError: String?
+
+    var body: some View {
+        Section {
+            if let account = model.intervalsAccount {
+                LabeledContent("Intervals.icu", value: account.athleteName)
+                watchRows
+                Button {
+                    Task { await model.syncIntervals(force: true) }
+                } label: {
+                    HStack {
+                        Text("Sync now")
+                        Spacer()
+                        if model.intervalsSyncing {
+                            ProgressView()
+                        } else if let last = model.intervalsLastSync {
+                            Text(last, format: .relative(presentation: .named))
+                                .foregroundStyle(Theme.secondaryInk)
+                        }
+                    }
+                }
+                .disabled(model.intervalsSyncing)
+                Button("Disconnect", role: .destructive) { confirmDisconnect = true }
+            } else {
+                Button {
+                    if model.intervalsOAuth != nil { signIn() } else { enteringKey = true }
+                } label: {
+                    HStack {
+                        Label("Connect Garmin, COROS and others", systemImage: "applewatch.radiowaves.left.and.right")
+                        if signingIn { Spacer(); ProgressView() }
+                    }
+                }
+                .disabled(signingIn)
+            }
+        } header: {
+            Text("Other watches")
+        } footer: {
+            if model.intervalsAccount == nil {
+                Text("Workouts are sent through Intervals.icu, a free training site that passes them on to Garmin Connect, COROS, Suunto and Wahoo. You'll sign in to Intervals.icu (or create a free account), then link your watch there once.")
+            } else {
+                Text("Your upcoming workouts are on your Intervals.icu calendar and are kept in step with your plan. Linked watches get them a few days ahead.")
+            }
+        }
+        .sheet(isPresented: $enteringKey) { IntervalsAPIKeyView() }
+        .confirmationDialog("Disconnect Intervals.icu?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
+            Button("Disconnect", role: .destructive) { Task { await model.disconnectIntervals() } }
+        } message: {
+            Text("Upcoming workouts from this app are removed from your Intervals.icu calendar, and this iPhone forgets the connection.")
+        }
+        .alert("Couldn't connect", isPresented: Binding(get: { signInError != nil }, set: { if !$0 { signInError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(signInError ?? "")
+        }
+    }
+
+    /// One row per linked watch service, or a prompt to link one.
+    @ViewBuilder private var watchRows: some View {
+        if let athlete = model.intervalsAthlete {
+            ForEach(athlete.links) { link in
+                if link.uploading {
+                    LabeledContent(link.name) {
+                        Label("Receiving workouts", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                } else {
+                    LabeledContent(link.name) {
+                        Button("Turn on") { Task { await model.enableIntervalsUpload(link) } }
+                    }
+                }
+            }
+            if !athlete.links.contains(where: { $0.service == .garmin }) {
+                Button {
+                    openURL(AppModel.intervalsConnectionsURL)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(athlete.links.isEmpty ? "Link your watch" : "Link Garmin", systemImage: "link")
+                        Text("Opens Intervals.icu settings. Tap Connect next to your watch brand, sign in, then come back here.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.secondaryInk)
+                    }
+                }
+            }
+        }
+    }
+
+    private func signIn() {
+        guard let oauth = model.intervalsOAuth else { return }
+        let attempt = oauth.start()
+        signingIn = true
+        Task {
+            defer { signingIn = false }
+            do {
+                let callback = try await webAuthenticationSession.authenticate(
+                    using: attempt.url, callbackURLScheme: oauth.callbackScheme, preferredBrowserSession: .shared)
+                try await model.finishIntervalsSignIn(callback: callback, attempt: attempt)
+            } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
+                // The athlete closed the sign-in sheet.
+            } catch {
+                signInError = error.localizedDescription
+            }
+        }
+    }
+}
+
+/// Connect with a personal Intervals.icu API key: for builds without an OAuth client ID.
+private struct IntervalsAPIKeyView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var apiKey = ""
+    @State private var working = false
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("In Intervals.icu, open Settings, scroll to Developer Settings, tap Generate API key and copy it.")
+                    Link(destination: AppModel.intervalsConnectionsURL) {
+                        Label("Open Intervals.icu settings", systemImage: "safari")
+                    }
+                }
+
+                Section {
+                    SecureField("API key", text: $apiKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("API key")
+                } footer: {
+                    Text("Your key is stored in this iPhone's Keychain and only ever sent to Intervals.icu.")
+                }
+
+                if let error {
+                    Section {
+                        Text(error).foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("Intervals.icu")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if working {
+                        ProgressView()
+                    } else {
+                        Button("Connect") { connect() }
+                            .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            }
+            .interactiveDismissDisabled(working)
+        }
+    }
+
+    private func connect() {
+        working = true
+        error = nil
+        Task {
+            do {
+                try await model.connectIntervals(apiKey: apiKey)
+                dismiss()
+            } catch IntervalsError.unauthorized {
+                self.error = String(localized: "Intervals.icu didn't accept that key. Check you copied all of it.")
+            } catch {
+                self.error = error.localizedDescription
+            }
+            working = false
+        }
     }
 }
 

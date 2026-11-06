@@ -1,0 +1,57 @@
+# Privacy policy
+
+_Last updated: 6 November 2026_
+
+Steppa is a free, open-source running coach for iPhone. It's built so that your data stays yours.
+
+## The short version
+
+- There are no Steppa accounts, servers, ads, analytics or tracking.
+- Your training plan and progress are stored on your iPhone (and in your own private iCloud, if sync is on).
+- Nothing is sent to the developer, ever.
+- If you choose to connect Intervals.icu, your upcoming workouts are sent to your own Intervals.icu account so
+  they can reach your Garmin, COROS, Suunto or Wahoo watch.
+
+## What the app stores
+
+Your training plan, which workouts you've done or skipped, races, and preferences. This is kept on your
+iPhone. If iCloud sync is on, it is also kept in your private iCloud database, which only you can read. You can
+export all of it as a file and delete it at any time by deleting the app.
+
+## Apple Health
+
+With your permission, the app reads running workouts and distance from Apple Health to tick off workouts and
+adapt your plan. It never writes to Health, and Health data never leaves your iPhone. You can change access in
+the Health app under Sharing › Apps.
+
+## Apple Watch and reminders
+
+Workouts you send to Apple Watch and workout reminders are handled by iOS on your devices.
+
+## Intervals.icu (optional)
+
+If you connect Intervals.icu, the app talks directly from your iPhone to Intervals.icu. It:
+
+- **Sends** your upcoming planned workouts (date, name, steps and pace targets) to your Intervals.icu
+  calendar, and updates or removes them when your plan changes.
+- **Reads** your athlete name and which watch services (Garmin, COROS, Suunto, Wahoo) are linked to your
+  Intervals.icu account, and **turns on** workout upload for linked services so workouts reach your watch.
+
+It does not read your activities, health or wellness data from Intervals.icu. Your sign-in is stored in your
+iPhone's Keychain, on this device only. Disconnecting in the app removes its upcoming workouts from your
+calendar and deletes the sign-in from your iPhone; you can also revoke access in Intervals.icu under
+Settings › Apps. What Intervals.icu does with your data is covered by Intervals.icu's own privacy policy.
+
+## Crash reports
+
+The app has no crash reporting of its own. If you've opted in to sharing analytics with developers in iOS
+Settings, Apple may share anonymous crash reports with the developer.
+
+## Children
+
+The app is not directed at children under 13.
+
+## Changes and contact
+
+Changes to this policy are published here, with the date at the top. Questions: open an issue on the
+project's GitHub page.

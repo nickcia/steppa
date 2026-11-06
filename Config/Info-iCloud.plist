@@ -2,8 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Merged into the generated Info.plist when ENABLE_ICLOUD = YES: lets CloudKit's silent pushes
+	<!-- Used instead of Info.plist when ENABLE_ICLOUD = YES (keep the two in step). UIBackgroundModes lets CloudKit's silent pushes
 	     wake the app so changes from other devices sync in the background. -->
+	<key>IntervalsClientID</key>
+	<string>$(INTERVALS_CLIENT_ID)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
