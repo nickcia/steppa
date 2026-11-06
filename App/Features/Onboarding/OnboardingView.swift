@@ -1,0 +1,505 @@
+import SwiftUI
+import PlanEngine
+
+struct OnboardingView: View {
+    @Environment(AppModel.self) private var model
+    @State private var draft = OnboardingDraft()
+    @State private var preview: Result<TrainingPlan, PlanError>?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if draft.step != .welcome { topBar }
+            ScrollView {
+                content
+                    .padding(.horizontal, Theme.Spacing.l)
+                    .padding(.top, Theme.Spacing.m)
+                    .padding(.bottom, Theme.Spacing.xl)
+                    .id(draft.step)
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                            removal: .opacity))
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            bottomBar
+        }
+        .screenBackground()
+        .environment(\.unitSystem, draft.units)
+    }
+
+    // MARK: Chrome
+
+    private var topBar: some View {
+        HStack(spacing: Theme.Spacing.m) {
+            Button {
+                go(to: OnboardingDraft.Step(rawValue: draft.step.rawValue - 1) ?? .welcome)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.card, in: Circle())
+            }
+            .accessibilityLabel("Back")
+            ProgressView(value: Double(draft.step.rawValue), total: Double(OnboardingDraft.Step.allCases.count - 1))
+                .tint(Theme.accent)
+        }
+        .padding(.horizontal, Theme.Spacing.l)
+        .padding(.top, Theme.Spacing.s)
+    }
+
+    private var bottomBar: some View {
+        VStack(spacing: Theme.Spacing.s) {
+            switch draft.step {
+            case .review:
+                Button("Start my plan") { startPlan() }
+                    .buttonStyle(.primary)
+                    .disabled(planOrNil == nil)
+            case .welcome:
+                Button("Get started") { go(to: .goal) }
+                    .buttonStyle(.primary)
+                    .disabled(!draft.canContinue)
+            default:
+                Button("Continue") { go(to: OnboardingDraft.Step(rawValue: draft.step.rawValue + 1)!) }
+                    .buttonStyle(.primary)
+                    .disabled(!draft.canContinue)
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.l)
+        .padding(.vertical, Theme.Spacing.m)
+        .background(Theme.background)
+    }
+
+    private func go(to step: OnboardingDraft.Step) {
+        if step == .review {
+            do { preview = .success(try PlanBuilder.build(draft.inputs)) } catch { preview = .failure(error) }
+        }
+        withAnimation(.snappy) { draft.step = step }
+    }
+
+    private var planOrNil: TrainingPlan? {
+        if case .success(let plan) = preview { return plan }
+        return nil
+    }
+
+    private func startPlan() {
+        guard let plan = planOrNil else { return }
+        model.setUnits(draft.units)
+        model.acceptDisclaimer()
+        model.start(plan)
+    }
+
+    // MARK: Steps
+
+    @ViewBuilder private var content: some View {
+        switch draft.step {
+        case .welcome: WelcomeStep(draft: draft)
+        case .goal: GoalStep(draft: draft)
+        case .date: DateStep(draft: draft)
+        case .experience: ExperienceStep(draft: draft)
+        case .fitness: FitnessStep(draft: draft)
+        case .volume: VolumeStep(draft: draft)
+        case .availability: AvailabilityStep(draft: draft)
+        case .review: ReviewStep(draft: draft, preview: preview)
+        }
+    }
+}
+
+// MARK: - Shared step pieces
+
+private struct StepHeader: View {
+    let title: String
+    var subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            Text(title)
+                .font(.largeTitle.weight(.bold))
+                .fontDesign(.rounded)
+                .foregroundStyle(Theme.ink)
+            if let subtitle {
+                Text(subtitle).font(.body).foregroundStyle(Theme.secondaryInk)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, Theme.Spacing.m)
+    }
+}
+
+/// Large tappable option card with a selection ring.
+private struct ChoiceCard<Content: View>: View {
+    let selected: Bool
+    let action: () -> Void
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                content
+                Spacer(minLength: Theme.Spacing.s)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(selected ? Theme.accent : Theme.subtle)
+            }
+            .padding(Theme.Spacing.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .strokeBorder(selected ? Theme.accent : .clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Hours / minutes / seconds wheels.
+struct DurationWheels: View {
+    @Binding var seconds: Double
+    var showHours = true
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if showHours {
+                wheel(0...9, unit: "h", component(get: { $0 / 3600 }, set: { total, h in h * 3600 + total % 3600 }))
+            }
+            wheel(0...59, unit: "min", component(get: { ($0 % 3600) / 60 },
+                                                 set: { total, m in (total / 3600) * 3600 + m * 60 + total % 60 }))
+            wheel(0...59, unit: "s", component(get: { $0 % 60 }, set: { total, s in total - total % 60 + s }))
+        }
+        .frame(height: 150)
+    }
+
+    /// A binding to one component (h, min or s) of the total.
+    private func component(get: @escaping @Sendable (Int) -> Int,
+                           set: @escaping @Sendable (Int, Int) -> Int) -> Binding<Int> {
+        let total = $seconds
+        return Binding(get: { get(Int(total.wrappedValue)) },
+                       set: { total.wrappedValue = Double(set(Int(total.wrappedValue), $0)) })
+    }
+
+    private func wheel(_ range: ClosedRange<Int>, unit: String, _ value: Binding<Int>) -> some View {
+        Picker(unit, selection: value) {
+            ForEach(range, id: \.self) { Text("\($0) \(unit)").tag($0) }
+        }
+        .pickerStyle(.wheel)
+        .frame(maxWidth: .infinity)
+        .clipped()
+    }
+}
+
+// MARK: - Steps
+
+private struct WelcomeStep: View {
+    @Bindable var draft: OnboardingDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            Image(systemName: "figure.run.circle.fill")
+                .font(.system(size: 72))
+                .foregroundStyle(Theme.accent)
+                .padding(.top, Theme.Spacing.xl)
+            StepHeader(title: String(localized: "Train smarter for your next race"),
+                       subtitle: String(localized: "A personal plan that adapts as you go. Free, private, and yours."))
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                Feature(symbol: "calendar", title: String(localized: "A plan built around your week"),
+                        detail: String(localized: "Runs fit the days you're free, with a sensible mix of easy days and sessions."))
+                Feature(symbol: "applewatch", title: String(localized: "Works with your watch"),
+                        detail: String(localized: "Runs from Apple Watch, Garmin, Coros and others arrive through Apple Health. No extra accounts. (We don't connect to Strava directly, but most watches that sync to Strava can also sync to Apple Health.)"))
+                Feature(symbol: "lock.shield", title: String(localized: "Private by design"),
+                        detail: String(localized: "No sign-up and no servers. Your data stays on your phone and your own iCloud."))
+            }
+            Card {
+                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                    DisclaimerText()
+                    Toggle("I understand this isn't medical advice", isOn: $draft.acceptedDisclaimer)
+                        .font(.subheadline.weight(.semibold))
+                        .tint(Theme.accent)
+                }
+            }
+        }
+    }
+
+    private struct Feature: View {
+        let symbol: String
+        let title: String
+        let detail: String
+
+        var body: some View {
+            HStack(alignment: .top, spacing: Theme.Spacing.m) {
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline).foregroundStyle(Theme.ink)
+                    Text(detail).font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                }
+            }
+        }
+    }
+}
+
+private struct GoalStep: View {
+    @Bindable var draft: OnboardingDraft
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.m) {
+            StepHeader(title: String(localized: "What are you training for?"))
+            ForEach(RaceDistance.allCases, id: \.self) { distance in
+                ChoiceCard(selected: draft.goal == distance, action: {
+                    draft.goal = distance
+                    draft.goalTimeSeconds = OnboardingDraft.typicalTime(distance)
+                }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(distance.name).font(.title3.weight(.bold)).fontDesign(.rounded).foregroundStyle(Theme.ink)
+                        Text(String(localized: "Ideally \(PlanRules.recommendedWeeks(distance)) weeks or more"))
+                            .font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct DateStep: View {
+    @Bindable var draft: OnboardingDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+            StepHeader(title: String(localized: "When is your race?"),
+                       subtitle: String(localized: "\(draft.weeksToRace) weeks from today."))
+            Card {
+                DatePicker("Race date", selection: $draft.raceDate,
+                           in: Calendar.current.date(byAdding: .day, value: 7, to: .now)!...Calendar.current.date(byAdding: .year, value: 1, to: .now)!,
+                           displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .tint(Theme.accent)
+            }
+            Card {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    Toggle("I have a goal time", isOn: $draft.hasGoalTime.animation())
+                        .font(.headline)
+                        .tint(Theme.accent)
+                    if draft.hasGoalTime {
+                        DurationWheels(seconds: $draft.goalTimeSeconds, showHours: draft.goal != .fiveK)
+                        Text("Your paces always start from your current fitness, so an ambitious goal won't make sessions unsafe.")
+                            .font(.footnote).foregroundStyle(Theme.secondaryInk)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ExperienceStep: View {
+    @Bindable var draft: OnboardingDraft
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.m) {
+            StepHeader(title: String(localized: "How would you describe your running?"))
+            ForEach(Experience.allCases, id: \.self) { level in
+                ChoiceCard(selected: draft.experience == level, action: { draft.experience = level }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(level.name).font(.headline).foregroundStyle(Theme.ink)
+                        Text(level.detail).font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct FitnessStep: View {
+    @Bindable var draft: OnboardingDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+            StepHeader(title: String(localized: "Your current fitness"),
+                       subtitle: String(localized: "A recent race or hard time trial sets your training paces."))
+            Picker("Recent result", selection: $draft.hasRecentRace.animation()) {
+                Text("I have a recent result").tag(true)
+                Text("I don't").tag(false)
+            }
+            .pickerStyle(.segmented)
+
+            if draft.hasRecentRace {
+                Card {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                        Picker("Distance", selection: $draft.recentDistance) {
+                            ForEach(RaceDistance.allCases, id: \.self) { Text($0.name).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: draft.recentDistance) { _, new in
+                            draft.recentTimeSeconds = OnboardingDraft.typicalTime(new)
+                        }
+                        Text("Finish time").font(.headline).foregroundStyle(Theme.ink)
+                        DurationWheels(seconds: $draft.recentTimeSeconds,
+                                       showHours: draft.recentDistance != .fiveK)
+                        Picker("When", selection: $draft.recentAge) {
+                            ForEach(OnboardingDraft.ResultAge.allCases) { Text($0.name).tag($0) }
+                        }
+                        .tint(Theme.accent)
+                    }
+                }
+            } else {
+                Card {
+                    Label("No problem. We'll estimate your paces conservatively from your experience and weekly distance, then adjust as you run.",
+                          systemImage: "sparkles")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.secondaryInk)
+                }
+            }
+        }
+    }
+}
+
+private struct VolumeStep: View {
+    @Bindable var draft: OnboardingDraft
+
+    var body: some View {
+        let maxValue: Double = draft.units == .metric ? 120 : 75
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            StepHeader(title: String(localized: "How much do you run now?"),
+                       subtitle: String(localized: "Your typical weekly distance over the last month. Be honest: the plan builds from here."))
+            Picker("Units", selection: $draft.units) {
+                ForEach(UnitSystem.allCases) { Text($0.name).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: draft.units) { old, new in
+                draft.weeklyDistance = (draft.weeklyDistance * old.metersPerUnit / new.metersPerUnit).rounded()
+            }
+            Card {
+                VStack(spacing: Theme.Spacing.m) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("\(Int(draft.weeklyDistance))")
+                            .font(.system(size: 64, weight: .heavy, design: .rounded))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                        Text("\(draft.units.distanceUnit) / week")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Theme.secondaryInk)
+                    }
+                    .foregroundStyle(Theme.ink)
+                    Slider(value: $draft.weeklyDistance, in: 0...maxValue, step: 1)
+                        .tint(Theme.accent)
+                        .accessibilityValue(Text("\(Int(draft.weeklyDistance)) \(draft.units.distanceUnit) per week"))
+                }
+            }
+        }
+    }
+}
+
+private struct AvailabilityStep: View {
+    @Bindable var draft: OnboardingDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            StepHeader(title: String(localized: "Which days can you run?"),
+                       subtitle: String(localized: "Pick at least 2. Four or more lets the plan include more variety."))
+            WeekdayChips(selection: $draft.runDays)
+                .onChange(of: draft.runDays) { _, days in
+                    if !days.contains(draft.longRunDay), let fallback = days.sorted().last { draft.longRunDay = fallback }
+                }
+            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                Text("Long run day").font(.headline).foregroundStyle(Theme.ink)
+                Text("Usually the day you have the most time.").font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                Picker("Long run day", selection: $draft.longRunDay) {
+                    ForEach(draft.runDays.sorted(), id: \.self) { Text($0.fullName).tag($0) }
+                }
+                .pickerStyle(.segmented)
+            }
+        }
+    }
+}
+
+struct WeekdayChips: View {
+    @Binding var selection: Set<Weekday>
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Weekday.allCases, id: \.self) { day in
+                let on = selection.contains(day)
+                Button {
+                    if on { selection.remove(day) } else { selection.insert(day) }
+                } label: {
+                    Text(day.shortName)
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .foregroundStyle(on ? .white : Theme.ink)
+                        .background(on ? Theme.accent : Theme.card,
+                                    in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(day.fullName)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+    }
+}
+
+extension Weekday {
+    private var symbolIndex: Int { rawValue % 7 } // Calendar symbols start on Sunday.
+    var shortName: String { Calendar.current.veryShortStandaloneWeekdaySymbols[symbolIndex] }
+    var mediumName: String { Calendar.current.shortStandaloneWeekdaySymbols[symbolIndex] }
+    var fullName: String { Calendar.current.standaloneWeekdaySymbols[symbolIndex] }
+}
+
+private struct ReviewStep: View {
+    let draft: OnboardingDraft
+    let preview: Result<TrainingPlan, PlanError>?
+    @Environment(\.unitSystem) private var units
+
+    var body: some View {
+        let format = DisplayFormat(units: units)
+        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+            switch preview {
+            case .success(let plan):
+                StepHeader(title: String(localized: "Your plan is ready"),
+                           subtitle: String(localized: "\(draft.goal.name) on \(plan.inputs.raceDate.dayMonth)"))
+                Card {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                        HStack {
+                            Metric(value: "\(plan.weeks.count)", label: String(localized: "weeks"))
+                            Spacer()
+                            Metric(value: format.distance(plan.weeks.map(\.targetMeters).max() ?? 0),
+                                   label: String(localized: "peak week"))
+                            Spacer()
+                            Metric(value: DisplayFormat.clock(plan.predictedRaceSeconds),
+                                   label: String(localized: "predicted today"))
+                        }
+                        WeeklyVolumeChart(plan: plan)
+                        PhaseLegend(phases: Phase.allCases.filter { p in plan.weeks.contains { $0.phase == p } })
+                    }
+                }
+                if !plan.warnings.isEmpty {
+                    Card {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                            ForEach(plan.warnings, id: \.self) { warning in
+                                Label(warning.message(format), systemImage: "info.circle")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Theme.ink)
+                            }
+                        }
+                    }
+                }
+                Text("Your predicted time improves as you train. The plan adapts if you miss runs or your fitness changes.")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryInk)
+            case .failure(let error):
+                StepHeader(title: String(localized: "Let's adjust something"), subtitle: error.message)
+            case nil:
+                ProgressView()
+            }
+        }
+    }
+}
+
+extension PlanError {
+    var message: String {
+        switch self {
+        case .raceNotAfterStart: String(localized: "The race date needs to be in the future.")
+        case .tooFewRunDays: String(localized: "Choose at least two days to run.")
+        case .longRunDayNotARunDay: String(localized: "Your long run day must be one of your run days.")
+        case .invalidPerformance: String(localized: "That race time doesn't look right. Check the distance and time.")
+        case .invalidWeeklyVolume: String(localized: "That weekly distance doesn't look right.")
+        case .planFinished: String(localized: "This plan has finished.")
+        }
+    }
+}
