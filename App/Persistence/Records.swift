@@ -160,10 +160,19 @@ enum Persistence {
     static let models: [any PersistentModel.Type] = [PlanRecord.self, WorkoutLogRecord.self, ProfileRecord.self,
                                                      RaceRecord.self, PlanChangeRecord.self]
 
-    /// Local-only store for now. iCloud sync is switched on in a later milestone by changing
-    /// `cloudKitDatabase` once the iCloud container exists.
+    /// Syncs through the user's private CloudKit database when built with `ENABLE_ICLOUD = YES`
+    /// (see Config/App.xcconfig); otherwise the store is local to the device.
+    static var syncsWithICloud: Bool {
+        #if ICLOUD
+        true
+        #else
+        false
+        #endif
+    }
+
     static func makeContainer(inMemory: Bool = false) -> ModelContainer {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory, cloudKitDatabase: .none)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory,
+                                               cloudKitDatabase: syncsWithICloud && !inMemory ? .automatic : .none)
         do {
             return try ModelContainer(for: Schema(models), configurations: configuration)
         } catch {

@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 import Observation
 import SwiftData
@@ -44,7 +45,17 @@ final class AppModel {
         self.reminders = reminders
         self.watch = watch
         reload()
+        if Persistence.syncsWithICloud {
+            // Another device changed something: re-read so the UI shows it.
+            remoteChanges = Task { [weak self] in
+                for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
+                    self?.reload()
+                }
+            }
+        }
     }
+
+    private var remoteChanges: Task<Void, Never>?
 
     var today: LocalDate { clock() }
     var format: DisplayFormat { DisplayFormat(units: units) }

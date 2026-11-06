@@ -4,3 +4,6 @@
 DerivedData/
 xcuserdata/
 *.xcuserstate
+
+# Personal Xcode settings (team ID)
+Config/Local.xcconfig

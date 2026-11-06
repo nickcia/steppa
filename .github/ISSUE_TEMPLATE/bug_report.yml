@@ -1,0 +1,48 @@
+name: Bug report
+description: Something isn't working as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. This app is maintained in spare time, so replies may be slow.
+        Please don't include personal health data you'd rather keep private.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to…
+        2. Tap…
+        3. See…
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Settings › About › Version
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: iPhone model and iOS version
+      placeholder: iPhone 16, iOS 26.1
+    validations:
+      required: true
+  - type: input
+    id: watch
+    attributes:
+      label: Watch (if relevant)
+      placeholder: Apple Watch Series 10, watchOS 26 / Garmin Forerunner 265 via Apple Health
+  - type: textarea
+    id: plan
+    attributes:
+      label: Plan details (optional)
+      description: Race distance, weeks to go, run days, experience level. If a plan looks wrong, these help a lot.

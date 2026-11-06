@@ -1,0 +1,7 @@
+// Copy to Config/Local.xcconfig (ignored by git) and fill in your own values.
+// Find your team ID by picking your team under Signing & Capabilities in Xcode,
+// or at developer.apple.com/account › Membership details.
+DEVELOPMENT_TEAM = YOURTEAMID
+
+// Forks: use your own prefix so your build doesn't clash with the official app.
+// BUNDLE_ID_PREFIX = io.github.yourname

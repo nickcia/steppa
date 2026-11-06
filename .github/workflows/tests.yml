@@ -1,0 +1,26 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  plan-engine:
+    name: Plan engine
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run engine tests
+        working-directory: Packages/PlanEngine
+        run: swift test
+
+  app:
+    name: App builds
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build for the iOS Simulator
+        run: |
+          xcodebuild build -project Steppa.xcodeproj -scheme Steppa \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO

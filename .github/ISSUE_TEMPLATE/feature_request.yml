@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest an idea.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The app stays free, private and server-free, so ideas needing accounts, servers or tracking
+        can't be accepted (see CONTRIBUTING.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+  - type: textarea
+    id: training
+    attributes:
+      label: Training rationale (for plan or coaching changes)
+      description: Why it's better for runners, ideally with sources.
