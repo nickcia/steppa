@@ -245,7 +245,7 @@ private struct IntervalsSection: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Label(athlete.links.isEmpty ? "Link your watch" : "Link Garmin", systemImage: "link")
-                        Text("Opens Intervals.icu settings. Tap Connect next to your watch brand, sign in, then come back here.")
+                        Text("Opens Intervals.icu. Under Connections, find your watch brand, tick Upload planned workouts, tap Connect and sign in, then come back here.")
                             .font(.footnote)
                             .foregroundStyle(Theme.secondaryInk)
                     }
