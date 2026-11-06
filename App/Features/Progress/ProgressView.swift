@@ -47,7 +47,7 @@ private struct CompletionCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let stats = CompletionStats(plan: plan, statuses: model.statuses, today: model.today)
+        let stats = CompletionStats(plan: plan, statuses: model.effectiveStatuses, today: model.today)
         Card(padding: 20) {
             HStack(spacing: Theme.Spacing.l) {
                 ZStack {
@@ -94,7 +94,9 @@ private struct VolumeHistoryCard: View {
         let unit = model.units.metersPerUnit
         let planned = String(localized: "Planned"), done = String(localized: "Completed")
         return plan.weeks.filter { $0.startDate <= model.today }.flatMap { week -> [Point] in
-            let completed = week.workouts.filter { model.status(of: $0) == .done }.reduce(0) { $0 + $1.totalMeters }
+            // Actual distance from Apple Health where available, planned distance for runs ticked off by hand.
+            let completed = week.workouts.filter { model.status(of: $0) == .done }
+                .reduce(0) { $0 + (model.healthRun(for: $1)?.distanceMeters ?? $1.totalMeters) }
             return [Point(id: "p\(week.index)", week: week.index + 1, series: planned, distance: week.plannedMeters / unit),
                     Point(id: "d\(week.index)", week: week.index + 1, series: done, distance: completed / unit)]
         }

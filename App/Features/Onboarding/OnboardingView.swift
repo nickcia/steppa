@@ -52,6 +52,16 @@ struct OnboardingView: View {
                 Button("Start my plan") { startPlan() }
                     .buttonStyle(.primary)
                     .disabled(planOrNil == nil)
+            case .health:
+                Button("Connect Apple Health") {
+                    Task {
+                        await model.connectHealth()
+                        go(to: .review)
+                    }
+                }
+                .buttonStyle(.primary)
+                Button("Not now") { go(to: .review) }
+                    .buttonStyle(.secondary)
             case .welcome:
                 Button("Get started") { go(to: .goal) }
                     .buttonStyle(.primary)
@@ -97,6 +107,7 @@ struct OnboardingView: View {
         case .fitness: FitnessStep(draft: draft)
         case .volume: VolumeStep(draft: draft)
         case .availability: AvailabilityStep(draft: draft)
+        case .health: HealthStep()
         case .review: ReviewStep(draft: draft, preview: preview)
         }
     }
@@ -405,6 +416,29 @@ private struct AvailabilityStep: View {
                 }
                 .pickerStyle(.segmented)
             }
+        }
+    }
+}
+
+private struct HealthStep: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            Image(systemName: "heart.text.square.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.pink)
+            StepHeader(title: String(localized: "Connect Apple Health"),
+                       subtitle: String(localized: "So your runs tick themselves off and your plan can adapt to what you actually did."))
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                Label("Reads your running workouts and distance. Nothing else.", systemImage: "figure.run")
+                Label("Never writes to Health, and nothing leaves your phone.", systemImage: "lock")
+                Label("Works with Apple Watch, Garmin, Coros and any app that saves runs to Health.", systemImage: "applewatch")
+                Label("Use Strava? We don't connect to it directly. If your watch syncs to Strava, it can usually sync to Apple Health too.", systemImage: "arrow.triangle.branch")
+            }
+            .font(.subheadline)
+            .foregroundStyle(Theme.ink)
+            Text("You can change this any time in the Health app under Sharing › Apps. Without Health, tick runs off by hand.")
+                .font(.footnote)
+                .foregroundStyle(Theme.secondaryInk)
         }
     }
 }

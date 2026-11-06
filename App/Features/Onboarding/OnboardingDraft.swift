@@ -6,7 +6,7 @@ import PlanEngine
 @Observable
 final class OnboardingDraft {
     enum Step: Int, CaseIterable {
-        case welcome, goal, date, experience, fitness, volume, availability, review
+        case welcome, goal, date, experience, fitness, volume, availability, health, review
     }
 
     enum ResultAge: String, CaseIterable, Identifiable {

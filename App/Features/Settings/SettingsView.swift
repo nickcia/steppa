@@ -34,6 +34,57 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    if model.healthConnected {
+                        LabeledContent("Apple Health", value: String(localized: "\(model.healthRuns.count) runs found"))
+                        Button("Refresh runs") { Task { await model.refreshHealth() } }
+                    } else {
+                        Button {
+                            Task { await model.connectHealth() }
+                        } label: {
+                            Label("Connect Apple Health", systemImage: "heart.text.square")
+                        }
+                        .disabled(!model.healthAvailable)
+                    }
+                } header: {
+                    Text("Apple Health")
+                } footer: {
+                    Text("Runs from Apple Watch, Garmin, Coros and other apps that save to Health tick off your workouts automatically. Manage access in the Health app under Sharing › Apps.")
+                }
+
+                Section {
+                    Toggle("Send the next 7 days automatically",
+                           isOn: Binding(get: { model.watchAutoSync }, set: { on in Task { await model.setWatchAutoSync(on) } }))
+                    if let plan = model.plan {
+                        Button("Send this week now") {
+                            Task {
+                                await model.sendToWatch(plan.workouts.filter {
+                                    $0.date >= model.today && model.today.days(until: $0.date) < 7
+                                })
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Apple Watch")
+                } footer: {
+                    Text("Workouts appear in the Workout app on your watch with each step and pace alerts, ready to start.")
+                }
+
+                Section {
+                    Toggle("Workout reminders",
+                           isOn: Binding(get: { model.remindersEnabled }, set: { on in Task { await model.setReminders(enabled: on) } }))
+                    DatePicker("Time", selection: Binding(
+                        get: { Calendar.current.date(bySettingHour: model.reminderMinutes / 60, minute: model.reminderMinutes % 60, second: 0, of: .now) ?? .now },
+                        set: { date in
+                            let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+                            Task { await model.setReminderTime(minutes: (c.hour ?? 7) * 60 + (c.minute ?? 0)) }
+                        }), displayedComponents: .hourAndMinute)
+                } header: {
+                    Text("Reminders")
+                } footer: {
+                    Text("A notification on workout days at this time. Workouts sent to your watch are scheduled for the same time.")
+                }
+
+                Section {
                     ShareLink(item: ExportFile(bundle: model.exportBundle()),
                               preview: SharePreview("Training data", image: Image(systemName: "doc.text"))) {
                         Label("Export data", systemImage: "square.and.arrow.up")

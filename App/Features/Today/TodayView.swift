@@ -173,6 +173,36 @@ struct WorkoutCard: View {
                 Divider()
                 WorkoutStepsView(workout: workout)
                 WorkoutStatusButtons(workout: workout)
+                SendToWatchButton(workout: workout)
+            }
+        }
+    }
+}
+
+/// "Send to Apple Watch" for today's and upcoming workouts.
+struct SendToWatchButton: View {
+    let workout: Workout
+    @Environment(AppModel.self) private var model
+    @State private var sending = false
+
+    var body: some View {
+        if workout.date >= model.today, model.status(of: workout) == nil {
+            if model.isOnWatch(workout) {
+                Label("On your Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+            } else {
+                Button {
+                    sending = true
+                    Task {
+                        await model.sendToWatch([workout])
+                        sending = false
+                    }
+                } label: {
+                    Label(sending ? "Sending…" : "Send to Apple Watch", systemImage: "applewatch")
+                }
+                .buttonStyle(.secondary)
+                .disabled(sending)
             }
         }
     }
@@ -207,6 +237,17 @@ struct WorkoutStatusButtons: View {
         let status = model.status(of: workout)
         if workout.date <= model.today {
             switch status {
+            case .done? where model.healthRun(for: workout) != nil && model.statuses[workout.id] == nil:
+                let run = model.healthRun(for: workout)!
+                HStack(spacing: 8) {
+                    Image(systemName: "heart.text.square.fill").foregroundStyle(.pink)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Completed").font(.headline).foregroundStyle(WorkoutKind.easy.color)
+                        Text("\(model.format.distance(run.distanceMeters)) · \(model.format.pace(run.paceSecondsPerKm)) · from Apple Health")
+                            .font(.caption).foregroundStyle(Theme.secondaryInk)
+                    }
+                }
+                .padding(.top, Theme.Spacing.xs)
             case .done?:
                 statusRow(String(localized: "Completed"), symbol: "checkmark.circle.fill", color: WorkoutKind.easy.color)
             case .skipped?:

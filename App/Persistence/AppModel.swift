@@ -13,6 +13,9 @@ final class AppModel {
     private var context: ModelContext { container.mainContext }
     /// Injectable so tests can pin "today".
     private let clock: () -> LocalDate
+    private let runSource: RunSource?
+    private let reminders: ReminderService?
+    private let watch: WatchService?
 
     private(set) var plan: TrainingPlan?
     private(set) var planID: UUID?
@@ -21,12 +24,25 @@ final class AppModel {
     private(set) var disclaimerAccepted = false
     private(set) var races: [RaceRecord] = []
     private(set) var changes: [PlanChangeRecord] = []
+    /// Runs read from Apple Health, and which planned workout each one fulfilled.
+    private(set) var healthRuns: [CompletedRun] = []
+    private(set) var healthMatches: [String: CompletedRun] = [:]
+    private(set) var healthConnected = false
+    private(set) var remindersEnabled = false
+    private(set) var reminderMinutes = 7 * 60
+    private(set) var watchAutoSync = false
+    /// Workouts currently scheduled on the watch (by WorkoutKit plan ID).
+    private(set) var watchScheduledIDs: Set<UUID> = []
     /// Set when saving fails or an edit is refused, so the UI can tell the user.
     var lastError: String?
 
-    init(container: ModelContainer, clock: @escaping () -> LocalDate = { .today }) {
+    init(container: ModelContainer, clock: @escaping () -> LocalDate = { .today },
+         runSource: RunSource? = nil, reminders: ReminderService? = nil, watch: WatchService? = nil) {
         self.container = container
         self.clock = clock
+        self.runSource = runSource
+        self.reminders = reminders
+        self.watch = watch
         reload()
     }
 
@@ -39,6 +55,10 @@ final class AppModel {
         let profile = fetchProfile()
         units = profile?.units ?? .localeDefault
         disclaimerAccepted = profile?.disclaimerAcceptedAt != nil
+        healthConnected = profile?.healthRequestedAt != nil
+        remindersEnabled = profile?.remindersEnabled ?? false
+        reminderMinutes = profile?.reminderMinutes ?? 7 * 60
+        watchAutoSync = profile?.watchAutoSync ?? false
 
         // If two devices both created a plan before syncing, the most recently updated one wins.
         let record = activePlanRecord()
@@ -57,6 +77,18 @@ final class AppModel {
                 sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))) ?? []
         }
         races = ((try? context.fetch(FetchDescriptor<RaceRecord>())) ?? []).sorted { $0.date < $1.date }
+        matchHealthRuns()
+    }
+
+    /// Pairs Health runs with planned workouts up to today. Workouts the athlete marked as skipped
+    /// are left out, so a run on that day isn't counted against them.
+    private func matchHealthRuns() {
+        guard let plan else { healthMatches = [:]; return }
+        let candidates = plan.workouts.filter { $0.date <= today && statuses[$0.id] != .skipped }
+        let runsByID = Dictionary(healthRuns.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        healthMatches = Dictionary(RunMatcher.match(workouts: candidates, runs: healthRuns)
+            .compactMap { match in runsByID[match.runID].map { (match.workoutID, $0) } },
+            uniquingKeysWith: { first, _ in first })
     }
 
     private func activePlanRecord() -> PlanRecord? {
@@ -98,6 +130,7 @@ final class AppModel {
             lastError = String(localized: "Couldn't save your plan: \(error.localizedDescription)")
         }
         save()
+        planDidChange()
     }
 
     func endPlan() {
@@ -105,6 +138,7 @@ final class AppModel {
         let records = (try? context.fetch(FetchDescriptor<PlanRecord>(predicate: #Predicate { $0.planID == id }))) ?? []
         for record in records { record.isActive = false }
         save()
+        planDidChange()
     }
 
     /// Replaces the active plan's contents (after an edit or adaptation). Returns false if refused.
@@ -135,18 +169,20 @@ final class AppModel {
             return false
         }
         save()
+        planDidChange()
         return true
     }
 
     // MARK: Adaptation
 
-    /// What the athlete actually did. Until Apple Health is connected, workouts marked done count as
-    /// runs of the planned distance and duration; skipped and unmarked workouts count as missed.
-    /// Only treated as complete once the athlete has started ticking workouts off (see `adapt`).
+    /// What the athlete actually did: runs from Apple Health, plus workouts ticked off by hand that no Health
+    /// run covers (counted at the planned distance and duration). Skipped and unmarked workouts count as missed.
+    /// Only treated as complete once there's some record of running (see `hasTrainingRecord`).
     var trainingLog: TrainingLog {
         guard let plan else { return TrainingLog() }
-        var log = TrainingLog()
-        for workout in plan.workouts where statuses[workout.id] == .done {
+        var log = TrainingLog(runs: healthRuns,
+                              matches: healthMatches.map { RunMatch(workoutID: $0.key, runID: $0.value.id) })
+        for workout in plan.workouts where statuses[workout.id] == .done && healthMatches[workout.id] == nil {
             let id = "manual-\(workout.id)"
             log.runs.append(CompletedRun(id: id, date: workout.date, distanceMeters: workout.totalMeters,
                                          durationSeconds: workout.totalSeconds))
@@ -159,16 +195,19 @@ final class AppModel {
     /// runs at once produces one change). Only runs once the athlete has started ticking workouts off,
     /// so a plan isn't cut back just because nobody recorded anything.
     func reviewPlan() {
-        guard let plan, !statuses.isEmpty, today < plan.inputs.raceDate else { return }
+        guard let plan, hasTrainingRecord, today < plan.inputs.raceDate else { return }
         adapt(.review)
     }
+
+    /// Whether the training log can be trusted to show missed runs: the athlete ticks runs off, or Health has runs.
+    var hasTrainingRecord: Bool { !statuses.isEmpty || !healthRuns.isEmpty }
 
     @discardableResult
     private func adapt(_ trigger: AdaptationTrigger) -> Bool {
         guard let plan else { return false }
         do {
             let revision = try PlanAdapter.adapt(plan, log: trainingLog, trigger: trigger, today: today,
-                                                 assessTraining: !statuses.isEmpty)
+                                                 assessTraining: hasTrainingRecord)
             return revision.changed ? store(revision.plan, reasons: revision.reasons) : true
         } catch {
             lastError = error.message
@@ -212,7 +251,19 @@ final class AppModel {
 
     // MARK: Workouts
 
-    func status(of workout: Workout) -> WorkoutStatus? { statuses[workout.id] }
+    /// Ticked off by hand, or done because a Health run matched it.
+    func status(of workout: Workout) -> WorkoutStatus? {
+        statuses[workout.id] ?? (healthMatches[workout.id] != nil ? .done : nil)
+    }
+
+    var effectiveStatuses: [String: WorkoutStatus] {
+        var result = statuses
+        for id in healthMatches.keys where result[id] == nil { result[id] = .done }
+        return result
+    }
+
+    /// The Health run that completed this workout, if any.
+    func healthRun(for workout: Workout) -> CompletedRun? { healthMatches[workout.id] }
 
     func setStatus(_ status: WorkoutStatus?, for workout: Workout) {
         guard let planID else { return }
@@ -256,6 +307,125 @@ final class AppModel {
     func deleteRace(_ race: RaceRecord) {
         context.delete(race)
         save()
+    }
+
+    // MARK: Apple Health
+
+    var healthAvailable: Bool { runSource?.isAvailable ?? false }
+
+    func connectHealth() async {
+        guard let runSource else { return }
+        do {
+            try await runSource.requestAccess()
+            profile().healthRequestedAt = .now
+            save()
+            await refreshHealth()
+        } catch {
+            lastError = String(localized: "Couldn't connect to Apple Health: \(error.localizedDescription)")
+        }
+    }
+
+    /// Re-reads runs from Health (since a little before the plan started), then reviews the plan.
+    func refreshHealth() async {
+        guard healthConnected, let runSource, let plan else { return }
+        do {
+            healthRuns = try await runSource.runs(since: plan.inputs.startDate.adding(days: -RacePredictor.lookbackDays))
+            matchHealthRuns()
+            reviewPlan()
+        } catch {
+            // Health can be unavailable (e.g. phone locked); keep the last runs and try again next time.
+        }
+    }
+
+    // MARK: Reminders and Apple Watch
+
+    func setReminders(enabled: Bool) async {
+        if enabled, let reminders, await !reminders.requestAuthorization() {
+            lastError = String(localized: "Notifications are turned off for this app. You can allow them in Settings › Notifications.")
+            return
+        }
+        profile().remindersEnabled = enabled
+        save()
+        await syncReminders()
+    }
+
+    func setReminderTime(minutes: Int) async {
+        profile().reminderMinutes = minutes
+        save()
+        await syncReminders()
+        if watchAutoSync { await syncWatch() }
+    }
+
+    func setWatchAutoSync(_ enabled: Bool) async {
+        profile().watchAutoSync = enabled
+        save()
+        if enabled { await syncWatch() }
+    }
+
+    private func syncReminders() async {
+        guard let reminders else { return }
+        if remindersEnabled, let plan {
+            await reminders.reschedule(plan.workouts, minutes: reminderMinutes, format: format)
+        } else {
+            await reminders.cancelAll()
+        }
+    }
+
+    var watchSupported: Bool { watch?.isSupported ?? false }
+
+    func isOnWatch(_ workout: Workout) -> Bool {
+        watchScheduledIDs.contains(WatchWorkoutBuilder.stableID(for: workout))
+    }
+
+    /// Puts these workouts on the watch, and tidies away any that were re-planned or moved.
+    func sendToWatch(_ workouts: [Workout]) async {
+        guard let watch else { return }
+        do {
+            try await watch.sync(watchItems(workouts), keeping: currentWatchIDs, today: today)
+            watchScheduledIDs = await watch.scheduledIDs()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// The next seven days of workouts, kept in step with the plan when auto-sync is on.
+    func syncWatch() async {
+        guard watchAutoSync else { return }
+        // With no plan this sends nothing, which also clears this app's workouts off the watch.
+        await sendToWatch((plan?.workouts ?? []).filter { $0.date >= today && today.days(until: $0.date) < 7 })
+    }
+
+    func refreshWatchState() async {
+        if let watch { watchScheduledIDs = await watch.scheduledIDs() }
+    }
+
+    private var currentWatchIDs: Set<UUID> {
+        Set((plan?.workouts ?? []).map(WatchWorkoutBuilder.stableID(for:)))
+    }
+
+    private func watchItems(_ workouts: [Workout]) -> [WatchItem] {
+        workouts.filter { $0.date >= today }.map {
+            WatchItem(plan: WatchWorkoutBuilder.plan(for: $0, format: format),
+                      start: WatchWorkoutBuilder.startComponents(for: $0.date, minutes: reminderMinutes))
+        }
+    }
+
+    /// Keeps reminders and the watch in step after the plan changes.
+    private func planDidChange() {
+        Task {
+            await syncReminders()
+            await syncWatch()
+        }
+    }
+
+    /// Everything to do when the app comes to the foreground.
+    func becameActive() async {
+        reload()
+        await refreshHealth()
+        reviewPlan()
+        await syncReminders()
+        await syncWatch()
+        await refreshWatchState()
     }
 
     // MARK: Preferences

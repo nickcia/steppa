@@ -70,6 +70,12 @@ final class ProfileRecord {
     var unitsRaw: String = UnitSystem.metric.rawValue
     var disclaimerAcceptedAt: Date?
     var createdAt: Date = Date.now
+    /// When Apple Health access was requested (Health never says whether it was granted).
+    var healthRequestedAt: Date?
+    var remindersEnabled: Bool = false
+    /// Minutes after midnight for reminders and for when workouts appear on the watch.
+    var reminderMinutes: Int = 7 * 60
+    var watchAutoSync: Bool = false
 
     init(units: UnitSystem) {
         unitsRaw = units.rawValue

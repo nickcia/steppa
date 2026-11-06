@@ -11,3 +11,8 @@ DEVELOPMENT_TEAM =
 
 MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
+
+CODE_SIGN_ENTITLEMENTS = Config/Steppa.entitlements
+
+// Shown when asking for Apple Health access. Read-only: the app never writes to Health.
+INFOPLIST_KEY_NSHealthShareUsageDescription = Your runs are read from Apple Health (including runs from Apple Watch, Garmin, Coros and other apps that sync to Health) to tick off planned workouts and adapt your plan. Nothing leaves your device.

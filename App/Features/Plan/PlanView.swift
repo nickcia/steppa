@@ -174,6 +174,7 @@ struct WorkoutDetailView: View {
                     }
                 }
                 WorkoutStatusButtons(workout: workout)
+                SendToWatchButton(workout: workout)
                 MoveWorkoutButton(workout: workout)
                     .frame(maxWidth: .infinity)
             }

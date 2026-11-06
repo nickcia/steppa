@@ -10,7 +10,9 @@ struct SteppaApp: App {
     init() {
         let container = Persistence.makeContainer(inMemory: DemoData.isRequested)
         self.container = container
-        let model = AppModel(container: container)
+        let model = AppModel(container: container,
+                             runSource: DemoData.isRequested ? nil : HealthKitRunSource(),
+                             reminders: ReminderService(), watch: WatchService())
         DemoData.seedIfRequested(model)
         _model = State(initialValue: model)
     }
@@ -44,8 +46,7 @@ struct RootView: View {
         .environment(\.unitSystem, model.units)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                model.reload()
-                model.reviewPlan()
+                Task { await model.becameActive() }
             }
         }
         .alert("Something went wrong", isPresented: Binding(get: { model.lastError != nil },
