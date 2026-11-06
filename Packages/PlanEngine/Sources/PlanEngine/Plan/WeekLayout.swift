@@ -8,6 +8,21 @@ enum WeekLayout {
         var inputs: PlanInputs
         var paces: PaceTable
         var isRaceWeek: Bool
+        /// When re-planning mid-week: what's already on the calendar before the first day we may change.
+        var existing: ExistingWeek = .init()
+    }
+
+    /// Workouts already in this week (or just before it) that a re-plan must respect.
+    struct ExistingWeek {
+        /// Dates of hard workouts near the re-planned days, so new hard days aren't placed next to them.
+        var hardDates: Set<LocalDate> = []
+        var sessionCount = 0
+        var hasLongRun = false
+        /// Distance the re-planned days may add without the week exceeding its target.
+        var remainingMeters: Double = .infinity
+        /// Planned training distance, and the part at threshold or faster, already in the week.
+        var trainingMeters: Double = 0
+        var highIntensityMeters: Double = 0
     }
 
     struct Result {
@@ -24,19 +39,29 @@ enum WeekLayout {
             $0 >= inputs.startDate && $0 <= lastTrainingDay && inputs.runDays.contains($0.weekday)
         }
         // Partial weeks (plan start, race week) get a proportional share of the nominal volume.
-        let weekMeters = c.volume.meters * min(1, Double(trainingDates.count) / Double(inputs.runDays.count))
+        let weekMeters = min(c.volume.meters * min(1, Double(trainingDates.count) / Double(inputs.runDays.count)),
+                             max(0, c.existing.remainingMeters))
+        func nextToHardDay(_ d: LocalDate) -> Bool {
+            c.existing.hardDates.contains(d.adding(days: -1)) || c.existing.hardDates.contains(d.adding(days: 1))
+        }
         // The last days before the race are quiet: no long run, no sessions, short easy runs only.
         let quietStart = inputs.raceDate.adding(days: -PlanRules.raceTaperQuietDays)
-        let longDate = trainingDates.first { $0.weekday == inputs.longRunDay && $0 < quietStart && !c.isRaceWeek }
+        let longDate = trainingDates.first {
+            $0.weekday == inputs.longRunDay && $0 < quietStart && !c.isRaceWeek
+                && !c.existing.hasLongRun && !nextToHardDay($0)
+        }
 
         let marathonPaceLong = inputs.goal == .marathon && c.phase == .peak && !c.volume.isStepBack
             && inputs.experience != .beginner && longDate != nil
         var maxSessions = PlanRules.qualitySessions(phase: c.phase, experience: inputs.experience,
                                                     runDays: inputs.runDays.count, isStepBack: c.volume.isStepBack)
         if marathonPaceLong || c.isRaceWeek { maxSessions = min(maxSessions, 1) }
+        maxSessions = max(0, maxSessions - c.existing.sessionCount)
 
         let latestSessionDate = min(lastTrainingDay, quietStart.adding(days: -1))
-        let sessionDates = chooseSessionDates(trainingDates.filter { $0 != longDate && $0 <= latestSessionDate },
+        let sessionDates = chooseSessionDates(trainingDates.filter {
+                                                  $0 != longDate && $0 <= latestSessionDate && !nextToHardDay($0)
+                                              },
                                               longRunDay: inputs.longRunDay, max: maxSessions)
         let kinds = sessionKinds(phase: c.phase, goal: inputs.goal, weekIndex: c.weekIndex, count: sessionDates.count)
 
@@ -49,7 +74,8 @@ enum WeekLayout {
             let trainingMeters = training.reduce(0) { $0 + $1.totalMeters }
             let hardMeters = training.reduce(0) { $0 + $1.highIntensityMeters }
             let fits = trainingMeters <= weekMeters * 1.05 + 500
-                && hardMeters <= trainingMeters * PlanRules.maxHighIntensityShare
+                && hardMeters + c.existing.highIntensityMeters
+                    <= (trainingMeters + c.existing.trainingMeters) * PlanRules.maxHighIntensityShare
             if fits || count == 0 { return attempt }
         }
         preconditionFailure("unreachable")
@@ -115,11 +141,13 @@ enum WeekLayout {
         let sessionMeters = sessions.reduce(0) { $0 + $1.totalMeters }
         let easyDates = trainingDates.filter { $0 != longDate && !sessionDates.contains($0) }
 
-        // Long run: a share of the week, capped by distance and by time on feet.
+        // Long run: a share of the full week (even if the week is partial), capped by distance, by time
+        // on feet, and by what's left of this week's budget.
         let minRun = PlanRules.minimumRunMeters
         let longCap = min(PlanRules.longRunCapMeters(inputs.goal, inputs.experience),
                           PlanRules.longRunCapSeconds(inputs.goal, inputs.experience) / paces.easy.mid * 1000)
-        var longMeters = longDate == nil ? 0 : min(weekMeters * PlanRules.longRunShare(runDays: inputs.runDays.count), longCap)
+        var longMeters = longDate == nil ? 0 : min(c.volume.meters * PlanRules.longRunShare(runDays: inputs.runDays.count),
+                                                   longCap, max(0, weekMeters - sessionMeters))
 
         // Easy runs share what's left; drop easy days rather than schedule pointlessly short runs.
         let remaining = max(0, weekMeters - sessionMeters - longMeters)
@@ -146,8 +174,8 @@ enum WeekLayout {
             limited = true
         }
         // When easy runs are capped, the long run must still not dominate the week.
-        if easyCount > 0 || !sessions.isEmpty {
-            let restOfWeek = sessionMeters + Double(easyCount) * floorTo500(perEasy)
+        if easyCount > 0 || !sessions.isEmpty || c.existing.trainingMeters > 0 {
+            let restOfWeek = sessionMeters + Double(easyCount) * floorTo500(perEasy) + c.existing.trainingMeters
             if longMeters > restOfWeek {
                 longMeters = restOfWeek
                 limited = true

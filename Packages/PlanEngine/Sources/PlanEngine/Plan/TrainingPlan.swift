@@ -48,6 +48,13 @@ public struct TrainingPlan: Codable, Hashable, Sendable {
     public var paces: PaceTable
     public var weeks: [PlanWeek]
     public var warnings: [PlanWarning]
+    /// 0 for a freshly built plan; incremented on every adaptation.
+    public var revision: Int = 0
+    /// Last time the fitness score changed. Only runs after this date count as new evidence.
+    public var fitnessUpdatedOn: LocalDate?
+    /// Date of the last adaptation. Workouts before it are history: they were checked when planned
+    /// and are not re-checked against the current inputs (e.g. they may sit on old run days).
+    public var revisedOn: LocalDate?
 
     public var workouts: [Workout] { weeks.flatMap(\.workouts) }
 

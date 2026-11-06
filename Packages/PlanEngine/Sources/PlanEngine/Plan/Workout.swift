@@ -51,9 +51,11 @@ public struct IntervalBlock: Codable, Hashable, Sendable {
 /// A planned session. The shape (optional warm-up, blocks, optional cool-down) matches
 /// WorkoutKit's `CustomWorkout`. Rest days are simply days with no workout.
 public struct Workout: Codable, Hashable, Sendable, Identifiable {
-    /// Stable identifier: the date the workout was first scheduled on (one workout per day).
+    /// Unique within a plan. The date it was planned for, plus a revision suffix if an adaptation made it.
     public var id: String
     public var date: LocalDate
+    /// Set when the athlete moved this workout; the date it was originally planned for.
+    public var movedFrom: LocalDate?
     public var kind: WorkoutKind
     public var warmup: Step?
     public var blocks: [IntervalBlock]
@@ -62,6 +64,7 @@ public struct Workout: Codable, Hashable, Sendable, Identifiable {
     public init(date: LocalDate, kind: WorkoutKind, warmup: Step? = nil, blocks: [IntervalBlock], cooldown: Step? = nil) {
         self.id = date.description
         self.date = date
+        self.movedFrom = nil
         self.kind = kind
         self.warmup = warmup
         self.blocks = blocks

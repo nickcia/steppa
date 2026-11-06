@@ -45,4 +45,6 @@ public enum PlanError: Error, Equatable, Sendable {
     case longRunDayNotARunDay
     case invalidPerformance
     case invalidWeeklyVolume
+    /// The race date has passed; there is nothing left to plan.
+    case planFinished
 }

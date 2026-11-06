@@ -86,14 +86,91 @@ weeks) get a warning.
 Every workout is a warm-up, repeated blocks and a cool-down. This maps directly onto Apple Watch
 structured workouts.
 
-## 6. Safety validation
+## 6. Matching completed runs
 
-`PlanValidator` independently checks every rule above on any plan. The test suite generates over 10,000
-plans across goals, levels, schedules, plan lengths, start days, volumes and fitness levels, and
-requires every one to pass.
+Runs come from Apple Health. Watches from Garmin, Coros and others can write runs there. A run counts
+for a planned workout when it meets all of these:
 
-## Coming next
+- It is on the same day, or one day either side. Races must be on the day.
+- Its distance is 50–160% of the plan. Races must be 90–115%.
+- It is at least 1 km.
 
-- Adaptation after missed or skipped runs, unusual paces, and changed race dates or availability.
-- Matching completed runs to planned workouts.
-- Race-time prediction from training.
+When several runs could match, the same day wins first, then the closest distance. Each run matches at
+most one workout. Matches made or removed by hand are never overridden.
+
+## 7. Adapting the plan
+
+The plan is reconsidered when runs sync, when the race date changes, when available days change, or when
+you enter a new race result. Three rules always hold:
+
+- **The past never changes.** Days before today stay as they were. Today and later are re-planned.
+- **Missed training is never made up.** Volume restarts from what you actually did and builds by the
+  usual safe limits.
+- **Within the current week**, the re-plan respects what's already been done. It doesn't add a second
+  long run, exceed the week's quality sessions, or put a hard day next to a recent one.
+
+### Missed training
+
+| Situation | Volume resumes at |
+|---|---|
+| No run for 7–13 days | 80% of the previous loading week |
+| No run for 14–27 days | 60% |
+| No run for 28–55 days | 40% |
+| No run for 56+ days | 25% |
+| Less than 85% of planned distance over the last 14 days | That share, but never below 60% (partial training is never treated as worse than a full two-week break) |
+
+The completion check only starts after the plan's first week. A reduction is applied once. Reviewing
+again on the same data doesn't lower volume again.
+
+### Fitness
+
+- **Quality sessions.** If your average pace across at least 3 recent tempo or interval sessions was
+  clearly faster than planned (median 3% or more), fitness rises by up to 2%. If clearly slower (5% or
+  more), it falls by up to 3%. Increases are smaller than decreases on purpose.
+- **Strong efforts.** A run of 3 km or more that implies higher fitness (by over 2%) raises it by up to
+  3%. Any run is at most an all-out effort, so it shows at least that much fitness.
+- **New race result.** Entering one resets fitness to that result.
+- Each piece of evidence is used once. Only runs after the last fitness change count.
+
+### Race date and availability
+
+Changing the race date re-periodises the remaining weeks from where volume currently stands. Changing
+run days or the long-run day re-plans from today onto the new days.
+
+## 8. Moving workouts
+
+You can move a workout to another day in the same week. If that day has a workout, the two swap. A move
+is refused if it would break a safety rule, for example two hard days in a row, or a hard session in the
+last 3 days before the race. Past workouts and the race can't be moved.
+
+Workouts you've moved are kept until the next adaptation, which re-plans the remaining weeks.
+
+## 9. Race-time prediction
+
+Predictions come from the higher of two scores: your fitness score, and your best effort in the last 6
+weeks. For long races, low training volume adds a penalty, because equivalence formulas are optimistic
+for low-mileage runners:
+
+| Race | Penalty |
+|---|---|
+| Marathon | Up to +8%, below 60 km/week |
+| Half marathon | Up to +4%, below 40 km/week |
+
+The prediction range is ±2%, ±3.5% or ±6%, depending on how confident the fitness score is.
+
+## 10. Safety validation
+
+`PlanValidator` independently checks every rule above on any plan.
+
+**History.** Workouts before the last adaptation were checked when they were planned. They are not
+re-judged against changed inputs, such as new run days or a race date that moved closer. Rules that span
+the boundary between history and the re-planned days, like no two hard days in a row, are still checked.
+
+**Tests.** The test suite:
+- generates over 10,000 plans across goals, levels, schedules, plan lengths, start days, volumes and
+  fitness levels;
+- adapts thousands of them at different points, with simulated athletes who follow the plan, skip runs,
+  take breaks or run faster or slower, and under every kind of change;
+- adapts them a second time on top of that.
+
+Every result must pass the validator, leave history untouched and keep workout IDs unique.

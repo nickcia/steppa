@@ -60,9 +60,13 @@ public enum PlanValidator {
             if trainingMeters > week.targetMeters * 1.05 + 500 {
                 fail(.overTarget, week.startDate, "planned \(km(trainingMeters)), target \(km(week.targetMeters))")
             }
-            let hard = training.reduce(0) { $0 + $1.highIntensityMeters }
-            if hard > trainingMeters * PlanRules.maxHighIntensityShare + 1 {
-                fail(.intensityTooHigh, week.startDate, "\(km(hard)) of \(km(trainingMeters)) at threshold or faster")
+            // History isn't re-checked: in a week re-planned part-way through, only the re-planned part counts.
+            // (Cutting the rest of a week after missed runs raises its hard share without adding hard work.)
+            let planned = training.filter { workout in plan.revisedOn.map { workout.date >= $0 } ?? true }
+            let plannedMeters = planned.reduce(0) { $0 + $1.totalMeters }
+            let hard = planned.reduce(0) { $0 + $1.highIntensityMeters }
+            if hard > plannedMeters * PlanRules.maxHighIntensityShare + 1 {
+                fail(.intensityTooHigh, week.startDate, "\(km(hard)) of \(km(plannedMeters)) at threshold or faster")
             }
             let weekEnd = week.startDate.adding(days: 6)
             for workout in week.workouts where workout.date < week.startDate || workout.date > weekEnd {
@@ -76,7 +80,8 @@ public enum PlanValidator {
                 if workout.totalSeconds > PlanRules.longRunCapSeconds(inputs.goal, inputs.experience) + 180 {
                     fail(.longRunTooLong, workout.date, "\(Int(workout.totalSeconds / 60)) min over time cap")
                 }
-                if training.count >= 3, meters > trainingMeters * 0.5 + 1 {
+                let isHistory = plan.revisedOn.map { workout.date < $0 } ?? false
+                if training.count >= 3, meters > trainingMeters * 0.5 + 1, !isHistory {
                     fail(.longRunTooLong, workout.date, "\(km(meters)) is over half the week")
                 }
             }
@@ -93,18 +98,22 @@ public enum PlanValidator {
             if workout.date < inputs.startDate || workout.date > inputs.raceDate {
                 fail(.scheduling, workout.date, "outside the plan dates")
             }
-            if workout.kind != .race, !inputs.runDays.contains(workout.date.weekday) {
+            // History (before the last revision) and workouts the athlete moved may be on any day.
+            let isHistory = plan.revisedOn.map { workout.date < $0 } ?? false
+            if workout.kind != .race, workout.movedFrom == nil, !isHistory,
+               !inputs.runDays.contains(workout.date.weekday) {
                 fail(.scheduling, workout.date, "\(workout.date.weekday) is not a run day")
             }
             if i > 0 {
                 let previous = workouts[i - 1]
                 if previous.date == workout.date {
                     fail(.scheduling, workout.date, "two workouts on one day")
-                } else if previous.date.days(until: workout.date) == 1, previous.kind.isHard, workout.kind.isHard {
+                } else if previous.date.days(until: workout.date) == 1, previous.kind.isHard, workout.kind.isHard,
+                          !isHistory {
                     fail(.consecutiveHardDays, workout.date, "\(previous.kind) then \(workout.kind)")
                 }
             }
-            if workout.kind.isHard, workout.kind != .race, workout.date >= quietStart {
+            if workout.kind.isHard, workout.kind != .race, workout.date >= quietStart, !isHistory {
                 fail(.hardBeforeRace, workout.date, "\(workout.kind) in the last days before the race")
             }
             for step in workout.expandedSteps {
