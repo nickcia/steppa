@@ -15,6 +15,10 @@ final class FakeRunSource: RunSource {
     var isAvailable: Bool { true }
     func requestAccess() async throws { accessRequested = true }
     func runs(since: LocalDate) async throws -> [CompletedRun] { runs.filter { $0.date >= since } }
+    var series: [String: RunSeries] = [:]
+    func series(forRun id: String) async throws -> RunSeries? { series[id] }
+    var ageInYears: Int?
+    func age() -> Int? { ageInYears }
 }
 
 @MainActor

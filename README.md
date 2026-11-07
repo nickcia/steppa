@@ -26,6 +26,9 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
 - **Adapts as you go.** Runs from Apple Health tick workouts off automatically. Miss a few runs, take a
   break, run faster or slower than planned, change your race date or your free days, and the rest of the
   plan adjusts. It never tries to make you "catch up".
+- **Run analysis.** Splits, pace and heart-rate charts, heart-rate zones, cadence and power, how each run
+  compared with the plan, and plain-English notes. From Apple Health, or from Intervals.icu for the full
+  recording from Garmin and other watches.
 - **Calendar, races and progress.** Move workouts within a week, track other races and results, see
   completion, weekly distance and a predicted race time.
 - **Works with your watch.** Apple Watch, Garmin, Coros and anything else that saves runs to Apple Health.

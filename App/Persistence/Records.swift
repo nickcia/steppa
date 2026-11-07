@@ -76,6 +76,8 @@ final class ProfileRecord {
     /// Minutes after midnight for reminders and for when workouts appear on the watch.
     var reminderMinutes: Int = 7 * 60
     var watchAutoSync: Bool = false
+    /// Set by the athlete; otherwise estimated (see AppModel.maxHeartRate).
+    var maxHeartRate: Double?
 
     init(units: UnitSystem) {
         unitsRaw = units.rawValue
@@ -147,6 +149,28 @@ final class PlanChangeRecord {
     }
 }
 
+/// What a watch recorded during one run, kept so runs can be analysed later without asking Health or
+/// Intervals.icu again. Stored downsampled (at most a few hundred points per series).
+@Model
+final class RunDetailRecord {
+    /// The run's ID: the Health workout's UUID, or "icu-<id>" for runs only on Intervals.icu.
+    var runID: String = ""
+    /// "health" or "intervals".
+    var source: String = ""
+    var fetchedAt: Date = Date.now
+    @Attribute(.externalStorage) var seriesData: Data?
+
+    init(runID: String, source: String, series: RunSeries) {
+        self.runID = runID
+        self.source = source
+        self.seriesData = try? JSONEncoder().encode(series.downsampled())
+    }
+
+    var series: RunSeries? {
+        seriesData.flatMap { try? JSONDecoder().decode(RunSeries.self, from: $0) }
+    }
+}
+
 extension JSONEncoder {
     /// Stable output: sorted keys keep stored plans byte-identical for identical content.
     nonisolated static var plan: JSONEncoder {
@@ -158,7 +182,7 @@ extension JSONEncoder {
 
 enum Persistence {
     static let models: [any PersistentModel.Type] = [PlanRecord.self, WorkoutLogRecord.self, ProfileRecord.self,
-                                                     RaceRecord.self, PlanChangeRecord.self]
+                                                     RaceRecord.self, PlanChangeRecord.self, RunDetailRecord.self]
 
     /// Syncs through the user's private CloudKit database when built with `ENABLE_ICLOUD = YES`
     /// (see Config/App.xcconfig); otherwise the store is local to the device.

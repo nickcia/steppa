@@ -37,6 +37,7 @@ struct SettingsView: View {
                 Section {
                     if model.healthConnected {
                         LabeledContent("Apple Health", value: String(localized: "\(model.healthRuns.count) runs found"))
+                        MaxHeartRateRow()
                         Button("Refresh runs") { Task { await model.refreshHealth() } }
                     } else {
                         Button {
@@ -169,6 +170,29 @@ nonisolated struct ExportFile: Transferable {
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .json) { file in try file.bundle.encoded() }
             .suggestedFileName("training-export.json")
+    }
+}
+
+/// Maximum heart rate for zones: estimated by default, or the athlete's own (e.g. from a lab or field test).
+private struct MaxHeartRateRow: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let estimate = model.estimatedMaxHeartRate
+        Stepper {
+            LabeledContent("Max heart rate") {
+                Text(estimate.map { "\(Int($0.rounded())) bpm\(model.maxHeartRateIsSet ? "" : String(localized: " (estimated)"))" }
+                     ?? String(localized: "Not known yet"))
+            }
+        } onIncrement: {
+            model.setMaxHeartRate(min((estimate ?? 180).rounded() + 1, 230))
+        } onDecrement: {
+            model.setMaxHeartRate(max((estimate ?? 180).rounded() - 1, 120))
+        }
+        if model.maxHeartRateIsSet {
+            Button("Use the estimate instead") { model.setMaxHeartRate(nil) }
+                .font(.subheadline)
+        }
     }
 }
 

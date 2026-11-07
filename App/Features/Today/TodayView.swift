@@ -32,6 +32,7 @@ struct TodayView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Workout.self) { WorkoutDetailView(workout: $0) }
             .navigationDestination(for: WeeklyDistanceRoute.self) { _ in WeeklyDistanceView() }
+            .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
         }
         .onChange(of: resetSignal) {
             path = NavigationPath()
@@ -314,6 +315,12 @@ private struct HeroCard: View {
                     .font(.headline)
                     .foregroundStyle(status == .done ? Theme.green : .white.opacity(0.7))
                 Spacer()
+                if let run = model.healthRun(for: workout) {
+                    NavigationLink(value: RunRoute(runID: run.id)) {
+                        Label("View run", systemImage: "waveform.path.ecg")
+                    }
+                    .buttonStyle(HeroButtonStyle(filled: true))
+                }
                 if model.statuses[workout.id] != nil {
                     Button("Undo") { model.setStatus(nil, for: workout) }
                         .font(.subheadline.weight(.semibold))

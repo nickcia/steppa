@@ -20,9 +20,10 @@ export all of it as a file and delete it at any time by deleting the app.
 
 ## Apple Health
 
-With your permission, the app reads running workouts and distance from Apple Health to tick off workouts and
-adapt your plan. It never writes to Health, and Health data never leaves your iPhone. You can change access in
-the Health app under Sharing › Apps.
+With your permission, the app reads from Apple Health: running workouts and distance (to tick off workouts and
+adapt your plan), heart rate, running power and step counts during runs (for run analysis: splits, heart-rate
+zones, cadence), and your date of birth (only to estimate your maximum heart rate). It never writes to Health,
+and Health data never leaves your iPhone. You can change access in the Health app under Sharing › Apps.
 
 ## Apple Watch and reminders
 
@@ -47,7 +48,11 @@ If you connect Intervals.icu, the app talks directly from your iPhone to Interva
 - **Reads** your athlete name and which watch services (Garmin, COROS, Suunto, Wahoo) are linked to your
   Intervals.icu account, and **turns on** workout upload for linked services so workouts reach your watch.
 
-It does not read your activities, health or wellness data from Intervals.icu. Your sign-in is stored in your
+- **Reads** your completed runs (time, distance, heart rate, power, cadence and elevation over the run), so
+  runs recorded on Garmin and other watches can tick off workouts and be analysed in the app. These are stored
+  on your iPhone.
+
+It does not read your wellness or health data from Intervals.icu. Your sign-in is stored in your
 iPhone's Keychain, on this device only. Disconnecting in the app removes its upcoming workouts from your
 calendar and deletes the sign-in from your iPhone; you can also revoke access in Intervals.icu under
 Settings › Apps. What Intervals.icu does with your data is covered by Intervals.icu's own privacy policy.

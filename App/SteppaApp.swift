@@ -190,8 +190,31 @@ enum DemoData {
         guard let plan = try? PlanBuilder.build(inputs) else { return }
         model.acceptDisclaimer()
         model.start(plan)
+        var runs: [CompletedRun] = []
+        var series: [String: RunSeries] = [:]
         for workout in plan.workouts where workout.date < today {
-            model.setStatus(workout.date.day % 9 == 0 ? .skipped : .done, for: workout)
+            if workout.date.day % 9 == 0 {
+                model.setStatus(.skipped, for: workout)
+                continue
+            }
+            // A believable recording: a little off the target pace, heart rate drifting up on longer runs.
+            let id = "demo-\(workout.id)"
+            let variation = 1 + Double(workout.date.day % 7 - 3) * 0.015
+            let pace = (workout.blocks.first?.steps.first?.step.target?.range.mid ?? 400) * variation
+            let meters = workout.totalMeters
+            let duration = meters / 1000 * pace
+            let baseHR: Double = workout.kind == .easy || workout.kind == .long ? 142 : 158
+            let rise: Double = workout.kind == .long ? 12 : 5
+            let times = Array(stride(from: 0.0, through: duration, by: 10))
+            series[id] = RunSeries(
+                distance: times.map { .init($0, $0 / duration * meters * (1 + 0.03 * sin($0 / 240))) },
+                heartRate: times.map { .init($0, baseHR + rise * $0 / duration + 4 * sin($0 / 90) - (($0 < 300) ? (300 - $0) / 10 : 0)) },
+                power: times.map { .init($0, 245 + 12 * sin($0 / 150)) },
+                cadence: times.map { .init($0, 166 + 3 * sin($0 / 200)) },
+                altitude: times.map { .init($0, 40 + 12 * sin($0 / 400)) })
+            runs.append(CompletedRun(id: id, date: workout.date, distanceMeters: meters, durationSeconds: duration))
         }
+        model.loadDemoRuns(runs, series: series)
+        model.setMaxHeartRate(188)
     }
 }

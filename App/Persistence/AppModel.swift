@@ -31,7 +31,14 @@ final class AppModel {
     private(set) var races: [RaceRecord] = []
     private(set) var changes: [PlanChangeRecord] = []
     /// Runs read from Apple Health, and which planned workout each one fulfilled.
+    /// Runs from the athlete's devices: Apple Health, plus runs only on Intervals.icu (not in Health).
     private(set) var healthRuns: [CompletedRun] = []
+    private var runsFromHealth: [CompletedRun] = []
+    private var intervalsActivities: [IntervalsActivity] = []
+    /// Health run ID → the same run on Intervals.icu, which usually has fuller data (e.g. from Garmin).
+    private var intervalsActivityForRun: [String: String] = [:]
+    /// Recorded data per run ID, for run analysis.
+    private(set) var runSeries: [String: RunSeries] = [:]
     private(set) var healthMatches: [String: CompletedRun] = [:]
     private(set) var healthConnected = false
     private(set) var remindersEnabled = false
@@ -114,6 +121,11 @@ final class AppModel {
                 sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))) ?? []
         }
         races = ((try? context.fetch(FetchDescriptor<RaceRecord>())) ?? []).sorted { $0.date < $1.date }
+        // Merged rather than replaced, so recordings fetched this session survive a reload.
+        let stored = Dictionary(((try? context.fetch(FetchDescriptor<RunDetailRecord>())) ?? []).compactMap { record in
+            record.series.map { (record.runID, $0) }
+        }, uniquingKeysWith: { a, _ in a })
+        runSeries.merge(stored) { _, saved in saved }
         matchHealthRuns()
     }
 
@@ -370,15 +382,105 @@ final class AppModel {
         return try? await runSource.runs(since: start.adding(days: -HistoryCalibration.lookbackWeeks * 7))
     }
 
+    /// Fetches runs from Apple Health and Intervals.icu (whichever are connected), merges them, ticks off
+    /// workouts, and fetches recorded data for recent runs that don't have it yet.
     func refreshHealth() async {
-        guard healthConnected, let runSource, let plan else { return }
-        do {
-            healthRuns = try await runSource.runs(since: plan.inputs.startDate.adding(days: -RacePredictor.lookbackDays))
-            matchHealthRuns()
-            reviewPlan()
-        } catch {
+        guard let plan else { return }
+        let since = plan.inputs.startDate.adding(days: -RacePredictor.lookbackDays)
+        if healthConnected, let runSource {
             // Health can be unavailable (e.g. phone locked); keep the last runs and try again next time.
+            if let runs = try? await runSource.runs(since: since) { runsFromHealth = runs }
         }
+        if let intervals, let account = intervalsAccount,
+           let activities = try? await intervals.activities(from: since, through: today, credentials: account) {
+            intervalsActivities = activities.filter(\.isRun)
+        }
+        mergeRuns()
+        matchHealthRuns()
+        reviewPlan()
+        await fetchRunDetails()
+    }
+
+    /// Health runs plus Intervals.icu runs that aren't in Health. The same run in both (same day, distance within
+    /// 5%) counts once, using Health's record and Intervals.icu's data.
+    private func mergeRuns() {
+        var unmatched = intervalsActivities
+        intervalsActivityForRun = [:]
+        for run in runsFromHealth {
+            if let index = unmatched.firstIndex(where: { activity in
+                activity.date == run.date && (activity.distance.map { abs($0 - run.distanceMeters) <= run.distanceMeters * 0.05 } ?? false)
+            }) {
+                intervalsActivityForRun[run.id] = unmatched[index].id
+                unmatched.remove(at: index)
+            }
+        }
+        healthRuns = (runsFromHealth + unmatched.compactMap(\.completedRun)).sorted { $0.date < $1.date }
+    }
+
+    /// Recorded data for the last 8 weeks of runs, at most 12 new runs per refresh. Intervals.icu is preferred when
+    /// it has the run (it keeps everything the watch recorded); Apple Health otherwise.
+    private func fetchRunDetails() async {
+        let missing = healthRuns.filter { runSeries[$0.id] == nil && $0.date.days(until: today) <= 56 }.suffix(12)
+        for run in missing {
+            var series: RunSeries?
+            var source = "health"
+            let activityID = run.id.hasPrefix("icu-") ? String(run.id.dropFirst(4)) : intervalsActivityForRun[run.id]
+            if let activityID, let intervals, let account = intervalsAccount {
+                series = try? await intervals.series(activityID: activityID, credentials: account)
+                source = "intervals"
+            }
+            if series == nil, !run.id.hasPrefix("icu-"), let runSource {
+                series = try? await runSource.series(forRun: run.id)
+                source = "health"
+            }
+            guard let series else { continue }
+            context.insert(RunDetailRecord(runID: run.id, source: source, series: series))
+            runSeries[run.id] = series.downsampled()
+        }
+        if !missing.isEmpty { try? context.save() }
+    }
+
+    #if DEBUG
+    /// Sample runs with recordings for `-demo` (in memory only).
+    func loadDemoRuns(_ runs: [CompletedRun], series: [String: RunSeries]) {
+        runsFromHealth = runs
+        runSeries = series
+        mergeRuns()
+        matchHealthRuns()
+    }
+    #endif
+
+    /// Maximum heart rate for zones: the athlete's own setting, else estimated from age and recorded runs.
+    var estimatedMaxHeartRate: Double? {
+        fetchProfile()?.maxHeartRate
+            ?? RunAnalyzer.estimatedMaxHeartRate(age: runSource?.age(), runs: Array(runSeries.values))
+    }
+
+    var maxHeartRateIsSet: Bool { fetchProfile()?.maxHeartRate != nil }
+
+    func setMaxHeartRate(_ bpm: Double?) {
+        profile().maxHeartRate = bpm
+        save()
+    }
+
+    /// Splits, averages and zones for a run, in the athlete's units. nil when nothing was recorded.
+    func analysis(for run: CompletedRun) -> RunAnalysis {
+        RunAnalyzer.analyze(runSeries[run.id] ?? RunSeries(), distanceMeters: run.distanceMeters,
+                            durationSeconds: run.durationSeconds, splitMeters: units.metersPerUnit,
+                            maxHeartRate: estimatedMaxHeartRate)
+    }
+
+    /// The planned workout a run ticked off, if any.
+    func workout(for run: CompletedRun) -> Workout? {
+        guard let id = healthMatches.first(where: { $0.value.id == run.id })?.key else { return nil }
+        return plan?.workouts.first { $0.id == id }
+    }
+
+    /// Where a run's data came from, for the run screen.
+    func dataSource(for run: CompletedRun) -> String? {
+        guard runSeries[run.id] != nil else { return nil }
+        let record = try? context.fetch(FetchDescriptor<RunDetailRecord>(predicate: #Predicate { $0.runID == run.id })).first
+        return record?.source
     }
 
     // MARK: Reminders and Apple Watch

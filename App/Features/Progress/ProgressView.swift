@@ -16,6 +16,7 @@ struct TrainingProgressView: View {
                             .padding(.top, Theme.Spacing.s)
                         DistanceTrendCard(plan: plan)
                         StatGrid(plan: plan)
+                        RecentRuns()
                         PredictionCard(plan: plan)
                         ChangeHistory()
                     }
@@ -28,6 +29,7 @@ struct TrainingProgressView: View {
             .screenBackground()
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: WeeklyDistanceRoute.self) { _ in WeeklyDistanceView() }
+            .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
         }
     }
 }
@@ -407,6 +409,46 @@ struct StatCard: View {
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The latest runs from the athlete's devices; each opens its analysis.
+private struct RecentRuns: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let runs = model.healthRuns.sorted { $0.date > $1.date }.prefix(8)
+        if !runs.isEmpty {
+            Text("Recent runs")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Theme.ink)
+                .padding(.top, Theme.Spacing.s)
+            VStack(spacing: 8) {
+                ForEach(Array(runs)) { run in
+                    NavigationLink(value: RunRoute(runID: run.id)) { row(run) }
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func row(_ run: CompletedRun) -> some View {
+        let analysis = model.analysis(for: run)
+        let workout = model.workout(for: run)
+        return HStack(spacing: 12) {
+            KindIcon(kind: workout?.kind ?? .easy, size: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(workout?.kind.name ?? String(localized: "Run"))
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Text("\(run.date.shortDayMonth) · \(model.format.pace(analysis.secondsPerKm))\(analysis.averageHeartRate.map { " · \(Int($0.rounded())) bpm" } ?? "")")
+                    .font(.caption).foregroundStyle(Theme.secondaryInk)
+            }
+            Spacer()
+            ValuePill(text: model.format.distance(run.distanceMeters))
+        }
+        .padding(14)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }

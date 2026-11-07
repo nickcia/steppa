@@ -181,8 +181,9 @@ nonisolated struct IntervalsOAuth: Sendable {
     var clientID: String
     /// Where Intervals.icu sends the athlete back. Must be registered exactly on the app's management page.
     var redirectURI: String
-    /// Planned workouts, plus settings so the app can check watch links and turn on workout upload.
-    static let scopes = "CALENDAR:WRITE,SETTINGS:WRITE"
+    /// Planned workouts; settings, to check watch links and turn on workout upload; and completed runs, for
+    /// run analysis with the full data the watch recorded.
+    static let scopes = "CALENDAR:WRITE,SETTINGS:WRITE,ACTIVITY:READ"
 
     /// Reads INTERVALS_CLIENT_ID from Info.plist; nil when this build has no client ID (forks, local builds).
     static var configured: IntervalsOAuth? {
@@ -297,6 +298,28 @@ nonisolated struct IntervalsAthlete: Decodable, Hashable, Sendable {
     }
 }
 
+/// A completed run on Intervals.icu (only the fields the app uses).
+nonisolated struct IntervalsActivity: Decodable, Hashable, Sendable {
+    var id: String
+    var start_date_local: String
+    var type: String?
+    var distance: Double?
+    var moving_time: Double?
+    var elapsed_time: Double?
+    var device_name: String?
+
+    var isRun: Bool { ["Run", "VirtualRun", "TrailRun"].contains(type ?? "") }
+
+    var date: LocalDate? { LocalDate(iso: String(start_date_local.prefix(10))) }
+
+    /// As a completed run, for activities with no matching run in Apple Health.
+    var completedRun: CompletedRun? {
+        guard isRun, let date, let distance, distance >= RunMatcher.minimumRunMeters,
+              let seconds = moving_time ?? elapsed_time, seconds > 0 else { return nil }
+        return CompletedRun(id: "icu-\(id)", date: date, distanceMeters: distance, durationSeconds: seconds)
+    }
+}
+
 /// Sends HTTP requests. A protocol so tests can stand in for Intervals.icu.
 nonisolated protocol HTTPTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
@@ -375,6 +398,51 @@ nonisolated struct IntervalsClient: Sendable {
         guard !links.isEmpty else { return }
         let body = try JSONSerialization.data(withJSONObject: Dictionary(uniqueKeysWithValues: links.map { ($0.uploadField, true) }))
         _ = try await send("api/v1/athlete/0", method: "PUT", credentials: credentials, body: body)
+    }
+
+    /// Completed activities between two dates, newest first.
+    func activities(from: LocalDate, through: LocalDate, credentials: IntervalsCredentials) async throws -> [IntervalsActivity] {
+        let data = try await send(
+            "api/v1/athlete/\(credentials.athleteID)/activities", method: "GET", credentials: credentials,
+            query: [URLQueryItem(name: "oldest", value: from.description),
+                    URLQueryItem(name: "newest", value: through.description),
+                    URLQueryItem(name: "fields", value: "id,start_date_local,type,distance,moving_time,elapsed_time,device_name")])
+        return try JSONDecoder().decode([IntervalsActivity].self, from: data)
+    }
+
+    private struct Stream: Decodable {
+        var type: String
+        var data: [Double?]?
+    }
+
+    /// The activity's recorded data over time.
+    func series(activityID: String, credentials: IntervalsCredentials) async throws -> RunSeries? {
+        let data = try await send(
+            "api/v1/activity/\(activityID)/streams.json", method: "GET", credentials: credentials,
+            query: [URLQueryItem(name: "types", value: "time,distance,heartrate,watts,cadence,altitude")])
+        let streams = try JSONDecoder().decode([Stream].self, from: data)
+        return Self.series(from: Dictionary(streams.map { ($0.type, $0.data ?? []) }, uniquingKeysWith: { a, _ in a }))
+    }
+
+    /// Lines the streams up against the time stream, skipping gaps.
+    static func series(from streams: [String: [Double?]]) -> RunSeries? {
+        guard let time = streams["time"], !time.isEmpty else { return nil }
+        func points(_ key: String, scale: Double = 1) -> [RunSeries.Point] {
+            guard let values = streams[key] else { return [] }
+            return zip(time, values).compactMap { t, v in
+                guard let t, let v else { return nil }
+                return RunSeries.Point(t, v * scale)
+            }
+        }
+        // Garmin records running cadence per foot; double it to steps per minute when it looks that way.
+        var cadence = points("cadence")
+        let sorted = cadence.map(\.v).filter { $0 > 0 }.sorted()
+        if !sorted.isEmpty, sorted[sorted.count / 2] < 120 {
+            cadence = cadence.map { .init($0.t, $0.v * 2) }
+        }
+        let series = RunSeries(distance: points("distance"), heartRate: points("heartrate"), power: points("watts"),
+                               cadence: cadence, altitude: points("altitude"))
+        return series.isEmpty ? nil : series
     }
 
     /// Makes this app's events from `from` onwards match `events` exactly: adds what's missing and removes what

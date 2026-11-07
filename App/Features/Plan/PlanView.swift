@@ -49,6 +49,7 @@ struct PlanView: View {
                 }
             }
             .navigationDestination(for: Workout.self) { WorkoutDetailView(workout: $0) }
+            .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
         }
     }
 
@@ -175,6 +176,12 @@ struct WorkoutDetailView: View {
                     }
                 }
                 WorkoutStatusButtons(workout: workout)
+                if let run = model.healthRun(for: workout) {
+                    NavigationLink(value: RunRoute(runID: run.id)) {
+                        Label("View your run", systemImage: "waveform.path.ecg")
+                    }
+                    .buttonStyle(.secondary)
+                }
                 SendToWatchButton(workout: workout)
                 HStack(spacing: Theme.Spacing.l) {
                     MoveWorkoutButton(workout: workout)

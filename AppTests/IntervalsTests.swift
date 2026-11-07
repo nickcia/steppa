@@ -12,6 +12,14 @@ nonisolated final class FakeIntervals: HTTPTransport, @unchecked Sendable {
     private var _events: [Stored] = []
     private var _requests: [String] = []
     private var _settings: [String: Any] = ["id": "i123", "name": "Test Runner"]
+    private var _activities: [[String: Any]] = []
+    private var _streams: [String: [[String: Any]]] = [:]
+    func addActivity(_ activity: [String: Any], streams: [[String: Any]] = []) {
+        lock.withLock {
+            _activities.append(activity)
+            _streams[activity["id"] as! String] = streams
+        }
+    }
     static let apiKey = "good-key"
     static let token = "good-token"
     static let code = "good-code"
@@ -59,6 +67,11 @@ nonisolated final class FakeIntervals: HTTPTransport, @unchecked Sendable {
             let changes = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
             _settings.merge(changes) { _, new in new }
             return reply(200, try JSONSerialization.data(withJSONObject: _settings))
+        case ("GET", "/api/v1/athlete/i123/activities"):
+            return reply(200, try JSONSerialization.data(withJSONObject: _activities))
+        case ("GET", let path) where path.hasPrefix("/api/v1/activity/") && path.hasSuffix("/streams.json"):
+            let id = path.dropFirst("/api/v1/activity/".count).dropLast("/streams.json".count)
+            return reply(200, try JSONSerialization.data(withJSONObject: _streams[String(id)] ?? []))
         case ("GET", "/api/v1/athlete/i123/events"):
             let oldest = param("oldest")!, newest = param("newest")!
             let inRange = _events.filter { String($0.date.prefix(10)) >= oldest && String($0.date.prefix(10)) <= newest }
@@ -163,7 +176,7 @@ struct IntervalsSyncTests {
         #expect(attempt.url.absoluteString.hasPrefix("https://intervals.icu/oauth/authorize?"))
         #expect(value("client_id") == "client-1")
         #expect(value("redirect_uri") == "io.github.nickcia.runcoach://intervals-oauth")
-        #expect(value("scope") == "CALENDAR:WRITE,SETTINGS:WRITE")
+        #expect(value("scope") == "CALENDAR:WRITE,SETTINGS:WRITE,ACTIVITY:READ")
         #expect(value("code_challenge") == IntervalsOAuth.challenge(for: attempt.verifier))
         #expect(value("code_challenge_method") == "S256")
         #expect(value("state") == attempt.state)
@@ -297,5 +310,92 @@ struct IntervalsSyncTests {
         await model.disconnectIntervals()
         #expect(model.intervalsAccount == nil)
         #expect(fake.events.map(\.id) == [900])
+    }
+}
+
+@MainActor
+struct IntervalsActivityTests {
+    static let today = AppModelTests.start.adding(days: 9)
+
+    @Test func streamsLineUpWithTimeAndSkipGaps() throws {
+        let series = try #require(IntervalsClient.series(from: [
+            "time": [0, 5, 10, nil, 20],
+            "distance": [0, 15, 30, 45, 60],
+            "heartrate": [120, nil, 130, 131, 132],
+            "cadence": [84, 85, 86, 85, 84], // per foot, as Garmin records it
+        ]))
+        #expect(series.distance.map(\.t) == [0, 5, 10, 20])
+        #expect(series.heartRate.map(\.v) == [120, 130, 132])
+        #expect(series.cadence.first?.v == 168)
+        #expect(series.power.isEmpty)
+        #expect(IntervalsClient.series(from: ["distance": [1, 2]]) == nil)
+    }
+
+    func model(_ fake: FakeIntervals, health: [CompletedRun] = []) async throws -> (AppModel, FakeRunSource) {
+        let keychain = IntervalsKeychain(service: "steppa-tests-\(UUID().uuidString)")
+        let source = FakeRunSource(runs: health)
+        let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { Self.today },
+                             runSource: source, intervals: IntervalsClient(transport: fake),
+                             intervalsKeychain: keychain)
+        model.acceptDisclaimer()
+        model.start(try PlanBuilder.build(AppModelTests.inputs()))
+        try await model.connectIntervals(apiKey: FakeIntervals.apiKey)
+        return (model, source)
+    }
+
+    static func activity(_ id: String, _ workout: Workout, scale: Double = 1) -> [String: Any] {
+        ["id": id, "start_date_local": "\(workout.date)T07:00:00", "type": "Run",
+         "distance": workout.totalMeters * scale, "moving_time": workout.totalSeconds * scale]
+    }
+
+    static let streams: [[String: Any]] = [
+        ["type": "time", "data": Array(stride(from: 0.0, through: 1800, by: 10))],
+        ["type": "distance", "data": Array(stride(from: 0.0, through: 1800, by: 10)).map { $0 * 3 }],
+        ["type": "heartrate", "data": Array(repeating: 145.0, count: 181)],
+    ]
+
+    @Test func intervalsOnlyRunsTickOffWorkoutsWithTheirData() async throws {
+        let plan = try PlanBuilder.build(AppModelTests.inputs())
+        let first = try #require(plan.workouts.first)
+        let fake = FakeIntervals()
+        fake.addActivity(Self.activity("i9", first), streams: Self.streams)
+        let (model, _) = try await model(fake)
+
+        await model.refreshHealth()
+        let run = try #require(model.healthRuns.first { $0.id == "icu-i9" })
+        #expect(model.status(of: first) == .done)
+        #expect(model.workout(for: run)?.id == first.id)
+        #expect(model.runSeries[run.id]?.heartRate.isEmpty == false)
+        #expect(model.analysis(for: run).averageHeartRate == 145)
+    }
+
+    @Test func theSameRunInHealthAndIntervalsCountsOnceWithIntervalsData() async throws {
+        let plan = try PlanBuilder.build(AppModelTests.inputs())
+        let first = try #require(plan.workouts.first)
+        let healthRun = HealthIntegrationTests.run(for: first, id: "hk1", scale: 1.02)
+        let fake = FakeIntervals()
+        fake.addActivity(Self.activity("i9", first), streams: Self.streams)
+        let (model, source) = try await model(fake, health: [healthRun])
+        source.series["hk1"] = RunSeries(heartRate: [.init(0, 150), .init(10, 150)])
+        await model.connectHealth()
+
+        #expect(model.healthRuns.map(\.id) == ["hk1"])
+        // Intervals.icu's fuller recording is used for the Health run.
+        #expect(model.runSeries["hk1"]?.distance.isEmpty == false)
+        #expect(model.dataSource(for: healthRun) == "intervals")
+    }
+
+    @Test func healthDataIsUsedWithoutIntervals() async throws {
+        let plan = try PlanBuilder.build(AppModelTests.inputs())
+        let first = try #require(plan.workouts.first)
+        let healthRun = HealthIntegrationTests.run(for: first, id: "hk1")
+        let source = FakeRunSource(runs: [healthRun])
+        source.series["hk1"] = RunSeries(heartRate: [.init(0, 150), .init(10, 150)])
+        let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { Self.today }, runSource: source)
+        model.acceptDisclaimer()
+        model.start(plan)
+        await model.connectHealth()
+        #expect(model.runSeries["hk1"]?.heartRate.count == 2)
+        #expect(model.dataSource(for: healthRun) == "health")
     }
 }
