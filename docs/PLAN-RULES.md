@@ -28,6 +28,26 @@ gives the share of VO₂max you can sustain for a given time. Nothing is copied 
 - **Goal times:** paces always come from **current** fitness, never from the goal time. An ambitious
   goal produces a warning, not harder sessions.
 
+### Checking your answers against your runs
+
+When Apple Health is connected during setup, the runs from the **6 full weeks** before the plan starts are
+read before the first plan is built
+([`HistoryCalibration.swift`](../Packages/PlanEngine/Sources/PlanEngine/Plan/HistoryCalibration.swift)).
+The setup screen shows what was found and what changed.
+
+- **Too little history:** fewer than 6 runs, or runs in fewer than 4 of the 6 weeks, usually means some
+  runs weren't recorded. Your answers are used as given.
+- **Weekly distance lower than you said** (by more than 15%): the plan starts from what you actually ran.
+  Starting too high is a common cause of injury, so the lower figure wins straight away.
+- **Weekly distance higher than you said** (by more than 15%): the plan starts halfway between the two,
+  to stay cautious.
+- **Within 15%:** your answer stands.
+- **Fitness:** only when you didn't give a race result. If a recent run of 3 km or more shows a higher
+  fitness score than the conservative estimate, that run sets your paces instead. Any run is at most an
+  all-out effort, so its score is a lower bound on your fitness: sessions are never harder than something
+  you've already run. A race result you enter is never replaced.
+- Distances are rounded to the nearest 500 m.
+
 ## 2. Phases
 
 Weeks run Monday to Sunday. The last week contains the race. The taper is 1 week for 5K and 10K, 2 weeks
