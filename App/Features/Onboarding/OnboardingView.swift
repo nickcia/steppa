@@ -5,6 +5,10 @@ struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @State private var draft = OnboardingDraft()
     @State private var preview: Result<TrainingPlan, PlanError>?
+    /// True while the plan is being built and its checklist shown, before the review appears.
+    @State private var building = false
+    /// What Apple Health said about the answers; nil until checked, or when Health isn't connected.
+    @State private var calibration: HistoryCalibration.Result?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,6 +27,15 @@ struct OnboardingView: View {
         }
         .screenBackground()
         .environment(\.unitSystem, draft.units)
+        .onAppear {
+            #if DEBUG
+            // `-buildPlan`: skip the questions with their defaults and go straight to building the plan.
+            if ProcessInfo.processInfo.arguments.contains("-buildPlan") {
+                draft.acceptedDisclaimer = true
+                go(to: .review)
+            }
+            #endif
+        }
     }
 
     // MARK: Chrome
@@ -49,9 +62,9 @@ struct OnboardingView: View {
         VStack(spacing: Theme.Spacing.s) {
             switch draft.step {
             case .review:
-                Button("Start my plan") { startPlan() }
+                Button(building ? "Building your plan…" : "Start my plan") { startPlan() }
                     .buttonStyle(.primary)
-                    .disabled(planOrNil == nil)
+                    .disabled(planOrNil == nil || building)
             case .health:
                 Button("Connect Apple Health") {
                     Task {
@@ -78,10 +91,27 @@ struct OnboardingView: View {
     }
 
     private func go(to step: OnboardingDraft.Step) {
-        if step == .review {
-            do { preview = .success(try PlanBuilder.build(draft.inputs)) } catch { preview = .failure(error) }
-        }
+        if step == .review { buildPlan() }
         withAnimation(.snappy) { draft.step = step }
+    }
+
+    /// Checks the answers against recent runs in Apple Health (when connected), then builds the plan.
+    private func buildPlan() {
+        preview = nil
+        calibration = nil
+        building = true
+        let inputs = draft.inputs
+        Task {
+            let runs = await model.runsBeforePlan(starting: inputs.startDate)
+            let checked = runs.map { HistoryCalibration.calibrate(inputs, runs: $0) }
+            calibration = checked
+            do throws(PlanError) {
+                preview = .success(try PlanBuilder.build(checked?.inputs ?? inputs))
+            } catch {
+                preview = .failure(error)
+                building = false
+            }
+        }
     }
 
     private var planOrNil: TrainingPlan? {
@@ -108,7 +138,15 @@ struct OnboardingView: View {
         case .volume: VolumeStep(draft: draft)
         case .availability: AvailabilityStep(draft: draft)
         case .health: HealthStep()
-        case .review: ReviewStep(draft: draft, preview: preview)
+        case .review:
+            if building {
+                BuildingPlanView(plan: planOrNil, calibration: calibration, checksHealth: model.healthConnected,
+                                 draft: draft) {
+                    withAnimation(.smooth) { building = false }
+                }
+            } else {
+                ReviewStep(draft: draft, preview: preview)
+            }
         }
     }
 }
@@ -473,6 +511,157 @@ extension Weekday {
     var shortName: String { Calendar.current.veryShortStandaloneWeekdaySymbols[symbolIndex] }
     var mediumName: String { Calendar.current.shortStandaloneWeekdaySymbols[symbolIndex] }
     var fullName: String { Calendar.current.standaloneWeekdaySymbols[symbolIndex] }
+}
+
+/// What went into the plan, one line at a time.
+///
+/// Building a plan takes milliseconds, so nothing here pretends to compute. The only real wait is reading recent
+/// runs from Apple Health, which shows a spinner while it happens. After that, each finished line stays up for
+/// roughly as long as it takes to read (longer lines stay longer), so people can follow how their answers became a
+/// plan. A tap skips to the result.
+private struct BuildingPlanView: View {
+    let plan: TrainingPlan?
+    let calibration: HistoryCalibration.Result?
+    let checksHealth: Bool
+    let draft: OnboardingDraft
+    let onFinished: () -> Void
+    @Environment(\.unitSystem) private var units
+    @State private var revealed = 0
+    @State private var finished = false
+
+    private struct Item {
+        let title: String
+        let detail: String
+    }
+
+    var body: some View {
+        let items = items
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            StepHeader(title: String(localized: "Building your plan"),
+                       subtitle: String(localized: "\(draft.goal.name) on \(draft.race.dayMonth)"))
+            VStack(alignment: .leading, spacing: 18) {
+                if plan == nil && checksHealth {
+                    row(title: String(localized: "Checking your recent runs"),
+                        detail: String(localized: "Reading the last \(HistoryCalibration.lookbackWeeks) weeks from Apple Health"),
+                        state: .working)
+                }
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    row(title: item.title, detail: item.detail, state: index < revealed ? .done : .waiting)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            if plan != nil {
+                Text("Tap to skip")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryInk)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { if plan != nil { finish() } }
+        .task(id: plan == nil) {
+            guard plan != nil else { return }
+            for item in items {
+                withAnimation(.snappy) { revealed += 1 }
+                try? await Task.sleep(for: readingTime(item))
+                if Task.isCancelled || finished { return }
+            }
+            finish()
+        }
+    }
+
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        onFinished()
+    }
+
+    /// Long enough to read the line: a short base plus about 25 ms a character, between 0.6 and 1.8 seconds.
+    private func readingTime(_ item: Item) -> Duration {
+        let characters = Double(item.title.count + item.detail.count)
+        return .milliseconds(Int(min(max(0.35 + characters * 0.025, 0.6), 1.8) * 1000))
+    }
+
+    private enum RowState { case working, done, waiting }
+
+    private func row(title: String, detail: String, state: RowState) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Group {
+                switch state {
+                case .working:
+                    ProgressView()
+                case .done:
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.onAccent)
+                        .frame(width: 28, height: 28)
+                        .background(Theme.accent, in: Circle())
+                        .transition(.opacity)
+                case .waiting:
+                    Circle().strokeBorder(Theme.subtle, lineWidth: 2)
+                }
+            }
+            .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(state == .waiting ? Theme.secondaryInk : Theme.ink)
+                if state != .waiting {
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var items: [Item] {
+        guard let plan else { return [] }
+        let format = DisplayFormat(units: units)
+        var items: [Item] = []
+        if let calibration {
+            items.append(Item(title: String(localized: "Checking your recent runs"), detail: volumeText(calibration, format)))
+        }
+        items.append(Item(title: String(localized: "Reading your fitness"), detail: fitnessText(format)))
+        items.append(Item(title: String(localized: "Setting your paces"),
+                          detail: String(localized: "Easy about \(DisplayFormat.clock(format.paceSeconds(plan.paces.easy.mid))) · threshold \(format.pace(plan.paces.threshold.mid))")))
+        items.append(Item(title: String(localized: "Building \(plan.weeks.count) weeks"),
+                          detail: String(localized: "From \(format.distance(plan.inputs.currentWeeklyMeters)) up to \(format.distance(plan.weeks.map(\.targetMeters).max() ?? 0)) a week, then a taper")))
+        items.append(Item(title: String(localized: "Checking the safety rules"),
+                          detail: PlanValidator.validate(plan).isEmpty
+                              ? String(localized: "Gradual build and easy days between hard ones, checked week by week")
+                              : String(localized: "Adjusted to stay within the rules")))
+        return items
+    }
+
+    private func volumeText(_ result: HistoryCalibration.Result, _ format: DisplayFormat) -> String {
+        switch result.volume {
+        case .notEnoughHistory(let runs):
+            runs == 0 ? String(localized: "No runs in Apple Health yet, so we've gone with your answers")
+                      : String(localized: "Only \(runs) runs recorded lately, so we've gone with your answers")
+        case .confirmed(let observed):
+            String(localized: "About \(format.distance(observed)) a week, as you said")
+        case .lowered(let stated, let observed):
+            String(localized: "You said \(format.distance(stated)) a week; Health shows about \(format.distance(observed)), so we start from that")
+        case .raised(_, let observed, let used):
+            String(localized: "Health shows about \(format.distance(observed)) a week; we start from \(format.distance(used)) to build up safely")
+        }
+    }
+
+    private func fitnessText(_ format: DisplayFormat) -> String {
+        if case .fromRun(let meters, let seconds, let date)? = calibration?.fitness {
+            return String(localized: "From your \(format.distance(meters)) run in \(DisplayFormat.clock(seconds)) on \(date.formatted(.dateTime.day().month(.abbreviated)))")
+        }
+        return draft.hasRecentRace
+            ? String(localized: "From your \(draft.recentDistance.name) in \(DisplayFormat.clock(draft.recentTimeSeconds))")
+            : String(localized: "Estimated from your experience and weekly distance")
+    }
 }
 
 private struct ReviewStep: View {

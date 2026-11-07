@@ -5,17 +5,48 @@ import PlanEngine
 /// The app's visual language. Everything colour- and spacing-related lives here so the look
 /// can be changed in one place.
 enum Theme {
-    static let accent = Color.accentColor
-    static let ink = Color(light: 0x10242B, dark: 0xEEF4F3)
-    static let secondaryInk = Color(light: 0x5B6D72, dark: 0x9DB0B2)
-    static let background = Color(light: 0xF3F6F5, dark: 0x0A1113)
-    static let card = Color(light: 0xFFFFFF, dark: 0x141F22)
-    static let subtle = Color(light: 0xE5ECEA, dark: 0x203034)
-    static let warning = Color(light: 0xB86E00, dark: 0xF2B24C)
+    // A light, calm look: soft grey page, near-white cards, near-black type and pills, and one signature
+    // gradient (red → amber → green) for progress and effort. The app always uses light mode (see SteppaApp).
+    /// Selected states and main actions are near-black pills.
+    static let accent = Color(hex: 0x141414)
+    /// Text and icons on an accent fill.
+    static let onAccent = Color.white
+    static let ink = Color(hex: 0x111111)
+    static let secondaryInk = Color(hex: 0x8C8C8C)
+    static let background = Color(hex: 0xECECEC)
+    static let card = Color(hex: 0xF8F8F8)
+    /// Tracks, empty bars and quiet fills.
+    static let subtle = Color(hex: 0xE1E1E1)
+    static let hairline = Color.black.opacity(0.04)
+    static let warning = Color(hex: 0xE59A1F)
+
+    static let red = Color(hex: redHex)
+    static let amber = Color(hex: amberHex)
+    static let green = Color(hex: greenHex)
+    private static let redHex: UInt32 = 0xF26D6D
+    private static let amberHex: UInt32 = 0xF5B13D
+    private static let greenHex: UInt32 = 0x5CCB6A
+
+    /// The signature gradient, low to high: red, amber, green.
+    static let heat = LinearGradient(colors: [red, amber, green], startPoint: .leading, endPoint: .trailing)
+
+    /// The heat colour for a value from 0 (red) to 1 (green).
+    static func heat(_ value: Double) -> Color {
+        let v = min(max(value, 0), 1)
+        return v < 0.5 ? blend(redHex, amberHex, v * 2) : blend(amberHex, greenHex, (v - 0.5) * 2)
+    }
+
+    private static func blend(_ a: UInt32, _ b: UInt32, _ t: Double) -> Color {
+        func channel(_ shift: UInt32) -> Double {
+            let x = Double((a >> shift) & 0xFF), y = Double((b >> shift) & 0xFF)
+            return (x + (y - x) * t) / 255
+        }
+        return Color(red: channel(16), green: channel(8), blue: channel(0))
+    }
 
     enum Radius {
-        static let card: CGFloat = 22
-        static let control: CGFloat = 16
+        static let card: CGFloat = 28
+        static let control: CGFloat = 20
         static let chip: CGFloat = 12
     }
 
@@ -25,6 +56,12 @@ enum Theme {
         static let m: CGFloat = 16
         static let l: CGFloat = 24
         static let xl: CGFloat = 32
+    }
+}
+
+extension Color {
+    nonisolated init(hex: UInt32) {
+        self.init(uiColor: UIColor(hex: hex))
     }
 }
 
@@ -52,15 +89,22 @@ extension UIColor {
 // MARK: - Semantic colours and symbols for engine types
 
 extension WorkoutKind {
-    var color: Color {
+    /// Highlight, main and deep stops; `color` is the main one.
+    var gradientStops: [Color] {
         switch self {
-        case .easy: Color(light: 0x2E9E7E, dark: 0x4CC7A2)
-        case .long: Color(light: 0x2F63C9, dark: 0x6E98F0)
-        case .tempo: Color(light: 0xD98A12, dark: 0xF2AE45)
-        case .intervals: Color(light: 0xE04B3A, dark: 0xF5786A)
-        case .marathonPaceLong: Color(light: 0x7A55C7, dark: 0xA88AF0)
-        case .race: Color(light: 0xD23A73, dark: 0xF06A9B)
+        case .easy: [Color(hex: 0x9FE6A8), Color(hex: 0x5CCB6A), Color(hex: 0x3A9E4A)]
+        case .long: [Color(hex: 0xA9C6FF), Color(hex: 0x5B8DEF), Color(hex: 0x3A62C4)]
+        case .tempo: [Color(hex: 0xFFD58A), Color(hex: 0xF5B13D), Color(hex: 0xD9861A)]
+        case .intervals: [Color(hex: 0xFFADAD), Color(hex: 0xF26D6D), Color(hex: 0xD04545)]
+        case .marathonPaceLong: [Color(hex: 0xCDB8FF), Color(hex: 0x9A78F0), Color(hex: 0x6F4FD0)]
+        case .race: [Color(hex: 0xFFB3CF), Color(hex: 0xEC5D93), Color(hex: 0xC23A6E)]
         }
+    }
+
+    var color: Color { gradientStops[1] }
+
+    var gradient: LinearGradient {
+        LinearGradient(colors: gradientStops, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
     var symbol: String {
@@ -71,6 +115,18 @@ extension WorkoutKind {
         case .intervals: "repeat"
         case .marathonPaceLong: "speedometer"
         case .race: "flag.checkered"
+        }
+    }
+
+    /// For sentences: "Ready for your threshold run?"
+    var casualName: String {
+        switch self {
+        case .easy: String(localized: "easy run")
+        case .long: String(localized: "long run")
+        case .tempo: String(localized: "threshold run")
+        case .intervals: String(localized: "intervals")
+        case .marathonPaceLong: String(localized: "marathon-pace long run")
+        case .race: String(localized: "race")
         }
     }
 
@@ -100,10 +156,10 @@ extension WorkoutKind {
 extension Phase {
     var color: Color {
         switch self {
-        case .base: Color(light: 0x6FB5A2, dark: 0x5FA493)
-        case .build: Color(light: 0x3F86D1, dark: 0x5E9BE0)
-        case .peak: Color(light: 0xE06D3C, dark: 0xF08A5D)
-        case .taper: Color(light: 0x9483D6, dark: 0xA999E6)
+        case .base: Color(hex: 0x5CCB6A)
+        case .build: Color(hex: 0xF5B13D)
+        case .peak: Color(hex: 0xF26D6D)
+        case .taper: Color(hex: 0xA9A9A9)
         }
     }
 

@@ -9,9 +9,13 @@ struct TrainingProgressView: View {
         NavigationStack {
             ScrollView {
                 if let plan = model.plan {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                        CompletionCard(plan: plan)
-                        VolumeHistoryCard(plan: plan)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Progress")
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                            .padding(.top, Theme.Spacing.s)
+                        DistanceTrendCard(plan: plan)
+                        StatGrid(plan: plan)
                         PredictionCard(plan: plan)
                         ChangeHistory()
                     }
@@ -19,8 +23,11 @@ struct TrainingProgressView: View {
                     .padding(.bottom, Theme.Spacing.xl)
                 }
             }
+            .scrollIndicators(.hidden)
+            .statusBarBackdrop()
             .screenBackground()
-            .navigationTitle("Progress")
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: WeeklyDistanceRoute.self) { _ in WeeklyDistanceView() }
         }
     }
 }
@@ -42,83 +49,365 @@ struct CompletionStats {
     }
 }
 
-private struct CompletionCard: View {
+/// Distance per week against the plan.
+struct WeekTotals {
+    struct Week: Identifiable {
+        let id: Int
+        let startDate: LocalDate
+        let phase: Phase
+        let isStepBack: Bool
+        let planned: Double
+        let completed: Double
+        let isCurrent: Bool
+        let isFuture: Bool
+        var ratio: Double { planned > 0 ? completed / planned : 0 }
+    }
+
+    /// Every week of the plan.
+    let all: [Week]
+    /// Weeks that have started (including this one).
+    var weeks: [Week] { all.filter { !$0.isFuture } }
+    var current: Week? { all.first(where: \.isCurrent) }
+
+    init(plan: TrainingPlan, model: AppModel) {
+        let thisMonday = model.today.startOfWeek
+        all = plan.weeks.map { week in
+            // Actual distance from Apple Health where available, planned distance for runs ticked off by hand.
+            let completed = week.workouts.filter { model.status(of: $0) == .done }
+                .reduce(0) { $0 + (model.healthRun(for: $1)?.distanceMeters ?? $1.totalMeters) }
+            return Week(id: week.index, startDate: week.startDate, phase: week.phase, isStepBack: week.isStepBack,
+                        planned: week.plannedMeters, completed: completed,
+                        isCurrent: week.startDate == thisMonday, isFuture: week.startDate > thisMonday)
+        }
+    }
+}
+
+/// One column per week. Grey stripes show the planned distance; coloured stripes on top show what was run,
+/// red to green by how much of the week was done. The current week is marked.
+struct WeekBarsChart: View {
+    let weeks: [WeekTotals.Week]
+    var showsMarker = true
+
+    var body: some View {
+        Canvas { context, size in
+            guard !weeks.isEmpty else { return }
+            let markerSpace: CGFloat = showsMarker ? 22 : 0
+            let chartHeight = size.height - markerSpace
+            let peak = max(weeks.map { max($0.planned, $0.completed) }.max() ?? 1, 1)
+            let column = size.width / CGFloat(weeks.count)
+            let barWidth = max(column * 0.62, 3)
+            let stripe: CGFloat = 3
+            for (i, week) in weeks.enumerated() {
+                let left = CGFloat(i) * column + (column - barWidth) / 2
+                let plannedHeight = max(CGFloat(week.planned / peak) * chartHeight, 4)
+                let doneHeight = CGFloat(min(week.completed, peak) / peak) * chartHeight
+                let color = Theme.heat(week.ratio)
+                var x = left
+                while x <= left + barWidth {
+                    var planned = Path()
+                    planned.move(to: CGPoint(x: x, y: size.height))
+                    planned.addLine(to: CGPoint(x: x, y: size.height - plannedHeight))
+                    context.stroke(planned, with: .color(week.isFuture ? Theme.subtle.opacity(0.7) : Theme.subtle), lineWidth: 1.4)
+                    if doneHeight > 0 {
+                        var done = Path()
+                        done.move(to: CGPoint(x: x, y: size.height))
+                        done.addLine(to: CGPoint(x: x, y: size.height - doneHeight))
+                        context.stroke(done, with: .color(color), lineWidth: 1.4)
+                    }
+                    x += stripe
+                }
+            }
+
+            // The "Now" marker goes on top of every bar.
+            for (i, week) in weeks.enumerated() where showsMarker && week.isCurrent {
+                let left = CGFloat(i) * column + (column - barWidth) / 2
+                let plannedHeight = max(CGFloat(week.planned / peak) * chartHeight, 4)
+                let doneHeight = CGFloat(min(week.completed, peak) / peak) * chartHeight
+                let center = left + barWidth / 2
+                let top = size.height - max(plannedHeight, doneHeight) - 6
+                let label = context.resolve(Text("Now").font(.caption2.weight(.bold)).foregroundStyle(.white))
+                let labelSize = label.measure(in: size)
+                let pill = CGRect(x: center - labelSize.width / 2 - 6, y: top - labelSize.height - 4,
+                                  width: labelSize.width + 12, height: labelSize.height + 4)
+                context.fill(Path(roundedRect: pill, cornerRadius: pill.height / 2), with: .color(Theme.accent))
+                context.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Opens the week-by-week breakdown.
+struct WeeklyDistanceRoute: Hashable {}
+
+/// Every week of the plan: planned and run distance, with the current week highlighted.
+struct WeeklyDistanceView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        ScrollView {
+            if let plan = model.plan {
+                let totals = WeekTotals(plan: plan, model: model)
+                let doneToDate = totals.weeks.reduce(0) { $0 + $1.completed }
+                let plannedToDate = totals.weeks.reduce(0) { $0 + $1.planned }
+                let planTotal = totals.all.reduce(0) { $0 + $1.planned }
+                VStack(alignment: .leading, spacing: 12) {
+                    Card(padding: 20) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .lastTextBaseline) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(model.format.distance(doneToDate))
+                                        .font(.system(size: 44, weight: .semibold))
+                                        .monospacedDigit()
+                                        .foregroundStyle(Theme.ink)
+                                    Text(String(localized: "run of \(model.format.distance(plannedToDate)) planned so far"))
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.secondaryInk)
+                                }
+                                Spacer()
+                                let share = plannedToDate > 0 ? doneToDate / plannedToDate : 0
+                                Text("\(Int((share * 100).rounded()))%")
+                                    .font(.title2.weight(.semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Theme.heat(share))
+                            }
+                            WeekBarsChart(weeks: totals.all)
+                                .frame(height: 170)
+                            ChartLegend()
+                            Text(String(localized: "Whole plan: \(model.format.distance(planTotal)) over \(totals.all.count) weeks."))
+                                .font(.footnote)
+                                .foregroundStyle(Theme.secondaryInk)
+                        }
+                    }
+                    ForEach(totals.all) { week in
+                        WeekDistanceRow(week: week)
+                    }
+                }
+                .padding(.horizontal, Theme.Spacing.m)
+                .padding(.bottom, Theme.Spacing.xl)
+            }
+        }
+        .scrollIndicators(.hidden)
+        .screenBackground()
+        .navigationTitle("Weekly distance")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct ChartLegend: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            item(Theme.subtle, String(localized: "Planned"))
+            item(Theme.red, String(localized: "Under half"))
+            item(Theme.amber, String(localized: "Most"))
+            item(Theme.green, String(localized: "On target"))
+        }
+        .font(.caption)
+        .foregroundStyle(Theme.secondaryInk)
+    }
+
+    private func item(_ color: Color, _ text: String) -> some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 8, height: 8)
+            Text(text)
+        }
+    }
+}
+
+private struct WeekDistanceRow: View {
+    let week: WeekTotals.Week
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(String(localized: "Week \(week.id + 1)")).font(.headline).foregroundStyle(Theme.ink)
+                Text(week.isStepBack ? String(localized: "\(week.phase.name) · easier week") : week.phase.name)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryInk)
+                Spacer()
+                if week.isCurrent {
+                    Text("This week")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.onAccent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Theme.accent, in: Capsule())
+                } else {
+                    Text("\(week.startDate.formatted(.dateTime.day().month(.abbreviated))) – \(week.startDate.adding(days: 6).formatted(.dateTime.day().month(.abbreviated)))")
+                        .font(.caption)
+                        .foregroundStyle(Theme.secondaryInk)
+                }
+            }
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                if week.isFuture {
+                    Text(model.format.distance(week.planned))
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.secondaryInk)
+                    Text("planned").font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                } else {
+                    Text(model.format.distance(week.completed))
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.ink)
+                    Text(String(localized: "of \(model.format.distance(week.planned))"))
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.secondaryInk)
+                }
+                Spacer()
+                if !week.isFuture {
+                    Text("\(Int((week.ratio * 100).rounded()))%")
+                        .font(.subheadline.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.ink)
+                }
+            }
+            if !week.isFuture { HeatBar(value: week.ratio) }
+        }
+        .padding(16)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+        .overlay {
+            if week.isCurrent {
+                RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                    .strokeBorder(Theme.accent, lineWidth: 1.5)
+            }
+        }
+        .opacity(week.isFuture ? 0.75 : 1)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The headline card: total distance so far, and every week drawn as fine vertical lines whose height is the
+/// distance run and whose colour shows how much of the plan was done (red under half, amber, green on target).
+private struct DistanceTrendCard: View {
+    let plan: TrainingPlan
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let totals = WeekTotals(plan: plan, model: model)
+        let completed = totals.weeks.reduce(0) { $0 + $1.completed }
+        let planned = totals.weeks.reduce(0) { $0 + $1.planned }
+        let share = planned > 0 ? completed / planned : 0
+        NavigationLink(value: WeeklyDistanceRoute()) {
+        Card(padding: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Distance so far").font(.title3.weight(.medium)).foregroundStyle(Theme.ink)
+                    Spacer()
+                    Text("\(Int((share * 100).rounded()))%")
+                        .font(.title3.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.heat(share))
+                }
+                HStack(alignment: .lastTextBaseline) {
+                    Text(model.format.distance(completed))
+                        .font(.system(size: 56, weight: .semibold))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                        .foregroundStyle(Theme.ink)
+                    Spacer()
+                }
+                WeekBarsChart(weeks: totals.all)
+                    .frame(height: 170)
+                    .padding(.top, Theme.Spacing.s)
+                HStack {
+                    Text("Week 1")
+                    Spacer()
+                    Text(String(localized: "Week \(totals.all.count)"))
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Theme.secondaryInk)
+                ChartLegend().padding(.top, 4)
+            }
+        }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Four small cards: a big number, a change badge, a note and a red-to-green bar.
+private struct StatGrid: View {
     let plan: TrainingPlan
     @Environment(AppModel.self) private var model
 
     var body: some View {
         let stats = CompletionStats(plan: plan, statuses: model.effectiveStatuses, today: model.today)
-        Card(padding: 20) {
-            HStack(spacing: Theme.Spacing.l) {
-                ZStack {
-                    Circle().stroke(Theme.subtle, lineWidth: 12)
-                    Circle()
-                        .trim(from: 0, to: stats.rate)
-                        .stroke(Theme.accent, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Text("\(Int((stats.rate * 100).rounded()))%")
-                        .font(.title2.weight(.heavy))
-                        .fontDesign(.rounded)
-                        .foregroundStyle(Theme.ink)
-                }
-                .frame(width: 104, height: 104)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text("\(Int((stats.rate * 100).rounded())) percent of workouts completed"))
-                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                    Text("Workouts completed").font(.headline).foregroundStyle(Theme.ink)
-                    Metric(value: "\(stats.done) / \(stats.due)", label: String(localized: "done so far"))
-                    if stats.skipped + stats.missed > 0 {
-                        Text("\(stats.skipped) skipped · \(stats.missed) not marked")
-                            .font(.caption).foregroundStyle(Theme.secondaryInk)
-                    }
-                }
-                Spacer(minLength: 0)
+        let totals = WeekTotals(plan: plan, model: model)
+        let thisWeek = totals.weeks.last
+        let due = plan.workouts.filter { $0.date < model.today && $0.kind != .race }
+        let plannedSeconds = due.reduce(0) { $0 + $1.totalSeconds }
+        let doneSeconds = due.filter { model.status(of: $0) == .done }
+            .reduce(0) { $0 + (model.healthRun(for: $1)?.durationSeconds ?? $1.totalSeconds) }
+        let elapsed = Double(plan.inputs.startDate.days(until: model.today))
+        let length = Double(max(plan.inputs.startDate.days(until: plan.inputs.raceDate), 1))
+        Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+            GridRow {
+                StatCard(title: String(localized: "Runs done"), symbol: "checkmark.circle", tint: Theme.green,
+                         value: "\(stats.done)", badge: nil,
+                         note: String(localized: "of \(stats.due) so far"), progress: stats.rate)
+                StatCard(title: String(localized: "This week"), symbol: "figure.run", tint: WorkoutKind.easy.color,
+                         value: model.format.distance(thisWeek?.completed ?? 0),
+                         badge: nil,
+                         note: String(localized: "of \(model.format.distance(thisWeek?.planned ?? 0)) planned"),
+                         progress: thisWeek?.ratio ?? 0)
+            }
+            GridRow {
+                StatCard(title: String(localized: "Time running"), symbol: "stopwatch", tint: Theme.amber,
+                         value: DisplayFormat.duration(doneSeconds), badge: nil,
+                         note: String(localized: "of \(DisplayFormat.duration(plannedSeconds)) planned"),
+                         progress: plannedSeconds > 0 ? doneSeconds / plannedSeconds : 0)
+                StatCard(title: String(localized: "Plan"), symbol: "flag.checkered", tint: WorkoutKind.race.color,
+                         value: "\(Int((min(max(elapsed / length, 0), 1) * 100).rounded()))%", badge: nil,
+                         note: String(localized: "\(max(model.today.days(until: plan.inputs.raceDate), 0)) days to go"),
+                         progress: elapsed / length)
             }
         }
-        .padding(.top, Theme.Spacing.s)
     }
 }
 
-private struct VolumeHistoryCard: View {
-    let plan: TrainingPlan
-    @Environment(AppModel.self) private var model
-
-    private struct Point: Identifiable {
-        let id: String
-        let week: Int
-        let series: String
-        let distance: Double
-    }
-
-    private var points: [Point] {
-        let unit = model.units.metersPerUnit
-        let planned = String(localized: "Planned"), done = String(localized: "Completed")
-        return plan.weeks.filter { $0.startDate <= model.today }.flatMap { week -> [Point] in
-            // Actual distance from Apple Health where available, planned distance for runs ticked off by hand.
-            let completed = week.workouts.filter { model.status(of: $0) == .done }
-                .reduce(0) { $0 + (model.healthRun(for: $1)?.distanceMeters ?? $1.totalMeters) }
-            return [Point(id: "p\(week.index)", week: week.index + 1, series: planned, distance: week.plannedMeters / unit),
-                    Point(id: "d\(week.index)", week: week.index + 1, series: done, distance: completed / unit)]
-        }
-    }
+struct StatCard: View {
+    let title: String
+    let symbol: String
+    let tint: Color
+    let value: String
+    let badge: (String, Bool)?
+    let note: String
+    let progress: Double
 
     var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                Text("Weekly distance").font(.headline).foregroundStyle(Theme.ink)
-                Chart(points) { point in
-                    BarMark(x: .value("Week", String(localized: "W\(point.week)")),
-                            y: .value("Distance", point.distance))
-                        .foregroundStyle(by: .value("Series", point.series))
-                        .position(by: .value("Series", point.series))
-                        .cornerRadius(3)
-                }
-                .chartForegroundStyleScale([String(localized: "Planned"): Theme.subtle,
-                                            String(localized: "Completed"): Theme.accent])
-                .chartYAxisLabel(model.units.distanceUnit)
-                .frame(height: 180)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                Text(title).font(.headline.weight(.medium)).foregroundStyle(Theme.ink).lineLimit(1)
+                Spacer()
+                Image(systemName: symbol).font(.title3).foregroundStyle(tint).frame(height: 24)
             }
+            HStack(alignment: .lastTextBaseline, spacing: 6) {
+                Text(value)
+                    .font(.system(size: 38, weight: .semibold))
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.ink)
+                if let badge { DeltaBadge(text: badge.0, isGood: badge.1) }
+            }
+            Text(note).font(.subheadline).foregroundStyle(Theme.secondaryInk).lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+            HStack(spacing: 10) {
+                HeatBar(value: progress)
+                Text("\(Int((min(max(progress, 0), 1) * 100).rounded()))%")
+                    .font(.subheadline.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.ink)
+            }
+            .padding(.top, 6)
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 

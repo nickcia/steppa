@@ -24,6 +24,8 @@ struct SteppaApp: App {
             RootView()
                 .environment(model)
                 .tint(Theme.accent)
+                // The look is designed for light surfaces only.
+                .preferredColorScheme(.light)
         }
         .modelContainer(container)
     }
@@ -60,20 +62,97 @@ struct RootView: View {
     }
 }
 
-struct MainTabs: View {
-    var body: some View {
-        TabView {
-            TodayView()
-                .tabItem { Label("Today", systemImage: "sun.max") }
-            PlanView()
-                .tabItem { Label("Plan", systemImage: "calendar") }
-            RacesView()
-                .tabItem { Label("Races", systemImage: "flag.checkered") }
-            TrainingProgressView()
-                .tabItem { Label("Progress", systemImage: "chart.bar") }
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+enum AppTab: Hashable, CaseIterable {
+    case today, plan, races, progress, settings
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .today: "Today"
+        case .plan: "Plan"
+        case .races: "Races"
+        case .progress: "Progress"
+        case .settings: "Settings"
         }
+    }
+
+    var symbol: String {
+        switch self {
+        case .today: "sun.max"
+        case .plan: "calendar"
+        case .races: "flag.checkered"
+        case .progress: "chart.bar"
+        case .settings: "gearshape"
+        }
+    }
+}
+
+struct MainTabs: View {
+    @State private var tab: AppTab = .today
+
+    var body: some View {
+        TabView(selection: $tab) {
+            TodayView().tabRoot(.today)
+            PlanView().tabRoot(.plan)
+            RacesView().tabRoot(.races)
+            TrainingProgressView().tabRoot(.progress)
+            SettingsView().tabRoot(.settings)
+        }
+        .overlay(alignment: .bottom) { TabBar(selection: $tab) }
+    }
+}
+
+/// A floating dark bar: icons, with the current tab as a white capsule that shows its name.
+private struct TabBar: View {
+    @Binding var selection: AppTab
+    @Namespace private var namespace
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(AppTab.allCases, id: \.self) { tab in
+                let isSelected = tab == selection
+                Button {
+                    withAnimation(.snappy(duration: 0.3)) { selection = tab }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: tab.symbol)
+                            .font(.system(size: 17, weight: .medium))
+                        if isSelected {
+                            Text(tab.title)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                                .fixedSize()
+                        }
+                    }
+                    .foregroundStyle(isSelected ? Theme.ink : .white.opacity(0.85))
+                    .padding(.horizontal, isSelected ? 16 : 0)
+                    .frame(maxWidth: isSelected ? nil : .infinity, minHeight: 48)
+                    .background {
+                        if isSelected {
+                            Capsule().fill(.white).matchedGeometryEffect(id: "selected", in: namespace)
+                        }
+                    }
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(tab.title))
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(6)
+        .background(Theme.accent, in: Capsule())
+        .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+        .padding(.horizontal, Theme.Spacing.m)
+        .padding(.bottom, 2)
+    }
+}
+
+private extension View {
+    /// A tab's content: hides the system tab bar and leaves room for the floating one.
+    func tabRoot(_ tab: AppTab) -> some View {
+        self
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 64) }
+            .toolbar(.hidden, for: .tabBar)
+            .tag(tab)
     }
 }
 

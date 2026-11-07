@@ -8,50 +8,54 @@ struct TodayView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                VStack(alignment: .leading, spacing: 12) {
                     header
                     PlanChangeBanner()
-                    WeekStrip(selected: $selected)
-                    if let workout = model.workout(on: selected) {
-                        WorkoutCard(workout: workout)
-                    } else {
-                        RestDayCard(date: selected)
+                    WeekCard(selected: $selected)
+                    HeroCard(date: selected)
+                    if let plan = model.plan {
+                        DashboardTiles(plan: plan)
+                        TrendCard(plan: plan)
                     }
                     upNext
                 }
                 .padding(.horizontal, Theme.Spacing.m)
                 .padding(.bottom, Theme.Spacing.xl)
             }
+            .scrollIndicators(.hidden)
+            .statusBarBackdrop()
             .screenBackground()
+            .animation(.snappy, value: selected)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Workout.self) { WorkoutDetailView(workout: $0) }
+            .navigationDestination(for: WeeklyDistanceRoute.self) { _ in WeeklyDistanceView() }
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            Text(model.today.formatted(.dateTime.weekday(.wide).day().month(.wide)).uppercased())
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.secondaryInk)
-            HStack(alignment: .firstTextBaseline) {
-                Text(selected == model.today ? "Today" : selected.formatted(.dateTime.weekday(.wide)))
-                    .font(.largeTitle.weight(.bold))
-                    .fontDesign(.rounded)
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(model.today.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryInk)
+                Text("Today")
+                    .font(.system(size: 40, weight: .semibold))
                     .foregroundStyle(Theme.ink)
-                Spacer()
-                if let plan = model.plan {
-                    let days = model.today.days(until: plan.inputs.raceDate)
-                    Pill(text: String(localized: "\(plan.inputs.goal.name) in \(days) days"), color: WorkoutKind.race.color)
-                }
+            }
+            Spacer()
+            CircleIconButton(systemImage: "scope", label: "Back to today") {
+                withAnimation(.snappy) { selected = model.today }
             }
         }
-        .padding(.top, Theme.Spacing.m)
+        .padding(.top, Theme.Spacing.s)
     }
 
     @ViewBuilder private var upNext: some View {
         let next = (model.plan?.workouts ?? []).filter { $0.date > selected }.prefix(3)
         if !next.isEmpty {
-            SectionTitle(text: String(localized: "Coming up"))
+            Text("Coming up")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Theme.ink)
                 .padding(.top, Theme.Spacing.s)
             VStack(spacing: Theme.Spacing.s) {
                 ForEach(Array(next)) { workout in
@@ -63,38 +67,99 @@ struct TodayView: View {
     }
 }
 
-/// Seven days of the selected week, with arrows to move between weeks.
-private struct WeekStrip: View {
+/// A one-week strip that opens up to the whole month. Tap a day to see it in the card below.
+private struct WeekCard: View {
     @Binding var selected: LocalDate
     @Environment(AppModel.self) private var model
+    @State private var expanded = false
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
-        let monday = selected.startOfWeek
-        Card(padding: 12) {
-            VStack(spacing: Theme.Spacing.s) {
-                HStack {
-                    Button { selected = selected.adding(days: -7) } label: { Image(systemName: "chevron.left") }
-                        .accessibilityLabel("Previous week")
+        Card(padding: 14) {
+            VStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    title
                     Spacer()
-                    if let week = model.week(containing: selected) {
-                        Text(String(localized: "Week \(week.index + 1) · \(week.phase.name)"))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.ink)
+                    HStack(spacing: 18) {
+                        Button { step(-1) } label: { Image(systemName: "chevron.left") }
+                            .accessibilityLabel(expanded ? "Previous month" : "Previous week")
+                        Button { step(1) } label: { Image(systemName: "chevron.right") }
+                            .accessibilityLabel(expanded ? "Next month" : "Next week")
+                        Button {
+                            withAnimation(.snappy) { expanded.toggle() }
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .rotationEffect(.degrees(expanded ? 180 : 0))
+                                .frame(width: 30, height: 30)
+                                .background(.white, in: Circle())
+                        }
+                        .foregroundStyle(Theme.ink)
+                        .accessibilityLabel(expanded ? "Show one week" : "Show the whole month")
                     }
-                    Spacer()
-                    Button { selected = selected.adding(days: 7) } label: { Image(systemName: "chevron.right") }
-                        .accessibilityLabel("Next week")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.secondaryInk)
                 }
-                .font(.subheadline.weight(.semibold))
-                .tint(Theme.accent)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(Weekday.allCases, id: \.self) { day in
+                        Text(day.shortName)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Theme.secondaryInk)
+                    }
+                    ForEach(days, id: \.self) { date in
+                        if expanded && date.month != selected.month {
+                            Color.clear.frame(height: 50)
+                        } else {
+                            DayCell(date: date, isSelected: date == selected)
+                                .onTapGesture { withAnimation(.snappy) { selected = date } }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-                HStack(spacing: 4) {
-                    ForEach(0..<7, id: \.self) { offset in
-                        let date = monday.adding(days: offset)
-                        DayCell(date: date, isSelected: date == selected)
-                            .onTapGesture { withAnimation(.snappy) { selected = date } }
-                    }
-                }
+    @ViewBuilder private var title: some View {
+        if expanded {
+            Text(selected.formatted(.dateTime.month(.wide).year()))
+                .font(.headline)
+                .foregroundStyle(Theme.ink)
+        } else if let week = model.week(containing: selected) {
+            Text(String(localized: "Week \(week.index + 1)"))
+                .font(.headline)
+                .foregroundStyle(Theme.ink)
+            Text(week.phase.name)
+                .font(.subheadline)
+                .foregroundStyle(Theme.secondaryInk)
+        } else {
+            Text(selected.startOfWeek.formatted(.dateTime.day().month(.wide)))
+                .font(.headline)
+                .foregroundStyle(Theme.ink)
+        }
+    }
+
+    /// The selected week, or whole weeks covering the selected month.
+    private var days: [LocalDate] {
+        guard expanded else { return (0..<7).map { selected.startOfWeek.adding(days: $0) } }
+        let first = selected.firstOfMonth
+        let next = first.addingMonths(1)
+        var dates: [LocalDate] = []
+        var day = first.startOfWeek
+        while day < next || dates.count % 7 != 0 {
+            dates.append(day)
+            day = day.adding(days: 1)
+        }
+        return dates
+    }
+
+    /// A week (or month when open) back or forward, keeping the same weekday or day where possible.
+    private func step(_ direction: Int) {
+        withAnimation(.snappy) {
+            if expanded {
+                let target = selected.firstOfMonth.addingMonths(direction)
+                let today = model.today
+                selected = today.firstOfMonth == target ? today : target
+            } else {
+                selected = selected.adding(days: 7 * direction)
             }
         }
     }
@@ -109,32 +174,40 @@ private struct DayCell: View {
         let workout = model.workout(on: date)
         let status = workout.flatMap { model.status(of: $0) }
         let isToday = date == model.today
-        VStack(spacing: 6) {
-            Text(date.weekday.shortName)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(isSelected ? .white.opacity(0.85) : Theme.secondaryInk)
+        VStack(spacing: 4) {
             Text("\(date.day)")
-                .font(.callout.weight(isToday ? .heavy : .semibold))
-                .fontDesign(.rounded)
-                .foregroundStyle(isSelected ? .white : Theme.ink)
-            ZStack {
+                .font(.callout.weight(isToday || isSelected ? .semibold : .regular))
+                .monospacedDigit()
+                .foregroundStyle(isSelected ? Theme.onAccent : Theme.ink)
+                .frame(width: 38, height: 38)
+                .background {
+                    if isSelected {
+                        Circle().fill(Theme.accent)
+                    } else {
+                        Circle().fill(.white)
+                    }
+                }
+                .overlay {
+                    if isToday && !isSelected {
+                        Circle().strokeBorder(Theme.accent, lineWidth: 1.5)
+                    }
+                }
+            Group {
                 if let workout {
-                    Circle()
-                        .fill(status == .done ? workout.kind.color : .clear)
-                        .strokeBorder(workout.kind.color, lineWidth: 2)
                     if status == .done {
-                        Image(systemName: "checkmark").font(.system(size: 7, weight: .black)).foregroundStyle(.white)
+                        Image(systemName: "checkmark").font(.system(size: 7, weight: .heavy)).foregroundStyle(Theme.green)
                     } else if status == .skipped {
-                        Image(systemName: "xmark").font(.system(size: 7, weight: .black)).foregroundStyle(workout.kind.color)
+                        Circle().fill(Theme.subtle)
+                    } else {
+                        Circle().fill(workout.kind.color)
                     }
                 } else {
-                    Circle().fill(Theme.subtle).frame(width: 5, height: 5)
+                    Color.clear
                 }
             }
-            .frame(width: 14, height: 14)
+            .frame(width: 6, height: 6)
         }
-        .frame(maxWidth: .infinity, minHeight: 72)
-        .background(isSelected ? Theme.accent : .clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .frame(maxWidth: .infinity, minHeight: 50)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(date.formatted(.dateTime.weekday(.wide).day().month())), \(workout?.kind.name ?? String(localized: "rest day"))"))
@@ -142,7 +215,220 @@ private struct DayCell: View {
     }
 }
 
-/// The selected day's workout with its structure and done/skip actions.
+/// The selected day's run as a dark card: the dashboard's focal point.
+private struct HeroCard: View {
+    let date: LocalDate
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let workout = model.workout(on: date)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(label)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.6))
+                    Text(workout?.kind.name ?? (isAfterRace ? String(localized: "Plan complete") : String(localized: "Rest day")))
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(.white)
+                    if let workout {
+                        Text(WorkoutDescriber(format: model.format).summary(workout))
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                }
+                Spacer()
+                KindIcon(kind: workout?.kind, size: 52)
+            }
+
+            if let workout {
+                HStack(spacing: 0) {
+                    heroMetric(model.format.distance(workout.totalMeters), String(localized: "distance"))
+                    heroMetric("~" + DisplayFormat.duration(workout.totalSeconds), String(localized: "time"))
+                    if let target = workout.blocks.flatMap(\.steps).first(where: { $0.purpose == .work })?.step.target {
+                        heroMetric(DisplayFormat.clock(model.format.paceSeconds(target.range.mid)),
+                                   String(localized: "\(target.zone.name) /\(model.units.distanceUnit)"))
+                    }
+                }
+                actions(workout)
+            } else {
+                Text(isAfterRace ? "Congratulations on finishing your plan."
+                                 : "Recovery is training too. A walk or gentle mobility is fine.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+    }
+
+    private var label: String {
+        date == model.today ? String(localized: "Today's run") : date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+    }
+
+    private var isAfterRace: Bool { model.plan.map { date > $0.inputs.raceDate } ?? false }
+
+    private func heroMetric(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(.white)
+            Text(label).font(.caption).foregroundStyle(.white.opacity(0.55))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func actions(_ workout: Workout) -> some View {
+        let status = model.status(of: workout)
+        if workout.date <= model.today, status == nil {
+            HStack(spacing: 8) {
+                Button { model.setStatus(.done, for: workout) } label: {
+                    Text("Mark as done").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(HeroButtonStyle(filled: true))
+                Button { model.setStatus(.skipped, for: workout) } label: { Text("Skip") }
+                    .buttonStyle(HeroButtonStyle(filled: false))
+            }
+            .sensoryFeedback(.success, trigger: model.status(of: workout))
+        } else if let status {
+            HStack {
+                Label(status == .done ? "Completed" : "Skipped",
+                      systemImage: status == .done ? "checkmark.circle.fill" : "forward.end.circle")
+                    .font(.headline)
+                    .foregroundStyle(status == .done ? Theme.green : .white.opacity(0.7))
+                Spacer()
+                if model.statuses[workout.id] != nil {
+                    Button("Undo") { model.setStatus(nil, for: workout) }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
+        }
+        HStack(spacing: 8) {
+            if workout.date >= model.today, status == nil {
+                if model.isOnWatch(workout) {
+                    Label("On your watch", systemImage: "applewatch.radiowaves.left.and.right")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.8))
+                } else {
+                    Button { Task { await model.sendToWatch([workout]) } } label: {
+                        Label("Send to watch", systemImage: "applewatch")
+                    }
+                    .buttonStyle(HeroButtonStyle(filled: false))
+                }
+            }
+            MoveWorkoutButton(workout: workout).buttonStyle(HeroButtonStyle(filled: false))
+            Spacer(minLength: 0)
+            NavigationLink(value: workout) {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 40, height: 40)
+                    .background(.white, in: Circle())
+            }
+            .accessibilityLabel("Workout details")
+        }
+    }
+}
+
+/// Buttons on the dark hero card: white pill, or a subtle outlined pill.
+private struct HeroButtonStyle: ButtonStyle {
+    let filled: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(filled ? Theme.ink : .white)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .background(filled ? Color.white : Color.white.opacity(0.12), in: Capsule())
+            .opacity(configuration.isPressed ? 0.75 : 1)
+    }
+}
+
+/// This week at a glance and the race outlook.
+private struct DashboardTiles: View {
+    let plan: TrainingPlan
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let week = model.week(containing: model.today)
+        let workouts = week?.workouts.filter { $0.kind != .race } ?? []
+        let done = workouts.filter { model.status(of: $0) == .done }
+        let doneMeters = done.reduce(0) { $0 + (model.healthRun(for: $1)?.distanceMeters ?? $1.totalMeters) }
+        let plannedMeters = workouts.reduce(0) { $0 + $1.totalMeters }
+        let days = max(model.today.days(until: plan.inputs.raceDate), 0)
+        let length = Double(max(plan.inputs.startDate.days(until: plan.inputs.raceDate), 1))
+        let elapsed = Double(plan.inputs.startDate.days(until: model.today))
+        Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+            GridRow {
+                StatCard(title: String(localized: "This week"), symbol: "figure.run", tint: WorkoutKind.easy.color,
+                         value: model.format.distance(doneMeters), badge: nil,
+                         note: String(localized: "of \(model.format.distance(plannedMeters))"),
+                         progress: plannedMeters > 0 ? doneMeters / plannedMeters : 0)
+                StatCard(title: String(localized: "Runs"), symbol: "checkmark.circle", tint: Theme.green,
+                         value: "\(done.count)/\(workouts.count)", badge: nil,
+                         note: String(localized: "done this week"),
+                         progress: workouts.isEmpty ? 0 : Double(done.count) / Double(workouts.count))
+            }
+            GridRow {
+                predictionTile
+                StatCard(title: String(localized: "Race day"), symbol: "flag.checkered", tint: WorkoutKind.race.color,
+                         value: "\(days)", badge: nil,
+                         note: String(localized: "days to \(plan.inputs.goal.name.lowercased())"),
+                         progress: elapsed / length)
+            }
+        }
+    }
+
+    @ViewBuilder private var predictionTile: some View {
+        if let prediction = model.prediction {
+            let goal = plan.inputs.goalTimeSeconds
+            StatCard(title: String(localized: "Prediction"), symbol: "stopwatch", tint: Theme.amber,
+                     value: DisplayFormat.clock(prediction.seconds),
+                     badge: goal.map { goal in
+                         let gap = prediction.seconds - goal
+                         return ((gap <= 0 ? "−" : "+") + DisplayFormat.clock(abs(gap)), gap <= 0)
+                     },
+                     note: goal.map { String(localized: "goal \(DisplayFormat.clock($0))") } ?? plan.inputs.goal.name,
+                     progress: goal.map { min($0 / prediction.seconds, 1) } ?? 0)
+        }
+    }
+}
+
+/// Weekly distance across the whole plan, with this week marked. Opens the week-by-week breakdown.
+private struct TrendCard: View {
+    let plan: TrainingPlan
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let totals = WeekTotals(plan: plan, model: model)
+        NavigationLink(value: WeeklyDistanceRoute()) {
+            Card(padding: 18) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Weekly distance").font(.headline.weight(.medium)).foregroundStyle(Theme.ink)
+                        Spacer()
+                        if let current = totals.current {
+                            Text(String(localized: "Week \(current.id + 1) of \(totals.all.count)"))
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.secondaryInk)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.secondaryInk)
+                    }
+                    WeekBarsChart(weeks: totals.all)
+                        .frame(height: 120)
+                    ChartLegend()
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Weekly distance. Shows each week of the plan."))
+    }
+}
+
+/// A day's workout (used by the calendar) with its structure and done/skip actions.
 struct WorkoutCard: View {
     let workout: Workout
     @Environment(AppModel.self) private var model
@@ -182,15 +468,30 @@ struct WorkoutCard: View {
 /// "Send to Apple Watch" for today's and upcoming workouts.
 struct SendToWatchButton: View {
     let workout: Workout
+    /// A chip ("Send to watch") rather than a full-width button.
+    var compact = false
     @Environment(AppModel.self) private var model
     @State private var sending = false
 
     var body: some View {
         if workout.date >= model.today, model.status(of: workout) == nil {
             if model.isOnWatch(workout) {
-                Label("On your Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
-                    .font(.subheadline.weight(.semibold))
+                Label(compact ? "On your watch" : "On your Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
+                    .font(.subheadline.weight(compact ? .medium : .semibold))
                     .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, compact ? 4 : 0)
+            } else if compact {
+                Button {
+                    sending = true
+                    Task {
+                        await model.sendToWatch([workout])
+                        sending = false
+                    }
+                } label: {
+                    Label(sending ? "Sending…" : "Send to watch", systemImage: "applewatch")
+                }
+                .buttonStyle(.chip)
+                .disabled(sending)
             } else {
                 Button {
                     sending = true
@@ -231,6 +532,8 @@ struct WorkoutMetrics: View {
 
 struct WorkoutStatusButtons: View {
     let workout: Workout
+    /// Today shows Skip as a chip instead.
+    var showsSkip = true
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -254,9 +557,11 @@ struct WorkoutStatusButtons: View {
                 statusRow(String(localized: "Skipped"), symbol: "forward.end.circle", color: Theme.secondaryInk)
             case nil:
                 HStack(spacing: Theme.Spacing.s) {
-                    Button("Skip") { model.setStatus(.skipped, for: workout) }
-                        .buttonStyle(.secondary)
-                        .frame(maxWidth: 120)
+                    if showsSkip {
+                        Button("Skip") { model.setStatus(.skipped, for: workout) }
+                            .buttonStyle(.secondary)
+                            .frame(maxWidth: 120)
+                    }
                     Button("Mark as done") { model.setStatus(.done, for: workout) }
                         .buttonStyle(.primary)
                 }
@@ -276,31 +581,6 @@ struct WorkoutStatusButtons: View {
     }
 }
 
-private struct RestDayCard: View {
-    let date: LocalDate
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        Card(padding: 20) {
-            HStack(spacing: Theme.Spacing.m) {
-                KindIcon(kind: nil)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(isAfterRace ? "Plan complete" : "Rest day").font(.headline).foregroundStyle(Theme.ink)
-                    Text(isAfterRace
-                         ? "Congratulations on finishing your plan."
-                         : "Recovery is when your body adapts to training. A walk or gentle mobility is fine.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.secondaryInk)
-                }
-            }
-        }
-    }
-
-    private var isAfterRace: Bool {
-        model.plan.map { date > $0.inputs.raceDate } ?? false
-    }
-}
-
 /// Compact list row for a workout.
 struct WorkoutRow: View {
     let workout: Workout
@@ -309,7 +589,7 @@ struct WorkoutRow: View {
     var body: some View {
         let status = model.status(of: workout)
         HStack(spacing: 12) {
-            KindIcon(kind: workout.kind, size: 36)
+            KindIcon(kind: workout.kind, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(workout.kind.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                 Text("\(workout.date.shortDayMonth) · \(WorkoutDescriber(format: model.format).summary(workout))")
@@ -318,14 +598,14 @@ struct WorkoutRow: View {
             }
             Spacer()
             if status == .done {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(WorkoutKind.easy.color)
+                Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(Theme.green)
             } else if status == .skipped {
-                Image(systemName: "forward.end.circle").foregroundStyle(Theme.secondaryInk)
+                Image(systemName: "forward.end.circle").font(.title3).foregroundStyle(Theme.secondaryInk)
             } else {
-                Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.subtle)
+                ValuePill(text: model.format.distance(workout.totalMeters))
             }
         }
-        .padding(12)
+        .padding(14)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
         .accessibilityElement(children: .combine)
     }

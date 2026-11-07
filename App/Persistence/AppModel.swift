@@ -355,6 +355,13 @@ final class AppModel {
     }
 
     /// Re-reads runs from Health (since a little before the plan started), then reviews the plan.
+    /// Runs from Apple Health in the weeks before a new plan starts, to check the onboarding answers against.
+    /// nil when Health isn't connected or can't be read.
+    func runsBeforePlan(starting start: LocalDate) async -> [CompletedRun]? {
+        guard healthConnected, let runSource else { return nil }
+        return try? await runSource.runs(since: start.adding(days: -HistoryCalibration.lookbackWeeks * 7))
+    }
+
     func refreshHealth() async {
         guard healthConnected, let runSource, let plan else { return }
         do {
