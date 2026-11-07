@@ -7,6 +7,7 @@ struct TodayView: View {
     var resetSignal = 0
     @State private var selected: LocalDate = .today
     @State private var path = NavigationPath()
+    @State private var coaching = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -45,15 +46,28 @@ struct TodayView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(model.today.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-                .font(.subheadline)
-                .foregroundStyle(Theme.secondaryInk)
-            Text("Today")
-                .font(.system(size: 40, weight: .semibold))
-                .foregroundStyle(Theme.ink)
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(model.today.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryInk)
+                Text("Today")
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundStyle(Theme.ink)
+            }
+            Spacer()
+            if model.showsCoach {
+                Button { coaching = true } label: {
+                    Label("Coach", systemImage: "sparkles")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.onAccent)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Theme.accent, in: Capsule())
+                }
+                .sheet(isPresented: $coaching) { CoachView() }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, Theme.Spacing.s)
     }
 

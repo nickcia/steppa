@@ -46,6 +46,7 @@ final class AppModel {
     private(set) var watchAutoSync = false
     private(set) var strengthEnabled = false
     private(set) var strengthPerWeek = 2
+    private(set) var coachEnabled = true
     /// Workouts currently scheduled on the watch (by WorkoutKit plan ID).
     private(set) var watchScheduledIDs: Set<UUID> = []
     /// The Intervals.icu connection (from the Keychain); nil when not connected.
@@ -107,6 +108,7 @@ final class AppModel {
         watchAutoSync = profile?.watchAutoSync ?? false
         strengthEnabled = profile?.strengthEnabled ?? false
         strengthPerWeek = profile?.strengthPerWeek ?? 2
+        coachEnabled = profile?.coachEnabled ?? true
 
         // If two devices both created a plan before syncing, the most recently updated one wins.
         let record = activePlanRecord()
@@ -686,6 +688,34 @@ final class AppModel {
         if let perWeek { p.strengthPerWeek = min(max(perWeek, 1), 2) }
         save()
         Task { await syncCalendar() }
+    }
+
+    // MARK: Coach
+
+    /// The coach shows when it's turned on and this iPhone can run it.
+    var showsCoach: Bool { coachEnabled && CoachAvailability.current != .unsupported }
+
+    func setCoachEnabled(_ enabled: Bool) {
+        profile().coachEnabled = enabled
+        save()
+    }
+
+    /// Applies a change the coach suggested, through the same rules as moving or skipping by hand.
+    /// Returns false (with `lastError` set) if it isn't allowed.
+    @discardableResult
+    func apply(_ suggestion: CoachSuggestion) -> Bool {
+        guard let workout = workout(on: suggestion.date), workout.kind != .race else {
+            lastError = String(localized: "There's no workout on that day to change.")
+            return false
+        }
+        switch suggestion.action {
+        case .skip:
+            setStatus(.skipped, for: workout)
+            return true
+        case .move:
+            guard let newDate = suggestion.newDate else { return false }
+            return move(workout, to: newDate)
+        }
     }
 
     // MARK: Calendar

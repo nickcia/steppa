@@ -81,6 +81,8 @@ final class ProfileRecord {
     /// Optional bodyweight strength sessions around the running plan.
     var strengthEnabled: Bool = false
     var strengthPerWeek: Int = 2
+    /// Show the on-device coach (where Apple Intelligence is available).
+    var coachEnabled: Bool = true
 
     init(units: UnitSystem) {
         unitsRaw = units.rawValue

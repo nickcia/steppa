@@ -93,6 +93,17 @@ struct SettingsView: View {
                     IntervalsSection()
                 }
 
+                Section {
+                    Toggle("Show the coach", isOn: Binding(get: { model.coachEnabled }, set: { model.setCoachEnabled($0) }))
+                    Text(CoachAvailability.current.message)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryInk)
+                } header: {
+                    Text("Coach")
+                } footer: {
+                    Text("An optional coach you can ask about your plan and runs. It uses Apple Intelligence on your iPhone, so nothing is sent anywhere. Plans are still made by the app's rules; the coach can only suggest changes.")
+                }
+
                 if model.calendarAvailable {
                     Section {
                         Toggle("Show my plan in Calendar",

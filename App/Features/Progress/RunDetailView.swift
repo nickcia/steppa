@@ -11,6 +11,7 @@ struct RunRoute: Hashable {
 struct RunDetailView: View {
     let runID: String
     @Environment(AppModel.self) private var model
+    @State private var askingCoach = false
 
     var body: some View {
         ScrollView {
@@ -115,6 +116,16 @@ struct RunDetailView: View {
 
             if let zones = analysis.heartRateZoneSeconds, zones.reduce(0, +) > 60 {
                 ZonesCard(zones: zones, maxHeartRate: model.estimatedMaxHeartRate ?? 0, isSet: model.maxHeartRateIsSet)
+            }
+
+            if model.showsCoach {
+                Button { askingCoach = true } label: {
+                    Label("Ask the coach about this run", systemImage: "sparkles")
+                }
+                .buttonStyle(.secondary)
+                .sheet(isPresented: $askingCoach) {
+                    CoachView(initialPrompt: String(localized: "How did my run on \(run.date) go? Any tips?"))
+                }
             }
 
             if series == nil {

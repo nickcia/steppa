@@ -1,6 +1,8 @@
 # How training plans are built
 
-Plans come from a set of transparent, rules-based steps. There is no AI and no server. The code lives in
+Plans come from a set of transparent, rules-based steps, with no AI and no server. (The optional coach uses
+Apple Intelligence on the phone to explain the plan and runs, but it can't change the plan: only these rules
+do.) The code lives in
 `Packages/PlanEngine`. Every tunable number is in [`PlanRules.swift`](../Packages/PlanEngine/Sources/PlanEngine/Plan/PlanRules.swift).
 Keep this document in sync with that file.
 

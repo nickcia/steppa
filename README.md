@@ -30,6 +30,9 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
   short bodyweight strength routines can be turned on in Settings.
 - **Share your run.** A clean image of the session, splits and heart-rate zones for Strava, Instagram or a
   message, made on the phone.
+- **An optional coach.** Ask about your plan and runs ("How did my long run go?", "I'm tired today"). It uses
+  Apple Intelligence on your iPhone (iOS 26 and later, on supported iPhones), so nothing leaves your phone. It
+  can suggest moving or skipping a run; only you can make the change.
 - **Run analysis.** Splits, pace and heart-rate charts, heart-rate zones, cadence and power, how each run
   compared with the plan, and plain-English notes. From Apple Health, or from Intervals.icu for the full
   recording from Garmin and other watches.
@@ -142,7 +145,6 @@ docs/                Plan rules, screenshots
 These are planned but not in v1:
 
 - **Direct Garmin Connect sync,** if Garmin approves the app for its Training API.
-- **An optional AI coach,** using Apple's on-device models on supported iPhones.
 - **Widgets and Live Activities** for today's workout.
 
 ## Contributing

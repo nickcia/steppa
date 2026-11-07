@@ -39,6 +39,12 @@ only allows this with full calendar access, which you're asked for when you turn
 reads and changes the calendar it created, never your other calendars or events. Turning it off deletes that
 calendar.
 
+## The coach (optional)
+
+The coach uses Apple Intelligence's on-device model. Your questions, plan and runs are processed on your iPhone
+and are not sent to the developer or to any server, including Apple's cloud. Conversations aren't saved after you
+close the coach. You can hide the coach in Settings.
+
 ## Intervals.icu (optional)
 
 If you connect Intervals.icu, the app talks directly from your iPhone to Intervals.icu. It:
