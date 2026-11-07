@@ -143,6 +143,7 @@ private struct WeekCard: View {
 struct WorkoutDetailView: View {
     let workout: Workout
     @Environment(AppModel.self) private var model
+    @State private var addingToCalendar = false
 
     var body: some View {
         ScrollView {
@@ -175,8 +176,19 @@ struct WorkoutDetailView: View {
                 }
                 WorkoutStatusButtons(workout: workout)
                 SendToWatchButton(workout: workout)
-                MoveWorkoutButton(workout: workout)
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: Theme.Spacing.l) {
+                    MoveWorkoutButton(workout: workout)
+                    if workout.date >= model.today {
+                        Button { addingToCalendar = true } label: {
+                            Label("Add to Calendar", systemImage: "calendar.badge.plus")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .sheet(isPresented: $addingToCalendar) {
+                    AddToCalendarSheet(content: model.calendarEvent(for: workout)).ignoresSafeArea()
+                }
             }
             .padding(.horizontal, Theme.Spacing.m)
             .padding(.bottom, Theme.Spacing.xl)

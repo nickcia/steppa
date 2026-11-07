@@ -1,6 +1,6 @@
 # Privacy policy
 
-_Last updated: 6 November 2026_
+_Last updated: 7 November 2026_
 
 Steppa is a free, open-source running coach for iPhone. It's built so that your data stays yours.
 
@@ -27,6 +27,16 @@ the Health app under Sharing › Apps.
 ## Apple Watch and reminders
 
 Workouts you send to Apple Watch and workout reminders are handled by iOS on your devices.
+
+## Calendar (optional)
+
+**Add to Calendar** on a workout opens iOS's own "New Event" sheet, filled in. You choose whether to add it;
+the app gets no access to your calendars.
+
+**Show my plan in Calendar** in Settings creates a calendar for your workouts and keeps it up to date. iOS
+only allows this with full calendar access, which you're asked for when you turn it on. The app only ever
+reads and changes the calendar it created, never your other calendars or events. Turning it off deletes that
+calendar.
 
 ## Intervals.icu (optional)
 

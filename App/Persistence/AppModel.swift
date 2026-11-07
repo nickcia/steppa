@@ -17,6 +17,7 @@ final class AppModel {
     private let runSource: RunSource?
     private let reminders: ReminderService?
     private let watch: WatchService?
+    private let calendar: CalendarService?
     private let intervals: IntervalsClient?
     private let intervalsKeychain: IntervalsKeychain
     /// "Sign in with Intervals.icu"; nil in builds without a client ID, which connect with an API key instead.
@@ -46,11 +47,16 @@ final class AppModel {
     private(set) var intervalsSyncing = false
     /// What was last sent, so coming back to the app doesn't re-sync an unchanged plan every time.
     private var intervalsSyncedIDs: Set<String>?
+    /// "Show my plan in Calendar". Kept on this device only, like calendar access itself.
+    private(set) var calendarSyncEnabled = false
+    private var calendarSyncedKeys: Set<String>?
+    private static let calendarSyncKey = "calendarSync.enabled"
     /// Set when saving fails or an edit is refused, so the UI can tell the user.
     var lastError: String?
 
     init(container: ModelContainer, clock: @escaping () -> LocalDate = { .today },
          runSource: RunSource? = nil, reminders: ReminderService? = nil, watch: WatchService? = nil,
+         calendar: CalendarService? = nil,
          intervals: IntervalsClient? = nil, intervalsOAuth: IntervalsOAuth? = nil,
          intervalsKeychain: IntervalsKeychain = IntervalsKeychain()) {
         self.container = container
@@ -58,6 +64,8 @@ final class AppModel {
         self.runSource = runSource
         self.reminders = reminders
         self.watch = watch
+        self.calendar = calendar
+        self.calendarSyncEnabled = calendar != nil && UserDefaults.standard.bool(forKey: Self.calendarSyncKey)
         self.intervals = intervals
         self.intervalsKeychain = intervalsKeychain
         self.intervalsOAuth = intervalsOAuth
@@ -390,6 +398,7 @@ final class AppModel {
         save()
         await syncReminders()
         if watchAutoSync { await syncWatch() }
+        await syncCalendar()
     }
 
     func setWatchAutoSync(_ enabled: Bool) async {
@@ -544,12 +553,57 @@ final class AppModel {
         max(plan?.workouts.last?.date ?? today, today.adding(days: 400))
     }
 
-    /// Keeps reminders, the watch and Intervals.icu in step after the plan changes.
+    // MARK: Calendar
+
+    var calendarAvailable: Bool { calendar != nil }
+
+    /// The workout as a calendar event, at the reminder time.
+    func calendarEvent(for workout: Workout) -> CalendarEventContent {
+        CalendarEventContent.make(for: workout, format: format, minutes: reminderMinutes)
+    }
+
+    func setCalendarSync(_ enabled: Bool) async {
+        guard let calendar else { return }
+        if enabled {
+            guard await calendar.requestAccess() else {
+                lastError = CalendarService.SyncError.noAccess.localizedDescription
+                return
+            }
+            calendarSyncEnabled = true
+            UserDefaults.standard.set(true, forKey: Self.calendarSyncKey)
+            await syncCalendar(force: true)
+        } else {
+            calendarSyncEnabled = false
+            calendarSyncedKeys = nil
+            UserDefaults.standard.set(false, forKey: Self.calendarSyncKey)
+            do { try calendar.removeCalendar() } catch { lastError = error.localizedDescription }
+        }
+    }
+
+    /// Makes the app's calendar match the plan from today on (skipped when nothing changed, unless `force`).
+    func syncCalendar(force: Bool = false) async {
+        guard let calendar, calendarSyncEnabled else { return }
+        let events = (plan?.workouts ?? []).filter { $0.date >= today }.map(calendarEvent(for:))
+        let keys = Set(events.map(\.key))
+        if !force, keys == calendarSyncedKeys { return }
+        let from = Calendar.current.startOfDay(for: today.date())
+        let through = Calendar.current.date(byAdding: .day, value: 400, to: from) ?? from
+        let end = max(through, events.map(\.end).max() ?? through)
+        do {
+            try calendar.sync(events, from: from, through: end)
+            calendarSyncedKeys = keys
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Keeps reminders, the watch, Intervals.icu and the calendar in step after the plan changes.
     private func planDidChange() {
         Task {
             await syncReminders()
             await syncWatch()
             await syncIntervals()
+            await syncCalendar()
         }
     }
 
@@ -565,6 +619,7 @@ final class AppModel {
             await refreshIntervalsLinks()
             await syncIntervals()
         }
+        await syncCalendar()
     }
 
     // MARK: Preferences
@@ -572,8 +627,11 @@ final class AppModel {
     func setUnits(_ newUnits: UnitSystem) {
         profile().units = newUnits
         save()
-        // Paces on Intervals.icu are written per km or per mile.
-        Task { await syncIntervals() }
+        // Paces on Intervals.icu and in calendar notes are written per km or per mile.
+        Task {
+            await syncIntervals()
+            await syncCalendar()
+        }
     }
 
     func acceptDisclaimer() {

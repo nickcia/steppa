@@ -236,6 +236,7 @@ private struct DayCell: View {
 private struct HeroCard: View {
     let date: LocalDate
     @Environment(AppModel.self) private var model
+    @State private var addingToCalendar: Workout?
 
     var body: some View {
         let workout = model.workout(on: date)
@@ -333,17 +334,42 @@ private struct HeroCard: View {
                     .buttonStyle(HeroButtonStyle(filled: false))
                 }
             }
-            MoveWorkoutButton(workout: workout).buttonStyle(HeroButtonStyle(filled: false))
             Spacer(minLength: 0)
+            MoveWorkoutButton(workout: workout)
+                .labelStyle(.iconOnly)
+                .buttonStyle(HeroIconButtonStyle())
+                .accessibilityLabel("Move workout")
+            if workout.date >= model.today {
+                Button { addingToCalendar = workout } label: {
+                    Image(systemName: "calendar.badge.plus")
+                }
+                .buttonStyle(HeroIconButtonStyle())
+                .accessibilityLabel("Add to Calendar")
+                .sheet(item: $addingToCalendar) { workout in
+                    AddToCalendarSheet(content: model.calendarEvent(for: workout)).ignoresSafeArea()
+                }
+            }
             NavigationLink(value: workout) {
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.ink)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(.white, in: Circle())
             }
             .accessibilityLabel("Workout details")
         }
+    }
+}
+
+/// Round icon buttons on the dark hero card.
+private struct HeroIconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 44, height: 44)
+            .background(Color.white.opacity(0.12), in: Circle())
+            .opacity(configuration.isPressed ? 0.75 : 1)
     }
 }
 
@@ -355,6 +381,7 @@ private struct HeroButtonStyle: ButtonStyle {
         configuration.label
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(filled ? Theme.ink : .white)
+            .lineLimit(1)
             .padding(.horizontal, 16)
             .frame(minHeight: 44)
             .background(filled ? Color.white : Color.white.opacity(0.12), in: Capsule())

@@ -74,6 +74,18 @@ struct SettingsView: View {
                     IntervalsSection()
                 }
 
+                if model.calendarAvailable {
+                    Section {
+                        Toggle("Show my plan in Calendar",
+                               isOn: Binding(get: { model.calendarSyncEnabled },
+                                             set: { on in Task { await model.setCalendarSync(on) } }))
+                    } header: {
+                        Text("Calendar")
+                    } footer: {
+                        Text("Adds your workouts to their own calendar, at your reminder time, and keeps it up to date as the plan changes. iOS asks for full calendar access for this; only that calendar is ever changed. Turning it off removes the calendar. To add one workout without this, use Add to Calendar on the workout.")
+                    }
+                }
+
                 Section {
                     Toggle("Workout reminders",
                            isOn: Binding(get: { model.remindersEnabled }, set: { on in Task { await model.setReminders(enabled: on) } }))

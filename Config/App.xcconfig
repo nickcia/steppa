@@ -32,6 +32,9 @@ INFOPLIST_FILE = $(INFOPLIST_ICLOUD_$(ENABLE_ICLOUD))
 // <your bundle ID in lower case>://intervals-oauth. Leave blank to connect with a personal API key instead.
 INTERVALS_CLIENT_ID =
 
+// Shown when turning on "Show my plan in Calendar". Adding a single workout uses iOS's own sheet and needs no access.
+INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = Your training plan is added to its own calendar and kept up to date as it changes. Only that calendar is ever changed.
+
 // Shown when asking for Apple Health access. Read-only: the app never writes to Health.
 INFOPLIST_KEY_NSHealthShareUsageDescription = Your runs are read from Apple Health (including runs from Apple Watch, Garmin, Coros and other apps that sync to Health) to tick off planned workouts and adapt your plan. Nothing leaves your device.
 

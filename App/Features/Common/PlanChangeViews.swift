@@ -58,7 +58,7 @@ struct MoveWorkoutButton: View {
     var body: some View {
         if workout.kind != .race, workout.date >= model.today {
             Button { showing = true } label: {
-                Label("Move", systemImage: "calendar.badge.clock")
+                Label("Move", systemImage: "arrow.left.arrow.right")
             }
             .font(.subheadline.weight(.semibold))
             .sheet(isPresented: $showing) {
