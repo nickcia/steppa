@@ -3,7 +3,7 @@
 /// Pure and deterministic: the same inputs always produce the same plan.
 public enum PlanBuilder {
     /// Bump when plan output changes, so stored plans can record which rules made them.
-    public static let engineVersion = 2
+    public static let engineVersion = 3
 
     public static func build(_ inputs: PlanInputs) throws(PlanError) -> TrainingPlan {
         guard inputs.raceDate > inputs.startDate else { throw .raceNotAfterStart }
@@ -66,6 +66,16 @@ public enum PlanBuilder {
         // Step-back and taper weeks cut from what was held, not from a target the athlete never ran;
         // otherwise a week limited by availability gets little or no reduction.
         var heldShare = 1.0
+        // In a new plan the first weeks have no history, so the 10% rule would compare runs with the plan's
+        // own first (often partial) week. Assume a usual long run of 30% of the weekly distance the athlete
+        // reported (a typical share) until the plan has a few weeks of its own.
+        let assumedLongest = history.isEmpty && resuming == nil
+            ? max(inputs.currentWeeklyMeters * 0.30, PlanRules.minimumRunMeters) : 0
+        func recentLongest(before monday: LocalDate) -> Double {
+            let planned = WeekLayout.recentLongestMeters(history + weeks.flatMap(\.workouts), before: monday)
+            guard planned.isFinite, monday.adding(days: -PlanRules.recentRunWindowDays) < start else { return planned }
+            return max(planned, assumedLongest)
+        }
         for index in 0..<weekCount {
             let monday = firstMonday.adding(days: 7 * index)
             var volume = volumes[index]
@@ -74,8 +84,7 @@ public enum PlanBuilder {
                                                  volume: volume, inputs: layoutInputs, paces: paces,
                                                  isRaceWeek: index == weekCount - 1,
                                                  existing: index == 0 ? firstWeekExisting : .init(),
-                                                 recentLongestMeters: WeekLayout.recentLongestMeters(
-                                                     history + weeks.flatMap(\.workouts), before: monday)))
+                                                 recentLongestMeters: recentLongest(before: monday)))
             limited = limited || result.limitedByAvailability
             let week = PlanWeek(index: index, startDate: monday, phase: phases[index],
                                 isStepBack: volume.isStepBack, targetMeters: volume.meters,

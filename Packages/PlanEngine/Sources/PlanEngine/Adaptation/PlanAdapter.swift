@@ -250,7 +250,7 @@ public enum PlanAdapter {
                 volume: .init(meters: min(current.targetMeters, volumeCap ?? .infinity), isStepBack: current.isStepBack),
                 inputs: layoutInputs, paces: paces, isRaceWeek: raceThisWeek,
                 existing: .init(hardDates: recentHard,
-                                sessionCount: past.filter { $0.kind == .tempo || $0.kind == .intervals }.count,
+                                sessionCount: past.filter { [.tempo, .intervals, .hills].contains($0.kind) }.count,
                                 hasLongRun: past.contains { $0.kind == .long || $0.kind == .marathonPaceLong },
                                 remainingMeters: current.targetMeters - pastMeters,
                                 trainingMeters: pastMeters,

@@ -35,8 +35,14 @@ struct WorkoutDescriber {
     private func line(_ step: Step, title: String? = nil, rep: Bool = false, isRecovery: Bool = false) -> Line {
         let amount = goal(step.goal, rep: rep)
         if let target = step.target {
+            // Effort-based and very short steps are described by feel rather than a pace range.
+            let detail: String = switch target.zone {
+            case .hill: String(localized: "Hard uphill, about 5K effort")
+            case .stride: String(localized: "Quick but relaxed, not a sprint")
+            default: format.paceRange(target.range)
+            }
             return Line(title: title.map { "\($0) · \(amount)" } ?? "\(amount) \(target.zone.name)",
-                        detail: format.paceRange(target.range), zone: target.zone, isRecovery: isRecovery)
+                        detail: detail, zone: target.zone, isRecovery: isRecovery)
         }
         return Line(title: title.map { "\($0) · \(amount)" } ?? String(localized: "\(amount) jog"),
                     detail: isRecovery ? String(localized: "Easy jog or walk") : nil, zone: nil, isRecovery: isRecovery)
@@ -68,7 +74,7 @@ struct WorkoutDescriber {
             return format.distance(workout.totalMeters)
         case .race:
             return format.distance(workout.totalMeters)
-        case .tempo, .intervals, .marathonPaceLong:
+        case .tempo, .intervals, .marathonPaceLong, .hills:
             guard let block = workout.blocks.first, let work = block.steps.first(where: { $0.purpose == .work }) else {
                 return format.distance(workout.totalMeters)
             }

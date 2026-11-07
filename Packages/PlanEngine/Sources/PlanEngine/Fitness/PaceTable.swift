@@ -11,14 +11,23 @@ public enum PaceZone: String, Codable, Sendable, CaseIterable {
     case repetition
     /// Predicted race pace for the goal distance.
     case race
+    /// Strides: ~20 s accelerations to a fast but relaxed pace, after an easy run. Too short to tire you, so
+    /// they don't count towards the high-intensity limit (Daniels treats them as part of easy running).
+    case stride
+    /// Hard uphill efforts. Pace means little on a hill, so this is run by effort (about 5K effort); the
+    /// range only estimates distance, and watch exports leave the pace target out.
+    case hill
 
     /// Sessions at these paces count towards the weekly high-intensity limit.
     public var isHighIntensity: Bool {
         switch self {
-        case .threshold, .interval, .repetition: true
-        case .easy, .marathon, .race: false
+        case .threshold, .interval, .repetition, .hill: true
+        case .easy, .marathon, .race, .stride: false
         }
     }
+
+    /// Run by feel rather than to a pace target.
+    public var isEffortBased: Bool { self == .hill }
 }
 
 /// A pace band in seconds per kilometre. `fast` is the smaller number.
@@ -86,8 +95,10 @@ public struct PaceTable: Codable, Hashable, Sendable {
         case .marathon: marathon
         case .threshold: threshold
         case .interval: interval
-        case .repetition: repetition
+        case .repetition, .stride: repetition
         case .race: race
+        // Climbing at interval effort covers ground 12–18% slower than on the flat.
+        case .hill: PaceRange(fast: interval.fast * 1.12, slow: interval.slow * 1.18)
         }
     }
 }

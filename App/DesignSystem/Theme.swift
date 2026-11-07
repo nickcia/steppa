@@ -98,6 +98,7 @@ extension WorkoutKind {
         case .intervals: [Color(hex: 0xFFADAD), Color(hex: 0xF26D6D), Color(hex: 0xD04545)]
         case .marathonPaceLong: [Color(hex: 0xCDB8FF), Color(hex: 0x9A78F0), Color(hex: 0x6F4FD0)]
         case .race: [Color(hex: 0xFFB3CF), Color(hex: 0xEC5D93), Color(hex: 0xC23A6E)]
+        case .hills: [Color(hex: 0xF4C7A1), Color(hex: 0xD98A55), Color(hex: 0xA85A2C)]
         }
     }
 
@@ -115,6 +116,7 @@ extension WorkoutKind {
         case .intervals: "repeat"
         case .marathonPaceLong: "speedometer"
         case .race: "flag.checkered"
+        case .hills: "mountain.2"
         }
     }
 
@@ -127,6 +129,7 @@ extension WorkoutKind {
         case .intervals: String(localized: "intervals")
         case .marathonPaceLong: String(localized: "marathon-pace long run")
         case .race: String(localized: "race")
+        case .hills: String(localized: "hill session")
         }
     }
 
@@ -138,6 +141,7 @@ extension WorkoutKind {
         case .intervals: String(localized: "Intervals")
         case .marathonPaceLong: String(localized: "Marathon-pace long run")
         case .race: String(localized: "Race day")
+        case .hills: String(localized: "Hills")
         }
     }
 
@@ -149,6 +153,7 @@ extension WorkoutKind {
         case .intervals: String(localized: "Develops top-end fitness. Hard but even efforts; jog the recoveries.")
         case .marathonPaceLong: String(localized: "Practises race pace on tired legs. Start easy, then settle into goal pace.")
         case .race: String(localized: "This is what you trained for. Start controlled and enjoy it.")
+        case .hills: String(localized: "Builds strength and power with less pounding than flat speedwork. Run the climbs hard but controlled, about 5K effort, and jog back down.")
         }
     }
 }
@@ -182,6 +187,8 @@ extension PaceZone {
         case .interval: String(localized: "interval pace")
         case .repetition: String(localized: "rep pace")
         case .race: String(localized: "race pace")
+        case .stride: String(localized: "stride")
+        case .hill: String(localized: "uphill")
         }
     }
 
@@ -192,6 +199,8 @@ extension PaceZone {
         case .threshold: WorkoutKind.tempo.color
         case .interval, .repetition: WorkoutKind.intervals.color
         case .race: WorkoutKind.race.color
+        case .stride: WorkoutKind.easy.color
+        case .hill: WorkoutKind.hills.color
         }
     }
 }

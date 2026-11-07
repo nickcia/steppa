@@ -73,11 +73,11 @@ maximum across the grid. B / I / A = beginner / intermediate / advanced.
 
 | Metric | Reference | Source | Steppa | |
 |---|---|---|---|---|
-| Long-run share, mean | 25–50% | Daniels (≤ 25%, ≤ 30% under 64 km/wk); Higdon novice plans reach ~50% | 29–47% | ✅ |
+| Long-run share, mean | 25–50% | Daniels (≤ 25%, ≤ 30% under 64 km/wk); Higdon novice plans reach ~50% | 29–48% | ✅ |
 | Long-run share, max | ≤ 50% | Higdon | 30–50% | ✅ |
-| Longest long run, time | ≤ 150 min (≤ 180 marathon) | Daniels (150 min); Higdon, Pfitzinger & Douglas for the marathon | ≤ 120 min; marathon ≤ 171 | ✅ |
-| Longest long run, half | B 14–19 km · I 16–22 · A 19–26 | Higdon; Pfitzinger & Latter (schedules) | B 6.8–12.5 · I 15.1–19.3 · A 23.5–23.8 | ⚠️ B, I · ✅ A |
-| Longest long run, marathon | B 26–32 km · I 29–35 · A 32–35 | Hansons (26 km); Higdon (32 km); Pfitzinger & Douglas (32–35 km) | B 11–16 · I 19.5–23.5 · A 26.5–34 | ⚠️ all |
+| Longest long run, time | ≤ 150 min (≤ 180 marathon) | Daniels (150 min); Higdon, Pfitzinger & Douglas for the marathon | ≤ 130 min; marathon ≤ 180 | ✅ |
+| Longest long run, half | B 14–19 km · I 16–22 · A 19–26 | Higdon; Pfitzinger & Latter (schedules) | B 8.5–14 · I 20–21 · A 24 | ⚠️ B · ✅ I, A |
+| Longest long run, marathon | B 26–32 km · I 29–35 · A 32–35 | Hansons (26 km); Higdon (32 km); Pfitzinger & Douglas (32–35 km) | B 15.4–21.5 · I 22.5–29 · A 26.5–34 | ⚠️ all (closer; see below) |
 | Longest long run, 5K / 10K | no citable range | — | 5K: 4–7.4 · 9.4–16 · 15–18; 10K: 5.2–12 · 12.2–18 · 20 | info |
 
 ### Intensity
@@ -115,7 +115,7 @@ Pfitzinger's 3K–5K guide is only checked above a score of 35. A slower runner 
 ## Engine changes made because of this benchmark
 
 Each change is conservative: it lowers load or spreads it more evenly, it has a source, and the safety
-sweeps still pass. `PlanBuilder.engineVersion` went from 1 to 2. [PLAN-RULES.md](PLAN-RULES.md) is updated.
+sweeps still pass. `PlanBuilder.engineVersion` went from 1 to 2 (and to 3 in the second round below). [PLAN-RULES.md](PLAN-RULES.md) is updated.
 
 | # | Finding | Before | Change | After |
 |---|---|---|---|---|
@@ -125,6 +125,17 @@ sweeps still pass. `PlanBuilder.engineVersion` went from 1 to 2. [PLAN-RULES.md]
 | 4 | Advanced runners with Mon–Thu + weekend got 1 session, not 2 | greedy choice: Wednesday blocked Tue + Thu | Session days chosen to fit the most sessions first | 2 sessions |
 | 5 | Sessions sized against the target week overshot Daniels' caps when the week couldn't hold its target | threshold up to 10.7%, intervals up to 10.2% | Sessions sized against what the week actually holds | ≤ 10% / ≤ 8% |
 | 6 | Single runs jumped when the week's structure changed (a session added, a step-back ended) | up to +38% over the longest run in the last month | No easy or long run longer than 110% of the longest run in the previous 24 days | ≤ +10% |
+
+**Second round (engine version 3): long runs, strides and hills.** The maintainer chose to close the
+long-run gap using options (a) and (b) from the first round:
+
+| # | Change | Before | After |
+|---|---|---|---|
+| 7 | Long-run share for the half 38% (up to 45%) and marathon 42% (up to 50%), still capped at half the week and by the 10% rule | 30–40% | half 38–50%, marathon 41–50% |
+| 8 | Marathon peaks 60 / 75 / 100 km (were 45 / 65 / 95); half beginner 40 km (was 35) | — | marathon long runs B up to 21.5 km, I up to 29, A up to 34 |
+| 9 | Time caps: half 2h (beginner) or 2h15; marathon 3h for every level | marathon beginner 2h45 | — |
+| 10 | A plan starting mid-week shrank its long run to the size of its one easy run, and the 10% rule then held later weeks to that size | first long runs 3.5 km on a 30 km/week runner | short weeks move distance to the easy runs; the 10% rule assumes a usual long run of 30% of the reported weekly distance until the plan has its own history |
+| 11 | Strides (4–6 × 20 s) on 1–2 easy runs a week; hill repeats alternate with threshold in base weeks from week 6 | none | — |
 
 One benchmark definition was also aligned with its source. Daniels' 2Q plans count a long run with
 marathon-pace segments as a quality session, so the benchmark does too.
@@ -137,22 +148,15 @@ because of change 6.
 
 These are outside a published range and deliberately left as they are, for now.
 
-**1. Long runs for the half (beginner, intermediate) and the marathon (all levels) are short.** This is
-the biggest gap. Published novice marathon plans peak at a 26–32 km long run (Hansons, Higdon). Steppa
-peaks at 11–16 km for beginners and about 20–24 km for intermediates (see sample B below). Two things
-cause it:
-- **Peak weekly volume is conservative.** Marathon peaks are 45 / 65 / 95 km. Higdon's Novice 1 is
-  reported to peak around 64 km, and Pfitzinger & Douglas's lowest schedule peaks at 55 miles (~88 km).
-- **The long run is 30–40% of the week**, close to Daniels' ≤ 25–30%. Higdon-style novice plans let the
-  long run reach about half the week.
-
-Raising either is a coaching trade-off. More volume or a longer long run means more injury exposure for
-runners who are often new to the distance. That makes it a decision for the maintainer, ideally with a
-coach's input. Options:
-(a) raise peak volume targets for the half and marathon;
-(b) allow a larger long-run share for the marathon (up to 45–50%), keeping the 10% spike rule and the
-    validator's 50% cap;
-(c) keep the conservative plan but warn clearly that long runs are below typical marathon plans.
+**1. Some half and marathon long runs are still shorter than published plans,** after the second-round
+changes above. What remains is deliberate:
+- **Beginner marathon (15–22 km vs 26–32):** the 3-hour cap on time on feet binds first. At beginner easy
+  paces, 3 hours is about 21–24 km. Published novice plans go further and take longer.
+- **Beginner half (8.5–14 km vs 14–19):** beginners grow 8% a week with an easier week every third week,
+  and no run may exceed the last few weeks' longest by more than 10%. From a low start in a 12-week plan
+  the long run reaches about 14 km. Longer plans get closer.
+- **Intermediate and advanced marathon:** typical inputs reach the range (up to 29 and 34 km). Short
+  plans and low starting mileage are held back by the 10% rule.
 
 **2. 5K and 10K race-week cuts are sometimes deeper than Bosquet's 60%** (up to 73%). The single taper
 week is race week, whose last three days are short easy runs by design. That is still within Mujika &
@@ -165,8 +169,8 @@ the average of the last three loading weeks includes lower weeks.
 
 The benchmark checks numbers, but a coach also brings things the numbers don't capture:
 
-- **No strides, hills or repetition-pace work.** The pace table has a repetition zone, but no workout
-  uses it. Daniels, Pfitzinger and Higdon all include strides or short fast reps for economy.
+- **Strides and hills are basic.** Strides are on 1–2 easy runs a week and hill repeats alternate with
+  threshold in the later base weeks, but there's no repetition-pace session or hill sprints.
 - **No cross-training, strength or mobility work**, and no run-walk option. The shortest run is 3 km, so
   a true beginner who can't yet run continuously isn't served (Higdon's novice 5K and Galloway's method
   are for them).

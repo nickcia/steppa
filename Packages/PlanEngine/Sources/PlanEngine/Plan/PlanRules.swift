@@ -55,12 +55,14 @@ public enum PlanRules {
         case (.tenK, .beginner): 30
         case (.tenK, .intermediate): 50
         case (.tenK, .advanced): 70
-        case (.halfMarathon, .beginner): 35
+        // Half and marathon peaks are set so long runs can reach the lengths published plans use (Higdon's
+        // novice marathon peaks near 64 km with a 32 km long run; Pfitzinger's lowest schedule near 88 km).
+        case (.halfMarathon, .beginner): 40
         case (.halfMarathon, .intermediate): 55
         case (.halfMarathon, .advanced): 80
-        case (.marathon, .beginner): 45
-        case (.marathon, .intermediate): 65
-        case (.marathon, .advanced): 95
+        case (.marathon, .beginner): 60
+        case (.marathon, .intermediate): 75
+        case (.marathon, .advanced): 100
         }
         return km * 1000
     }
@@ -139,18 +141,50 @@ public enum PlanRules {
         return km * 1000
     }
 
+    /// Time on feet caps the long run (Daniels: about 150 minutes; marathon plans go to about 3 hours).
     public static func longRunCapSeconds(_ goal: RaceDistance, _ experience: Experience) -> Double {
         switch (goal, experience) {
-        case (.marathon, .beginner): 165 * 60
         case (.marathon, _): 180 * 60
+        case (.halfMarathon, .beginner): 120 * 60
+        case (.halfMarathon, _): 135 * 60
         case (_, .beginner): 105 * 60
         case _: 120 * 60
         }
     }
 
-    /// Long run's share of the week. Higher when there are few run days.
-    public static func longRunShare(runDays: Int) -> Double {
-        min(0.30 + Double(max(0, 4 - runDays)) * 0.05, 0.40)
+    /// Long run's share of the week. Higher when there are few run days, and for the half and marathon, where
+    /// the long run is the key session (Higdon's novice plans let it reach about half the week). The validator
+    /// still caps it at half the week, and the 10% spike rule limits how fast it grows.
+    public static func longRunShare(runDays: Int, goal: RaceDistance = .tenK) -> Double {
+        let (base, cap): (Double, Double) = switch goal {
+        case .marathon: (0.42, 0.50)
+        case .halfMarathon: (0.38, 0.45)
+        case .fiveK, .tenK: (0.30, 0.40)
+        }
+        return min(base + Double(max(0, 4 - runDays)) * 0.04, cap)
+    }
+
+    // MARK: Strides
+
+    /// Strides: short accelerations after an easy run, for speed and form without fatigue (Daniels; Pfitzinger).
+    public static let strideSeconds = 20.0
+    public static let strideRecoverySeconds = 60.0
+
+    public static func strideReps(_ experience: Experience) -> Int {
+        switch experience {
+        case .beginner: 4
+        case .intermediate: 5
+        case .advanced: 6
+        }
+    }
+
+    /// Easy runs a week that finish with strides. Beginners start after their first two weeks.
+    public static func stridesPerWeek(phase: Phase, experience: Experience, weekIndex: Int) -> Int {
+        if experience == .beginner { return weekIndex < 2 ? 0 : 1 }
+        switch phase {
+        case .base, .taper: return 1
+        case .build, .peak: return 2
+        }
     }
 
     // MARK: Intensity

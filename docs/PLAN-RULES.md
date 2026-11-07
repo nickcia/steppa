@@ -59,7 +59,9 @@ weeks) get a warning.
 
 - Volume starts at your current weekly distance (minimum 8 km).
 - Volume peaks at a target set by distance and experience. If you already run more than the target, it
-  peaks at your current volume, up to 130% of the target.
+  peaks at your current volume, up to 130% of the target. Half-marathon and marathon peaks are set so long
+  runs can reach the lengths published plans use (for example 60 km for a beginner marathon, near Higdon's
+  novice plan).
 - Each loading week grows by at most 10% (8% for beginners), or 1 km at very low volume. That keeps any
   two-week increase within 30%, even from 8 km (Nielsen et al. 2014).
 - **Step-back week** at 80% after every 3 loading weeks (every 2 for beginners).
@@ -80,9 +82,20 @@ weeks) get a warning.
 
 ## 4. The week
 
-- **Long run** on your chosen day. It takes 30% of the week, rising to 40% with only 2 run days. It is
-  capped by distance (12–34 km by goal and level) and by time (1h45 to 3h). It is never longer than the
-  rest of the week combined.
+- **Long run** on your chosen day. Its share of the week depends on the race, and rises by 4 points for each
+  run day under 4:
+
+  | Race | Share (4+ run days) | Highest |
+  |---|---|---|
+  | 5K and 10K | 30% | 40% |
+  | Half marathon | 38% | 45% |
+  | Marathon | 42% | 50% |
+
+  The long run is the key session for the half and marathon; Higdon's novice plans let it reach about half
+  the week. It is capped by distance (12–34 km by goal and level) and by time: 1h45–2h for 5K and 10K, 2h
+  (beginners) or 2h15 for the half, and 3h for the marathon. It is never longer than the rest of the week
+  combined. In a short week (a plan starting mid-week), distance moves from the long run to the easy runs
+  rather than the week shrinking.
 - **Quality sessions:**
 
   | Phase | Beginners | Others |
@@ -100,11 +113,20 @@ weeks) get a warning.
   each other, including across the end of the week.
 - **Intensity cap:** at most 20% of weekly distance is at threshold pace or faster.
 - **No sudden long runs:** no easy or long run is more than 10% longer than the longest run in the
-  previous 24 days (so within 30 days of every run in the week). Overuse injuries rose when a single run
+  previous 24 days (so within 30 days of every run in the week). In a new plan's first weeks, your usual
+  long run is assumed to be 30% of the weekly distance you reported, since the plan can't see your runs
+  from before it started. Overuse injuries rose when a single run
   exceeded the longest run of the previous month by more than 10% (Frandsen et al. 2025). A run held back
   by this rule is planned to the nearest 100 m instead of 500 m, so it can still grow.
 - **Easy runs** fill the rest of the week. Each is at least 3 km and at most 10, 14 or 18 km by level.
   If your available days can't hold the target volume, the plan stays lighter and says so.
+- **Strides:** 1 easy run a week ends with strides (2 in the build and peak; beginners from week 3): 4–6 ×
+  20 s quick but relaxed, each with 60 s of easy jogging or walking. They improve speed and form without
+  tiring you, so they don't count towards the intensity cap (Daniels counts them as part of easy running).
+  Never in the last 3 days before the race.
+- **Hills:** from week 6, base weeks alternate a threshold session with hill repeats (Lydiard; Pfitzinger):
+  strength before the faster work of the build. Hills replace the session, so the week's hard work doesn't
+  grow. The first weeks stay threshold so the plan can learn your paces from them.
 - **Marathon peak (non-beginners):** the long run finishes with up to 40% at marathon pace.
 - **Race week:** at most one short session, no later than 4 days before the race. The last 3 days hold
   only short easy runs (6 km, then 4 km the day before).
@@ -115,6 +137,8 @@ weeks) get a warning.
 |---|---|
 | Intervals | Warm-up, then 3–8 reps (5K: 800 m; 10K and half: 1 km; marathon: 1.2 km; 400 m in small weeks), each followed by a jog recovery of about ¾ the rep time. Then cool-down. |
 | Threshold | Cruise intervals of 1–1.6 km with 60 s jogs. In the peak phase (non-beginners), a continuous tempo run of 3–8 km. |
+| Hills | Warm-up, then 4–8 × 60 s uphill (advanced: up to 10 × 90 s) at about 5K effort, jogging back down for 1½ times as long. Then cool-down. Run by effort: pace on a hill means little, so the watch shows time, not a pace target. Sized from the interval budget and counted as hard running. |
+| Easy with strides | The easy run, then 4–6 × 20 s strides with 60 s easy between them. The whole run is no longer than planned. |
 | Easy / long | A single step with an easy pace range. |
 
 Every workout is a warm-up, repeated blocks and a cool-down. This maps directly onto Apple Watch

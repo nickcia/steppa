@@ -35,7 +35,9 @@ enum WatchWorkoutBuilder {
         case .time(let seconds): .time(seconds, .seconds)
         }
         // Pace targets become speed-range alerts on the watch (warm-ups and recoveries stay alert-free).
-        let speedAlert: SpeedRangeAlert? = alert ? step.target.map { target in
+        // Hills are run by effort and strides are too short for a pace alert to help.
+        let paced = step.target.map { !$0.zone.isEffortBased && $0.zone != .stride } ?? false
+        let speedAlert: SpeedRangeAlert? = alert && paced ? step.target.map { target in
             .speed(speed(target.range.slow)...speed(target.range.fast), unit: .metersPerSecond, metric: .current)
         } : nil
         if #available(iOS 18.0, *) {

@@ -69,9 +69,15 @@ enum IntervalsWorkoutBuilder {
     }
 
     static func line(_ step: Step, units: UnitSystem) -> String {
-        var parts = ["-", amount(step.goal)]
-        if let target = step.target { parts.append(pace(target.range, units: units)) }
-        return parts.joined(separator: " ")
+        switch step.target?.zone {
+        // Text before the duration becomes the step's name on the watch; no pace target for effort steps.
+        case .hill?: return "- Uphill hard \(amount(step.goal))"
+        case .stride?: return "- Stride \(amount(step.goal))"
+        default:
+            var parts = ["-", amount(step.goal)]
+            if let target = step.target { parts.append(pace(target.range, units: units)) }
+            return parts.joined(separator: " ")
+        }
     }
 
     /// Distances in km (a bare "m" means minutes in this format); times in whole minutes or seconds.

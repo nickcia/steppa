@@ -140,12 +140,17 @@ enum ReferenceRanges {
         }
         d[key(.taperCut, .marathon, .beginner)] = "Borderline (just under 41% in one grid case): beginners "
             + "step back every 3rd week, so the pre-taper average includes lower weeks."
-        let longRun = "Long run is 30–40% of a peak week that is lower than in published plans. Fixing it needs "
-            + "more weekly volume or a larger long-run share: a coaching decision, not a clearly safe change."
-        d[key(.peakLongRunKm, .halfMarathon, .beginner)] = longRun
-        d[key(.peakLongRunKm, .halfMarathon, .intermediate)] = longRun + " Also, runs grow at most 10% over "
-            + "the last few weeks' longest run, so a 12-week plan from a low start can end just short."
-        for level in Experience.allCases { d[key(.peakLongRunKm, .marathon, level)] = longRun }
+        // Long runs were raised for the half and marathon (larger long-run share, higher marathon peaks). What
+        // still keeps some short is deliberate and safety-related.
+        d[key(.peakLongRunKm, .halfMarathon, .beginner)] = "Beginners grow 8% a week with an easier week every "
+            + "third week, and no run may exceed the last few weeks' longest by more than 10%; from a low start in "
+            + "a 12-week plan the long run reaches about 14 km. Longer plans get closer."
+        d[key(.peakLongRunKm, .marathon, .beginner)] = "The 3-hour cap on time on feet binds first: at beginner "
+            + "easy paces, 3 hours is about 21–24 km. Published novice plans go further (and longer in time)."
+        for level in [Experience.intermediate, .advanced] {
+            d[key(.peakLongRunKm, .marathon, level)] = "Short plans and low starts hit the 10% growth rule; "
+                + "typical inputs reach the range (intermediate up to 29 km, advanced up to 34 km)."
+        }
         return d
     }()
 
@@ -511,7 +516,9 @@ enum BenchmarkGrid {
         let work = w.blocks.first?.steps.first { $0.purpose == .work }?.step
         let reps = w.blocks.first?.iterations ?? 1
         switch w.kind {
-        case .easy: return "E \(km(w.totalMeters))"
+        case .easy:
+            let strides = w.blocks.count > 1 ? w.blocks.last.map { " + \($0.iterations)×20 s strides" } ?? "" : ""
+            return "E \(km(w.totalMeters))\(strides)"
         case .long: return "L \(km(w.totalMeters))"
         case .marathonPaceLong: return "L \(km(w.totalMeters)) (last \(km(work?.estimatedMeters ?? 0)) @M)"
         case .tempo:
@@ -519,6 +526,7 @@ enum BenchmarkGrid {
                 : "T \(reps)×\(Int(work?.estimatedMeters ?? 0)) m (\(km(w.totalMeters)))"
         case .intervals: return "I \(reps)×\(Int(work?.estimatedMeters ?? 0)) m (\(km(w.totalMeters)))"
         case .race: return "**RACE**"
+        case .hills: return "H \(reps)×\(Int(work?.estimatedSeconds ?? 0)) s uphill (\(km(w.totalMeters)))"
         }
     }
 

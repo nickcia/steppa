@@ -39,7 +39,7 @@ enum WeekLayout {
         var limitedByAvailability: Bool
     }
 
-    enum SessionKind { case tempo, intervals }
+    enum SessionKind { case tempo, intervals, hills }
 
     static func layout(_ c: Context) -> Result {
         let inputs = c.inputs
@@ -135,7 +135,10 @@ enum WeekLayout {
     static func sessionKinds(phase: Phase, goal: RaceDistance, weekIndex: Int, count: Int) -> [SessionKind] {
         let shortRace = goal == .fiveK || goal == .tenK
         let order: [SessionKind] = switch phase {
-        case .base: [.tempo]
+        // From week 6, base weeks alternate threshold and hills: strength before the faster work of the build
+        // (Lydiard, Pfitzinger). The first weeks stay threshold, so the adaptive engine has paces to learn from
+        // early on (hill efforts are run by feel, so their pace says nothing about fitness).
+        case .base: weekIndex >= 5 && !weekIndex.isMultiple(of: 2) ? [.hills] : [.tempo]
         case .build where count == 1: weekIndex.isMultiple(of: 2) ? [.intervals] : [.tempo]
         case .build, .peak: shortRace ? [.intervals, .tempo] : [.tempo, .intervals]
         case .taper: shortRace ? [.intervals] : [.tempo]
@@ -169,6 +172,8 @@ enum WeekLayout {
             switch kind {
             case .tempo: WorkoutFactory.tempo(date, sessionContext)
             case .intervals: WorkoutFactory.intervals(date, sessionContext)
+            // Too small a week for hills: fall back to a threshold session.
+            case .hills: WorkoutFactory.hills(date, sessionContext) ?? WorkoutFactory.tempo(date, sessionContext)
             }
         }
         let sessionDates = Set(sessions.map(\.date))
@@ -187,7 +192,7 @@ enum WeekLayout {
         let longCap = min(PlanRules.longRunCapMeters(inputs.goal, inputs.experience),
                           PlanRules.longRunCapSeconds(inputs.goal, inputs.experience) / paces.easy.mid * 1000,
                           spikeCap)
-        var longMeters = longDate == nil ? 0 : min(c.volume.meters * PlanRules.longRunShare(runDays: inputs.runDays.count),
+        var longMeters = longDate == nil ? 0 : min(c.volume.meters * PlanRules.longRunShare(runDays: inputs.runDays.count, goal: inputs.goal),
                                                    longCap, max(0, weekMeters - sessionMeters))
 
         // Easy runs share what's left; drop easy days rather than schedule pointlessly short runs.
@@ -214,9 +219,16 @@ enum WeekLayout {
             perEasy = easyCap
             limited = true
         }
-        // When easy runs are capped, the long run must still not dominate the week.
+        // The long run must not be more than the rest of the week. In a short week (few days left) move
+        // distance from the long run to the easy runs first, rather than shrinking the week.
         if easyCount > 0 || !sessions.isEmpty || c.existing.trainingMeters > 0 {
-            let restOfWeek = sessionMeters + Double(easyCount) * runMeters(perEasy) + c.existing.trainingMeters
+            let others = sessionMeters + c.existing.trainingMeters
+            if easyCount > 0, perEasy < easyCap, longMeters > others + Double(easyCount) * perEasy {
+                let pool = longMeters + Double(easyCount) * perEasy
+                longMeters = min(longMeters, (pool + others) / 2)
+                perEasy = min((pool - longMeters) / Double(easyCount), easyCap)
+            }
+            let restOfWeek = others + Double(easyCount) * runMeters(perEasy)
             if longMeters > restOfWeek {
                 longMeters = restOfWeek
                 limited = true
@@ -236,11 +248,25 @@ enum WeekLayout {
             .prefix(easyCount)
 
         var workouts = sessions
-        workouts += chosenEasy.map {
-            WorkoutFactory.easy($0, meters: min(runMeters(perEasy), quietDayCap($0, raceDate: inputs.raceDate)), paces: paces)
+        let quietStart = inputs.raceDate.adding(days: -PlanRules.raceTaperQuietDays)
+        // Strides go on the first easy runs long enough for them, never in the quiet days before the race.
+        var stridesLeft = PlanRules.stridesPerWeek(phase: c.phase, experience: inputs.experience, weekIndex: c.weekIndex)
+        workouts += chosenEasy.sorted().map { date in
+            let meters = min(runMeters(perEasy), quietDayCap(date, raceDate: inputs.raceDate))
+            if stridesLeft > 0, date < quietStart, meters >= PlanRules.minimumRunMeters + 1_500 {
+                stridesLeft -= 1
+                return WorkoutFactory.easyWithStrides(date, meters: meters,
+                                                      reps: PlanRules.strideReps(inputs.experience), paces: paces)
+            }
+            return WorkoutFactory.easy(date, meters: meters, paces: paces)
         }
         if let longDate {
-            let meters = runMeters(longMeters)
+            var meters = runMeters(longMeters)
+            // Strides change easy runs by a few metres; keep the long run no more than the rest of the week.
+            if easyCount > 0 || !sessions.isEmpty || c.existing.trainingMeters > 0 {
+                let rest = workouts.reduce(0) { $0 + $1.totalMeters } + c.existing.trainingMeters
+                if meters > rest { meters = (rest / 100).rounded(.down) * 100 }
+            }
             if meters >= minRun {
                 workouts.append(marathonPaceLong
                     ? WorkoutFactory.marathonPaceLong(longDate, meters: meters, paces: paces)

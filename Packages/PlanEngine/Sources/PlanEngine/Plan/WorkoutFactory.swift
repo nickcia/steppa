@@ -39,6 +39,22 @@ enum WorkoutFactory {
         Workout(date: date, kind: .easy, blocks: [single(step(meters: meters, zone: .easy, paces: paces))])
     }
 
+    /// An easy run finishing with strides: `reps` × 20 s quick-but-relaxed, each followed by a 60 s easy jog or
+    /// walk. The whole run is still `meters`. Returns a plain easy run if the easy part would get too short.
+    static func easyWithStrides(_ date: LocalDate, meters: Double, reps: Int, paces: PaceTable) -> Workout {
+        let stride = step(seconds: PlanRules.strideSeconds, zone: .stride, paces: paces)
+        let recovery = step(seconds: PlanRules.strideRecoverySeconds, zone: nil, paces: paces)
+        let stridesMeters = Double(reps) * (stride.estimatedMeters + recovery.estimatedMeters)
+        // Down to 100 m, so the whole run is never longer than `meters` (which may be at the 10% spike cap).
+        let easyMeters = ((meters - stridesMeters) / 100).rounded(.down) * 100
+        guard reps > 0, easyMeters >= PlanRules.minimumRunMeters else { return easy(date, meters: meters, paces: paces) }
+        return Workout(date: date, kind: .easy, blocks: [
+            single(step(meters: easyMeters, zone: .easy, paces: paces)),
+            IntervalBlock(iterations: reps, steps: [IntervalStep(purpose: .work, step: stride),
+                                                    IntervalStep(purpose: .recovery, step: recovery)]),
+        ])
+    }
+
     static func long(_ date: LocalDate, meters: Double, paces: PaceTable) -> Workout {
         Workout(date: date, kind: .long, blocks: [single(step(meters: meters, zone: .easy, paces: paces))])
     }
@@ -80,6 +96,25 @@ enum WorkoutFactory {
             IntervalStep(purpose: .recovery, step: step(seconds: recoverySeconds, zone: nil, paces: c.paces)),
         ])
         return Workout(date: date, kind: .intervals,
+                       warmup: step(meters: warmupMeters(c.experience), zone: .easy, paces: c.paces),
+                       blocks: [block],
+                       cooldown: step(meters: cooldownMeters(c.experience), zone: .easy, paces: c.paces))
+    }
+
+    /// Hill repeats: hard uphill efforts by feel, jogging back down. Sized from the interval budget, since the
+    /// efforts are as hard as intervals. Returns nil if the week is too small.
+    static func hills(_ date: LocalDate, _ c: SessionContext) -> Workout? {
+        let budget = min(c.weekMeters * PlanRules.intervalBudgetShare, PlanRules.intervalBudgetCap)
+        let seconds: Double = c.experience == .advanced ? 90 : 60
+        let effort = step(seconds: seconds, zone: .hill, paces: c.paces)
+        let reps = min(Int(budget / effort.estimatedMeters), c.experience == .advanced ? 10 : 8)
+        guard reps >= 4 else { return nil }
+        let block = IntervalBlock(iterations: reps, steps: [
+            IntervalStep(purpose: .work, step: effort),
+            // Jog back down: about one and a half times as long as the climb.
+            IntervalStep(purpose: .recovery, step: step(seconds: seconds * 1.5, zone: nil, paces: c.paces)),
+        ])
+        return Workout(date: date, kind: .hills,
                        warmup: step(meters: warmupMeters(c.experience), zone: .easy, paces: c.paces),
                        blocks: [block],
                        cooldown: step(meters: cooldownMeters(c.experience), zone: .easy, paces: c.paces))

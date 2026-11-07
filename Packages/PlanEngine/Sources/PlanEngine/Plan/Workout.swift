@@ -8,6 +8,8 @@ public enum WorkoutKind: String, Codable, Sendable, CaseIterable {
     /// Long run finishing at marathon pace.
     case marathonPaceLong
     case race
+    /// Uphill repeats run by effort: strength and power with less pounding than flat speedwork.
+    case hills
 
     /// Hard days must never fall on consecutive dates.
     public var isHard: Bool { self != .easy }
