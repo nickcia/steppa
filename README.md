@@ -61,6 +61,10 @@ framework dependencies. A safety validator checks every plan against every rule.
 more than 10,000 plans and adapts thousands of them under simulated missed runs, breaks and schedule
 changes, and requires every result to pass.
 
+How do the plans compare with published coaching methods? [docs/PLAN-BENCHMARK.md](docs/PLAN-BENCHMARK.md)
+measures generated plans against ranges from Daniels, Pfitzinger, Higdon and sports-science research, lists
+where Steppa falls short, and includes a review kit for a qualified coach.
+
 ## Privacy
 
 - **No servers, no accounts, no analytics or tracking SDKs.** The app doesn't send data anywhere unless you

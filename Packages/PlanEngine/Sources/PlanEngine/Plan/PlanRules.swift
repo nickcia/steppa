@@ -27,8 +27,8 @@ public enum PlanRules {
     public static func taperFactors(_ goal: RaceDistance) -> [Double] {
         switch goal {
         case .fiveK, .tenK: [0.6]
-        case .halfMarathon: [0.75, 0.55]
-        case .marathon: [0.8, 0.65, 0.45]
+        case .halfMarathon: [0.7, 0.45]
+        case .marathon: [0.75, 0.6, 0.4]
         }
     }
 
@@ -81,7 +81,8 @@ public enum PlanRules {
     }
 
     /// At very low volume a percentage rule is needlessly slow, so a small absolute increase is allowed.
-    public static let minimumIncreaseMeters = 1_500.0
+    /// Small enough that two loading weeks never add more than 30% (Nielsen et al. 2014), even from 8 km.
+    public static let minimumIncreaseMeters = 1_000.0
 
     /// Largest volume increase over the last loading week that any plan may contain.
     /// The validator checks every plan against this.
@@ -103,6 +104,14 @@ public enum PlanRules {
     // MARK: Runs
 
     public static let minimumRunMeters = 3_000.0
+
+    /// No run may be longer than this multiple of the longest run in the last few weeks. Overuse injuries
+    /// rose when a single run exceeded the longest run of the previous 30 days by more than 10%
+    /// (Frandsen et al. 2025).
+    public static let maxRunSpike = 1.10
+    /// Look-back for `maxRunSpike`, in days before the week's Monday. 24 days keeps every run in the week
+    /// within 30 days of the runs it is compared with.
+    static let recentRunWindowDays = 24
 
     public static func easyRunCapMeters(_ experience: Experience) -> Double {
         switch experience {
