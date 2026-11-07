@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var importing = false
     @State private var pendingImport: ExportBundle?
     @State private var importError: String?
+    @State private var reportingBug = false
 
     var body: some View {
         NavigationStack {
@@ -122,6 +123,9 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(Theme.secondaryInk)
                     NavigationLink("How plans are built") { PlanRulesSummary() }
+                    Button { reportingBug = true } label: {
+                        Label("Report a bug", systemImage: "ladybug")
+                    }
                 }
 
                 Section("Health and safety") {
@@ -129,6 +133,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $reportingBug) { BugReportView() }
             .confirmationDialog("End this plan?", isPresented: $confirmEnd, titleVisibility: .visible) {
                 Button("End plan", role: .destructive) { model.endPlan() }
             } message: {
