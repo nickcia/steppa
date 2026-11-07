@@ -16,6 +16,9 @@ struct TodayView: View {
                     PlanChangeBanner()
                     WeekCard(selected: $selected)
                     HeroCard(date: selected)
+                    if let strength = model.strengthSession(on: selected) {
+                        StrengthCard(session: strength)
+                    }
                     if let plan = model.plan {
                         DashboardTiles(plan: plan)
                         TrendCard(plan: plan)
@@ -33,6 +36,7 @@ struct TodayView: View {
             .navigationDestination(for: Workout.self) { WorkoutDetailView(workout: $0) }
             .navigationDestination(for: WeeklyDistanceRoute.self) { _ in WeeklyDistanceView() }
             .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
+            .navigationDestination(for: StrengthSchedule.Session.self) { StrengthDetailView(session: $0) }
         }
         .onChange(of: resetSignal) {
             path = NavigationPath()
@@ -191,6 +195,7 @@ private struct DayCell: View {
     var body: some View {
         let workout = model.workout(on: date)
         let status = workout.flatMap { model.status(of: $0) }
+        let strength = model.strengthSession(on: date)
         let isToday = date == model.today
         VStack(spacing: 4) {
             Text("\(date.day)")
@@ -224,6 +229,16 @@ private struct DayCell: View {
                 }
             }
             .frame(width: 6, height: 6)
+            // A strength session: a small purple dot (outlined once done).
+            .overlay(alignment: .leading) {
+                if let strength {
+                    Circle()
+                        .fill(model.isStrengthDone(strength) ? Color.clear : StrengthStyle.color)
+                        .strokeBorder(StrengthStyle.color, lineWidth: 1.5)
+                        .frame(width: 6, height: 6)
+                        .offset(x: workout == nil ? 0 : 8)
+                }
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 50)
         .contentShape(Rectangle())

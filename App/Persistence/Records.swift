@@ -78,6 +78,9 @@ final class ProfileRecord {
     var watchAutoSync: Bool = false
     /// Set by the athlete; otherwise estimated (see AppModel.maxHeartRate).
     var maxHeartRate: Double?
+    /// Optional bodyweight strength sessions around the running plan.
+    var strengthEnabled: Bool = false
+    var strengthPerWeek: Int = 2
 
     init(units: UnitSystem) {
         unitsRaw = units.rawValue

@@ -28,6 +28,19 @@ struct RunDetailView: View {
         .screenBackground()
         .navigationTitle("Run")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let run = model.healthRuns.first(where: { $0.id == runID }),
+               let image = RunShareCard(run: run, analysis: model.analysis(for: run), workout: model.workout(for: run),
+                                        format: model.format).image() {
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(item: RunShareImage(image: image, name: "Run \(run.date)"),
+                              preview: SharePreview(model.workout(for: run)?.kind.name ?? String(localized: "Run"),
+                                                    image: Image(uiImage: image))) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
     }
 
     private func content(_ run: CompletedRun) -> some View {

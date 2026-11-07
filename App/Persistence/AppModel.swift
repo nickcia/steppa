@@ -44,6 +44,8 @@ final class AppModel {
     private(set) var remindersEnabled = false
     private(set) var reminderMinutes = 7 * 60
     private(set) var watchAutoSync = false
+    private(set) var strengthEnabled = false
+    private(set) var strengthPerWeek = 2
     /// Workouts currently scheduled on the watch (by WorkoutKit plan ID).
     private(set) var watchScheduledIDs: Set<UUID> = []
     /// The Intervals.icu connection (from the Keychain); nil when not connected.
@@ -103,6 +105,8 @@ final class AppModel {
         remindersEnabled = profile?.remindersEnabled ?? false
         reminderMinutes = profile?.reminderMinutes ?? 7 * 60
         watchAutoSync = profile?.watchAutoSync ?? false
+        strengthEnabled = profile?.strengthEnabled ?? false
+        strengthPerWeek = profile?.strengthPerWeek ?? 2
 
         // If two devices both created a plan before syncing, the most recently updated one wins.
         let record = activePlanRecord()
@@ -315,8 +319,11 @@ final class AppModel {
     func healthRun(for workout: Workout) -> CompletedRun? { healthMatches[workout.id] }
 
     func setStatus(_ status: WorkoutStatus?, for workout: Workout) {
+        setStatus(status, forID: workout.id)
+    }
+
+    private func setStatus(_ status: WorkoutStatus?, forID workoutID: String) {
         guard let planID else { return }
-        let workoutID = workout.id
         let existing = (try? context.fetch(FetchDescriptor<WorkoutLogRecord>(
             predicate: #Predicate { $0.planID == planID && $0.workoutID == workoutID }))) ?? []
         if let status {
@@ -655,6 +662,32 @@ final class AppModel {
         max(plan?.workouts.last?.date ?? today, today.adding(days: 400))
     }
 
+    // MARK: Strength
+
+    /// Strength sessions for the current plan (empty when turned off).
+    var strengthSessions: [StrengthSchedule.Session] {
+        guard strengthEnabled, let plan else { return [] }
+        return StrengthSchedule.sessions(for: plan, perWeek: strengthPerWeek)
+    }
+
+    func strengthSession(on date: LocalDate) -> StrengthSchedule.Session? {
+        strengthSessions.first { $0.date == date }
+    }
+
+    func isStrengthDone(_ session: StrengthSchedule.Session) -> Bool { statuses[session.id] == .done }
+
+    func setStrengthDone(_ done: Bool, for session: StrengthSchedule.Session) {
+        setStatus(done ? .done : nil, forID: session.id)
+    }
+
+    func setStrength(enabled: Bool, perWeek: Int? = nil) {
+        let p = profile()
+        p.strengthEnabled = enabled
+        if let perWeek { p.strengthPerWeek = min(max(perWeek, 1), 2) }
+        save()
+        Task { await syncCalendar() }
+    }
+
     // MARK: Calendar
 
     var calendarAvailable: Bool { calendar != nil }
@@ -662,6 +695,14 @@ final class AppModel {
     /// The workout as a calendar event, at the reminder time.
     func calendarEvent(for workout: Workout) -> CalendarEventContent {
         CalendarEventContent.make(for: workout, format: format, minutes: reminderMinutes)
+    }
+
+    /// A strength session as a calendar event: an hour after the reminder time, so it follows any run that day.
+    func calendarEvent(for session: StrengthSchedule.Session) -> CalendarEventContent {
+        let routine = StrengthRoutine.for(session.level)
+        return CalendarEventContent.make(title: routine.title, notes: routine.text, date: session.date,
+                                         minutes: reminderMinutes + 60, durationMinutes: routine.minutes,
+                                         id: session.id)
     }
 
     func setCalendarSync(_ enabled: Bool) async {
@@ -686,6 +727,7 @@ final class AppModel {
     func syncCalendar(force: Bool = false) async {
         guard let calendar, calendarSyncEnabled else { return }
         let events = (plan?.workouts ?? []).filter { $0.date >= today }.map(calendarEvent(for:))
+            + strengthSessions.filter { $0.date >= today }.map(calendarEvent(for:))
         let keys = Set(events.map(\.key))
         if !force, keys == calendarSyncedKeys { return }
         let from = Calendar.current.startOfDay(for: today.date())

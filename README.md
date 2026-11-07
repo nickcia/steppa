@@ -26,6 +26,10 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
 - **Adapts as you go.** Runs from Apple Health tick workouts off automatically. Miss a few runs, take a
   break, run faster or slower than planned, change your race date or your free days, and the rest of the
   plan adjusts. It never tries to make you "catch up".
+- **Strides, hills and optional strength.** Easy runs finish with strides, base weeks include hill repeats, and
+  short bodyweight strength routines can be turned on in Settings.
+- **Share your run.** A clean image of the session, splits and heart-rate zones for Strava, Instagram or a
+  message, made on the phone.
 - **Run analysis.** Splits, pace and heart-rate charts, heart-rate zones, cadence and power, how each run
   compared with the plan, and plain-English notes. From Apple Health, or from Intervals.icu for the full
   recording from Garmin and other watches.

@@ -216,5 +216,6 @@ enum DemoData {
         }
         model.loadDemoRuns(runs, series: series)
         model.setMaxHeartRate(188)
+        model.setStrength(enabled: true)
     }
 }

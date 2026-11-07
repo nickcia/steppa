@@ -33,6 +33,23 @@ struct SettingsView: View {
                         LabeledContent("Goal race", value: "\(plan.inputs.goal.name), \(plan.inputs.raceDate.formatted(.dateTime.day().month()))")
                         Button("End this plan", role: .destructive) { confirmEnd = true }
                     }
+
+                    Section {
+                        Toggle("Strength sessions", isOn: Binding(get: { model.strengthEnabled },
+                                                                  set: { model.setStrength(enabled: $0) }))
+                        if model.strengthEnabled {
+                            Picker("Per week", selection: Binding(get: { model.strengthPerWeek },
+                                                                  set: { model.setStrength(enabled: true, perWeek: $0) })) {
+                                Text("1").tag(1)
+                                Text("2").tag(2)
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    } header: {
+                        Text("Strength")
+                    } footer: {
+                        Text("Short bodyweight routines (10–25 minutes, no equipment) that make running injuries less likely. They're placed away from your key runs and ease off before race day. They show on Today and in your calendar; they aren't sent to your watch.")
+                    }
                 }
 
                 Section {

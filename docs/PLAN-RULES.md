@@ -144,6 +144,17 @@ weeks) get a warning.
 Every workout is a warm-up, repeated blocks and a cool-down. This maps directly onto Apple Watch
 structured workouts.
 
+### Strength (optional)
+
+Turned on in Settings: short bodyweight routines that lower injury risk (Lauersen et al. 2014) and improve
+running economy (Blagrove et al. 2018). They're kept apart from the running plan's volume.
+
+- 1 or 2 a week (your choice); 1 in step-back and taper weeks; none in the last 5 days before the race.
+- Never on a quality-session or long-run day, or the day before one. At least two days apart.
+- Base phase: **foundation** (3 rounds, about 25 min). Build and peak: **maintenance** (2 rounds, about
+  18 min). Taper: **light** (1 round, about 10 min).
+- They show on Today and in the plan's calendar; they aren't sent to watches as running workouts.
+
 ## 6. Matching completed runs
 
 Runs come from Apple Health. Watches from Garmin, Coros and others can write runs there. A run counts

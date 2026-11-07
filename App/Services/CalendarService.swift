@@ -55,6 +55,17 @@ struct CalendarEventContent: Equatable {
         return CalendarEventContent(title: title, notes: notes, start: start, end: end, key: "\(workout.id)-\(hash)")
     }
 
+    /// Any other event (e.g. a strength session) on `date` at `minutes` after midnight.
+    static func make(title: String, notes: String, date: LocalDate, minutes: Int, durationMinutes: Int, id: String,
+                     calendar: Calendar = .current) -> CalendarEventContent {
+        let day = calendar.date(from: DateComponents(year: date.year, month: date.month, day: date.day)) ?? .now
+        let start = calendar.date(byAdding: .minute, value: minutes, to: day) ?? day
+        let end = calendar.date(byAdding: .minute, value: durationMinutes, to: start) ?? start
+        let digest = SHA256.hash(data: Data("\(title)|\(notes)|\(start.timeIntervalSince1970)|\(durationMinutes)".utf8))
+        let hash = digest.prefix(6).map { String(format: "%02x", $0) }.joined()
+        return CalendarEventContent(title: title, notes: notes, start: start, end: end, key: "\(id)-\(hash)")
+    }
+
     private static func text(_ line: WorkoutDescriber.Line) -> String {
         line.detail.map { "\(line.title) · \($0)" } ?? line.title
     }

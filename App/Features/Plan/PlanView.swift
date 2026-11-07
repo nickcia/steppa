@@ -50,6 +50,7 @@ struct PlanView: View {
             }
             .navigationDestination(for: Workout.self) { WorkoutDetailView(workout: $0) }
             .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
+            .navigationDestination(for: StrengthSchedule.Session.self) { StrengthDetailView(session: $0) }
         }
     }
 
