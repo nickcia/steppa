@@ -3,7 +3,7 @@
 /// Pure and deterministic: the same inputs always produce the same plan.
 public enum PlanBuilder {
     /// Bump when plan output changes, so stored plans can record which rules made them.
-    public static let engineVersion = 1
+    public static let engineVersion = 2
 
     public static func build(_ inputs: PlanInputs) throws(PlanError) -> TrainingPlan {
         guard inputs.raceDate > inputs.startDate else { throw .raceNotAfterStart }
@@ -50,7 +50,8 @@ public enum PlanBuilder {
         paces: PaceTable,
         from start: LocalDate,
         resuming: Periodisation.Progression?,
-        firstWeekExisting: WeekLayout.ExistingWeek = .init()
+        firstWeekExisting: WeekLayout.ExistingWeek = .init(),
+        history: [Workout] = []
     ) -> (weeks: [PlanWeek], limited: Bool) {
         var layoutInputs = inputs
         layoutInputs.startDate = start
@@ -61,16 +62,28 @@ public enum PlanBuilder {
                                             currentMeters: inputs.currentWeeklyMeters, resuming: resuming)
         var weeks: [PlanWeek] = []
         var limited = false
+        // Share of the last full loading week's target that the available days could actually hold.
+        // Step-back and taper weeks cut from what was held, not from a target the athlete never ran;
+        // otherwise a week limited by availability gets little or no reduction.
+        var heldShare = 1.0
         for index in 0..<weekCount {
             let monday = firstMonday.adding(days: 7 * index)
+            var volume = volumes[index]
+            if volume.isStepBack || phases[index] == .taper { volume.meters *= heldShare }
             let result = WeekLayout.layout(.init(monday: monday, weekIndex: index, phase: phases[index],
-                                                 volume: volumes[index], inputs: layoutInputs, paces: paces,
+                                                 volume: volume, inputs: layoutInputs, paces: paces,
                                                  isRaceWeek: index == weekCount - 1,
-                                                 existing: index == 0 ? firstWeekExisting : .init()))
+                                                 existing: index == 0 ? firstWeekExisting : .init(),
+                                                 recentLongestMeters: WeekLayout.recentLongestMeters(
+                                                     history + weeks.flatMap(\.workouts), before: monday)))
             limited = limited || result.limitedByAvailability
-            weeks.append(PlanWeek(index: index, startDate: monday, phase: phases[index],
-                                  isStepBack: volumes[index].isStepBack, targetMeters: volumes[index].meters,
-                                  workouts: result.workouts))
+            let week = PlanWeek(index: index, startDate: monday, phase: phases[index],
+                                isStepBack: volume.isStepBack, targetMeters: volume.meters,
+                                workouts: result.workouts)
+            if !volume.isStepBack, phases[index] != .taper, monday >= start, index < weekCount - 1, volume.meters > 0, week.trainingMeters > 0 {
+                heldShare = min(1, week.trainingMeters / volume.meters)
+            }
+            weeks.append(week)
         }
         applyPreRaceQuietDays(&weeks, raceDate: inputs.raceDate, paces: paces, from: start)
         return (weeks, limited)

@@ -17,8 +17,11 @@ Plan rules affect people's health, so they need more than a code change:
 
 - Explain the reasoning and link to sources (coaching literature, research).
 - Update [`docs/PLAN-RULES.md`](docs/PLAN-RULES.md) to match.
-- Keep `swift test` passing in `Packages/PlanEngine`, including both safety sweeps. Never weaken
-  `PlanValidator` to make a change pass.
+- Keep `swift test` passing in `Packages/PlanEngine`, including both safety sweeps and the benchmark
+  against published coaching methods ([`docs/PLAN-BENCHMARK.md`](docs/PLAN-BENCHMARK.md)). Never weaken
+  `PlanValidator` or widen a benchmark range to make a change pass.
+- Coaches: the benchmark doc ends with sample plans and a short questionnaire. Reviews are very welcome as
+  an issue.
 - Prefer conservative changes. When in doubt, the safer option wins.
 
 ## What won't be merged

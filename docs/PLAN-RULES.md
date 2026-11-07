@@ -60,15 +60,21 @@ weeks) get a warning.
 - Volume starts at your current weekly distance (minimum 8 km).
 - Volume peaks at a target set by distance and experience. If you already run more than the target, it
   peaks at your current volume, up to 130% of the target.
-- Each loading week grows by at most 10% (8% for beginners), or 1.5 km at very low volume.
+- Each loading week grows by at most 10% (8% for beginners), or 1 km at very low volume. That keeps any
+  two-week increase within 30%, even from 8 km (Nielsen et al. 2014).
 - **Step-back week** at 80% after every 3 loading weeks (every 2 for beginners).
 - **Taper** relative to the last loading week:
 
   | Race | Taper weeks |
   |---|---|
   | 5K and 10K | 60% |
-  | Half marathon | 75%, then 55% |
-  | Marathon | 80%, then 65%, then 45% |
+  | Half marathon | 70%, then 45% |
+  | Marathon | 75%, then 60%, then 40% |
+
+  This averages a 42–45% cut for the half and marathon, within the 41–60% that Bosquet et al. (2007) found
+  most effective.
+- Step-back and taper weeks are cut from what the last loading week actually held. If your run days
+  couldn't hold its full target, the cut applies to the smaller amount, so the reduction is real.
 
 - A partial first week (starting mid-week) gets a proportional share of that week's volume.
 
@@ -85,10 +91,18 @@ weeks) get a warning.
   | Build and peak | 1 | 2 with 4+ run days |
   | Taper | 1 | 1 |
 
-  Step-back weeks drop one session. With only 2 run days there are no sessions.
+  Step-back weeks drop one session. With only 2 run days there are no sessions. Session days are chosen
+  to fit as many sessions as allowed, then as far from the long run as possible. A long run with
+  marathon-pace segments counts as one of the week's sessions, as in Daniels' plans.
+- **Session size:** threshold work is at most 10% of the week and interval work at most 8% (Daniels). If
+  your days can't hold the full week, sessions are sized against what the week actually holds.
 - **Hard/easy:** quality sessions never fall the day before or after the long-run weekday, or next to
   each other, including across the end of the week.
 - **Intensity cap:** at most 20% of weekly distance is at threshold pace or faster.
+- **No sudden long runs:** no easy or long run is more than 10% longer than the longest run in the
+  previous 24 days (so within 30 days of every run in the week). Overuse injuries rose when a single run
+  exceeded the longest run of the previous month by more than 10% (Frandsen et al. 2025). A run held back
+  by this rule is planned to the nearest 100 m instead of 500 m, so it can still grow.
 - **Easy runs** fill the rest of the week. Each is at least 3 km and at most 10, 14 or 18 km by level.
   If your available days can't hold the target volume, the plan stays lighter and says so.
 - **Marathon peak (non-beginners):** the long run finishes with up to 40% at marathon pace.
@@ -194,3 +208,7 @@ the boundary between history and the re-planned days, like no two hard days in a
 - adapts them a second time on top of that.
 
 Every result must pass the validator, leave history untouched and keep workout IDs unique.
+
+**Benchmark.** A further test measures generated plans against ranges from published coaching methods and
+research. [PLAN-BENCHMARK.md](PLAN-BENCHMARK.md) has the method, the results, the known gaps and a
+review kit for coaches.

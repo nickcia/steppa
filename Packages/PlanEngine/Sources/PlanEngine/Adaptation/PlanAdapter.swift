@@ -254,7 +254,8 @@ public enum PlanAdapter {
                                 hasLongRun: past.contains { $0.kind == .long || $0.kind == .marathonPaceLong },
                                 remainingMeters: current.targetMeters - pastMeters,
                                 trainingMeters: pastMeters,
-                                highIntensityMeters: past.reduce(0) { $0 + $1.highIntensityMeters })))
+                                highIntensityMeters: past.reduce(0) { $0 + $1.highIntensityMeters }),
+                recentLongestMeters: WeekLayout.recentLongestMeters(plan.workouts, before: currentMonday)))
             var merged = current
             merged.workouts = past + thisWeek.workouts
             weeks = prior + [merged]
@@ -265,7 +266,8 @@ public enum PlanAdapter {
                 let future = PlanBuilder.buildWeeks(
                     inputs, paces: paces, from: currentMonday.adding(days: 7),
                     resuming: capped(Periodisation.Progression.after(weeks)),
-                    firstWeekExisting: .init(hardDates: mergedHard))
+                    firstWeekExisting: .init(hardDates: mergedHard),
+                    history: weeks.flatMap(\.workouts))
                 weeks += future.weeks
                 limited = limited || future.limited
             }

@@ -10,6 +10,15 @@ enum WeekLayout {
         var isRaceWeek: Bool
         /// When re-planning mid-week: what's already on the calendar before the first day we may change.
         var existing: ExistingWeek = .init()
+        /// Longest run in the few weeks before this one (see `PlanRules.maxRunSpike`). Infinity if unknown.
+        var recentLongestMeters: Double = .infinity
+    }
+
+    /// Longest training run (not a race) in the look-back window before `monday`.
+    static func recentLongestMeters(_ workouts: [Workout], before monday: LocalDate) -> Double {
+        let from = monday.adding(days: -PlanRules.recentRunWindowDays)
+        return workouts.filter { $0.kind != .race && $0.date >= from && $0.date < monday }
+            .map(\.totalMeters).max() ?? .infinity
     }
 
     /// Workouts already in this week (or just before it) that a re-plan must respect.
@@ -67,9 +76,21 @@ enum WeekLayout {
 
         // Drop quality sessions one at a time until the week fits the volume and intensity limits.
         for count in stride(from: sessionDates.count, through: 0, by: -1) {
-            let attempt = assemble(c, trainingDates: trainingDates, weekMeters: weekMeters, longDate: longDate,
-                                   marathonPaceLong: marathonPaceLong,
-                                   sessions: Array(zip(sessionDates.prefix(count), kinds)))
+            func assembleWeek(sizedFor sessionMeters: Double) -> Result {
+                assemble(c, trainingDates: trainingDates, weekMeters: weekMeters, sessionWeekMeters: sessionMeters,
+                         longDate: longDate, marathonPaceLong: marathonPaceLong,
+                         sessions: Array(zip(sessionDates.prefix(count), kinds)))
+            }
+            // Sessions are sized as a share of the week (Daniels: threshold ≤ 10%, intervals ≤ 8%). When the
+            // available days can't hold the full week, size them against what the week actually holds.
+            var sizedFor = weekMeters
+            var attempt = assembleWeek(sizedFor: sizedFor)
+            for _ in 0..<3 {
+                let held = attempt.workouts.filter { $0.kind != .race }.reduce(0) { $0 + $1.totalMeters }
+                guard held < sizedFor - 1 else { break }
+                sizedFor = held
+                attempt = assembleWeek(sizedFor: sizedFor)
+            }
             let training = attempt.workouts.filter { $0.kind != .race }
             let trainingMeters = training.reduce(0) { $0 + $1.totalMeters }
             let hardMeters = training.reduce(0) { $0 + $1.highIntensityMeters }
@@ -82,21 +103,33 @@ enum WeekLayout {
     }
 
     /// Picks days for quality sessions: never next to the long-run weekday or each other, even across
-    /// week boundaries, preferring days furthest from the long run.
+    /// week boundaries. Fits as many sessions as allowed (up to `max`), then prefers days furthest from
+    /// the long run. (A greedy pick of the furthest day first can block a second session: with runs on
+    /// Mon–Thu and a Sunday long run, Wednesday alone blocks Tuesday + Thursday.)
     static func chooseSessionDates(_ candidates: [LocalDate], longRunDay: Weekday, max: Int) -> [LocalDate] {
-        let ranked = candidates
-            .filter { $0.weekday.circularDistance(to: longRunDay) >= 2 }
-            .sorted {
-                let a = $0.weekday.circularDistance(to: longRunDay), b = $1.weekday.circularDistance(to: longRunDay)
-                return a != b ? a > b : $0 < $1
+        let eligible = candidates.filter { $0.weekday.circularDistance(to: longRunDay) >= 2 }.sorted()
+        guard max > 0, !eligible.isEmpty else { return [] }
+        var best: [LocalDate] = []
+        var bestSpread = -1
+        // At most 7 candidates, so trying every subset is cheap.
+        for mask in 1..<(1 << eligible.count) {
+            let subset = eligible.indices.filter { mask & (1 << $0) != 0 }.map { eligible[$0] }
+            guard subset.count <= max else { continue }
+            let apart = subset.indices.allSatisfy { i in
+                subset.indices.allSatisfy { j in
+                    i == j || subset[i].weekday.circularDistance(to: subset[j].weekday) >= 2
+                }
             }
-        var chosen: [LocalDate] = []
-        for date in ranked where chosen.count < max {
-            if chosen.allSatisfy({ $0.weekday.circularDistance(to: date.weekday) >= 2 }) {
-                chosen.append(date)
+            guard apart else { continue }
+            let spread = subset.reduce(0) { $0 + $1.weekday.circularDistance(to: longRunDay) }
+            // More sessions first, then further from the long run, then earlier dates.
+            if subset.count > best.count || (subset.count == best.count
+                && (spread > bestSpread || (spread == bestSpread && subset.lexicographicallyPrecedes(best)))) {
+                best = subset
+                bestSpread = spread
             }
         }
-        return chosen.sorted()
+        return best
     }
 
     static func sessionKinds(phase: Phase, goal: RaceDistance, weekIndex: Int, count: Int) -> [SessionKind] {
@@ -123,13 +156,14 @@ enum WeekLayout {
         _ c: Context,
         trainingDates: [LocalDate],
         weekMeters: Double,
+        sessionWeekMeters: Double,
         longDate: LocalDate?,
         marathonPaceLong: Bool,
         sessions planned: [(LocalDate, SessionKind)]
     ) -> Result {
         let inputs = c.inputs
         let paces = c.paces
-        let sessionContext = WorkoutFactory.SessionContext(weekMeters: weekMeters, goal: inputs.goal,
+        let sessionContext = WorkoutFactory.SessionContext(weekMeters: sessionWeekMeters, goal: inputs.goal,
                                                            experience: inputs.experience, phase: c.phase, paces: paces)
         let sessions = planned.compactMap { date, kind in
             switch kind {
@@ -144,8 +178,15 @@ enum WeekLayout {
         // Long run: a share of the full week (even if the week is partial), capped by distance, by time
         // on feet, and by what's left of this week's budget.
         let minRun = PlanRules.minimumRunMeters
+        let spikeCap = c.recentLongestMeters * PlanRules.maxRunSpike
+        // Runs are planned in 500 m steps. A run held back by the spike cap uses 100 m steps instead, so
+        // it can still grow by the full 10% rather than a rounded-down 500 m.
+        func runMeters(_ meters: Double) -> Double {
+            meters >= spikeCap - 1 ? (meters / 100).rounded(.down) * 100 : floorTo500(meters)
+        }
         let longCap = min(PlanRules.longRunCapMeters(inputs.goal, inputs.experience),
-                          PlanRules.longRunCapSeconds(inputs.goal, inputs.experience) / paces.easy.mid * 1000)
+                          PlanRules.longRunCapSeconds(inputs.goal, inputs.experience) / paces.easy.mid * 1000,
+                          spikeCap)
         var longMeters = longDate == nil ? 0 : min(c.volume.meters * PlanRules.longRunShare(runDays: inputs.runDays.count),
                                                    longCap, max(0, weekMeters - sessionMeters))
 
@@ -168,14 +209,14 @@ enum WeekLayout {
         }
 
         var limited = false
-        let easyCap = PlanRules.easyRunCapMeters(inputs.experience)
+        let easyCap = min(PlanRules.easyRunCapMeters(inputs.experience), spikeCap)
         if perEasy > easyCap {
             perEasy = easyCap
             limited = true
         }
         // When easy runs are capped, the long run must still not dominate the week.
         if easyCount > 0 || !sessions.isEmpty || c.existing.trainingMeters > 0 {
-            let restOfWeek = sessionMeters + Double(easyCount) * floorTo500(perEasy) + c.existing.trainingMeters
+            let restOfWeek = sessionMeters + Double(easyCount) * runMeters(perEasy) + c.existing.trainingMeters
             if longMeters > restOfWeek {
                 longMeters = restOfWeek
                 limited = true
@@ -196,10 +237,10 @@ enum WeekLayout {
 
         var workouts = sessions
         workouts += chosenEasy.map {
-            WorkoutFactory.easy($0, meters: min(floorTo500(perEasy), quietDayCap($0, raceDate: inputs.raceDate)), paces: paces)
+            WorkoutFactory.easy($0, meters: min(runMeters(perEasy), quietDayCap($0, raceDate: inputs.raceDate)), paces: paces)
         }
         if let longDate {
-            let meters = floorTo500(longMeters)
+            let meters = runMeters(longMeters)
             if meters >= minRun {
                 workouts.append(marathonPaceLong
                     ? WorkoutFactory.marathonPaceLong(longDate, meters: meters, paces: paces)
