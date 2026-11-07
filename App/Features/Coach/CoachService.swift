@@ -70,10 +70,13 @@ final class CoachConversation {
     Rules:
     - Look things up with the tools before answering questions about the plan or runs. Never invent workouts, \
     paces, dates or numbers. If a tool has no data, say so.
-    - Keep answers short: two to five sentences, or a few bullets. Use the athlete's units as the tools give them.
-    - You can't change the plan. If moving or skipping a workout would help (tiredness, a busy day, a niggle), \
-    call suggestPlanChange; the athlete decides with a button. Never move a workout to the day before or after \
-    another hard session or the long run.
+    - Keep answers short: two to five sentences, or a few bullets. Use the athlete's units as the tools give them. \
+    Write dates the way people say them ("Tuesday 17 November"), never as 2026-11-17.
+    - When talking about a run, mention what stands out in getRunDetails: heart-rate drift, time in hard zones, \
+    uneven splits, or the app's own notes. Don't call a run steady if the data says otherwise.
+    - You can't change the plan. Whenever you recommend moving or skipping a workout (tiredness, a busy day, \
+    pain, illness), you must also call suggestPlanChange so the athlete gets a button; they decide. Never move a \
+    workout to the day before or after another hard session or the long run.
     - You're not a doctor. For pain that changes how they run, chest pain, dizziness, fainting, or an injury, \
     tell them to stop and see a doctor or physio, and suggest skipping rather than adjusting training.
     - Don't recommend a faster goal pace or more mileage than the plan; the plan's rules set those for safety.
@@ -136,7 +139,10 @@ final class CoachConversation {
             for try await partial in stream {
                 replaceLast(partial.content)
             }
-            replaceLast(messages.last?.text ?? "", suggestions: suggestions.take())
+            let reply = messages.last?.text ?? ""
+            var found = suggestions.take()
+            if found.isEmpty, let fallback = snapshot?.fallbackSuggestion(for: reply) { found = [fallback] }
+            replaceLast(reply, suggestions: found)
         } catch LanguageModelSession.GenerationError.exceededContextWindowSize {
             // The on-device model's memory is short: start a fresh conversation and say so.
             sessionStorage = nil

@@ -75,3 +75,19 @@ struct CoachTests {
         #expect(box.take().isEmpty)
     }
 }
+
+@MainActor
+struct CoachFallbackTests {
+    let snapshot = CoachSnapshot(overview: "", weeks: [:], recentRuns: "", runDetails: [:], today: "", upcoming: [
+        .init(date: LocalDate(year: 2026, month: 11, day: 10), isLongRun: false),
+        .init(date: LocalDate(year: 2026, month: 11, day: 15), isLongRun: true),
+    ])
+
+    @Test func skipInWordsBecomesAButton() {
+        #expect(snapshot.fallbackSuggestion(for: "Skip today's run and rest.")?.date == LocalDate(year: 2026, month: 11, day: 10))
+        #expect(snapshot.fallbackSuggestion(for: "I'd skip the long run this week.")?.date == LocalDate(year: 2026, month: 11, day: 15))
+        #expect(snapshot.fallbackSuggestion(for: "Run easy and enjoy it.") == nil)
+        let empty = CoachSnapshot(overview: "", weeks: [:], recentRuns: "", runDetails: [:], today: "")
+        #expect(empty.fallbackSuggestion(for: "Skip it.") == nil)
+    }
+}

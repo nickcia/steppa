@@ -14,6 +14,25 @@ nonisolated struct CoachSnapshot: Sendable, Equatable {
     /// Keyed by date (YYYY-MM-DD).
     var runDetails: [String: String]
     var today: String
+    /// Today's and the next workouts not yet done, for turning a recommended skip into a button.
+    var upcoming: [Upcoming] = []
+
+    struct Upcoming: Sendable, Equatable {
+        var date: LocalDate
+        var isLongRun: Bool
+    }
+
+    /// When the coach recommends skipping in words but doesn't call suggestPlanChange (the small on-device model
+    /// often doesn't), the app offers the button itself: for the next long run if the reply is about a long run,
+    /// otherwise for the next workout from today. Nothing changes until the athlete taps it.
+    func fallbackSuggestion(for reply: String) -> CoachSuggestion? {
+        let text = reply.lowercased()
+        guard text.contains("skip") else { return nil }
+        let target = text.contains("long run") ? upcoming.first(where: \.isLongRun) : upcoming.first
+        guard let target else { return nil }
+        return CoachSuggestion(action: .skip, date: target.date, newDate: nil,
+                               reason: String(localized: "Suggested by the coach"))
+    }
 }
 
 extension CoachSnapshot {
@@ -122,9 +141,13 @@ extension CoachSnapshot {
             todayLines.append("Strength session today: \(StrengthRoutine.for(strength.level).title).")
         }
 
+        let upcoming = plan.workouts
+            .filter { $0.date >= today && $0.kind != .race && model.status(of: $0) == nil }
+            .prefix(7)
+            .map { Upcoming(date: $0.date, isLongRun: $0.kind == .long || $0.kind == .marathonPaceLong) }
         return CoachSnapshot(overview: overview, weeks: weeks,
                              recentRuns: recentLines.isEmpty ? "No recorded runs in the last 8 weeks." : recentLines.joined(separator: "\n"),
-                             runDetails: details, today: todayLines.joined(separator: "\n"))
+                             runDetails: details, today: todayLines.joined(separator: "\n"), upcoming: Array(upcoming))
     }
 }
 
