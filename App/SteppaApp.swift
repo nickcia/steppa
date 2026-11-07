@@ -88,22 +88,30 @@ enum AppTab: Hashable, CaseIterable {
 
 struct MainTabs: View {
     @State private var tab: AppTab = .today
+    /// Bumped when the Today tab is tapped while already open: Today jumps back to today, as tab bars usually do.
+    @State private var todayReset = 0
 
     var body: some View {
         TabView(selection: $tab) {
-            TodayView().tabRoot(.today)
+            TodayView(resetSignal: todayReset).tabRoot(.today)
             PlanView().tabRoot(.plan)
             RacesView().tabRoot(.races)
             TrainingProgressView().tabRoot(.progress)
             SettingsView().tabRoot(.settings)
         }
-        .overlay(alignment: .bottom) { TabBar(selection: $tab) }
+        .overlay(alignment: .bottom) {
+            TabBar(selection: $tab) { tapped in
+                if tapped == .today { todayReset += 1 }
+            }
+        }
     }
 }
 
 /// A floating dark bar: icons, with the current tab as a white capsule that shows its name.
 private struct TabBar: View {
     @Binding var selection: AppTab
+    /// Called when the already-selected tab is tapped again.
+    var onReselect: (AppTab) -> Void = { _ in }
     @Namespace private var namespace
 
     var body: some View {
@@ -111,7 +119,11 @@ private struct TabBar: View {
             ForEach(AppTab.allCases, id: \.self) { tab in
                 let isSelected = tab == selection
                 Button {
-                    withAnimation(.snappy(duration: 0.3)) { selection = tab }
+                    if tab == selection {
+                        onReselect(tab)
+                    } else {
+                        withAnimation(.snappy(duration: 0.3)) { selection = tab }
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: tab.symbol)

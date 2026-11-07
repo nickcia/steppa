@@ -142,10 +142,14 @@ struct OnboardingView: View {
             if building {
                 BuildingPlanView(plan: planOrNil, calibration: calibration, checksHealth: model.healthConnected,
                                  draft: draft) {
-                    withAnimation(.smooth) { building = false }
+                    withAnimation(.easeOut(duration: 0.2)) { building = false }
                 }
+                // Gone quickly, so it never shows through the reveal that follows.
+                .transition(.opacity.animation(.easeOut(duration: 0.12)))
             } else {
+                // The review animates itself in (see ReviewStep), so it needs no transition of its own.
                 ReviewStep(draft: draft, preview: preview)
+                    .transition(.identity)
             }
         }
     }
@@ -664,53 +668,95 @@ private struct BuildingPlanView: View {
     }
 }
 
+/// The finished plan, revealed in a short sequence: the headline, then the numbers counting up, then the weeks
+/// growing in from the left. It plays once, never delays the "Start my plan" button, and with Reduce Motion on
+/// it simply fades in.
 private struct ReviewStep: View {
     let draft: OnboardingDraft
     let preview: Result<TrainingPlan, PlanError>?
     @Environment(\.unitSystem) private var units
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var stage = 0
+    @State private var chartReveal = 0.0
 
     var body: some View {
         let format = DisplayFormat(units: units)
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             switch preview {
             case .success(let plan):
-                StepHeader(title: String(localized: "Your plan is ready"),
-                           subtitle: String(localized: "\(draft.goal.name) on \(plan.inputs.raceDate.dayMonth)"))
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(Theme.onAccent)
+                        .frame(width: 52, height: 52)
+                        .background(Theme.accent, in: Circle())
+                        .scaleEffect(stage >= 1 ? 1 : 0.4)
+                        .opacity(stage >= 1 ? 1 : 0)
+                    StepHeader(title: String(localized: "Your plan is ready"),
+                               subtitle: String(localized: "\(draft.goal.name) on \(plan.inputs.raceDate.dayMonth)"))
+                        .opacity(stage >= 1 ? 1 : 0)
+                        .offset(y: stage >= 1 || reduceMotion ? 0 : 12)
+                }
                 Card {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                         HStack {
-                            Metric(value: "\(plan.weeks.count)", label: String(localized: "weeks"))
+                            Metric(value: stage >= 2 ? "\(plan.weeks.count)" : "0", label: String(localized: "weeks"))
                             Spacer()
-                            Metric(value: format.distance(plan.weeks.map(\.targetMeters).max() ?? 0),
+                            Metric(value: stage >= 2 ? format.distance(plan.weeks.map(\.targetMeters).max() ?? 0)
+                                                    : format.distance(0),
                                    label: String(localized: "peak week"))
                             Spacer()
-                            Metric(value: DisplayFormat.clock(plan.predictedRaceSeconds),
+                            Metric(value: stage >= 2 ? DisplayFormat.clock(plan.predictedRaceSeconds) : "0:00:00",
                                    label: String(localized: "predicted today"))
                         }
-                        WeeklyVolumeChart(plan: plan)
+                        .contentTransition(.numericText())
+                        WeeklyVolumeChart(plan: plan, reveal: chartReveal)
                         PhaseLegend(phases: Phase.allCases.filter { p in plan.weeks.contains { $0.phase == p } })
+                            .opacity(stage >= 3 ? 1 : 0)
                     }
                 }
-                if !plan.warnings.isEmpty {
-                    Card {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                            ForEach(plan.warnings, id: \.self) { warning in
-                                Label(warning.message(format), systemImage: "info.circle")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.ink)
+                .opacity(stage >= 2 ? 1 : 0)
+                .scaleEffect(stage >= 2 || reduceMotion ? 1 : 0.97, anchor: .top)
+                Group {
+                    if !plan.warnings.isEmpty {
+                        Card {
+                            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                                ForEach(plan.warnings, id: \.self) { warning in
+                                    Label(warning.message(format), systemImage: "info.circle")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.ink)
+                                }
                             }
                         }
                     }
+                    Text("Your predicted time improves as you train. The plan adapts if you miss runs or your fitness changes.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryInk)
                 }
-                Text("Your predicted time improves as you train. The plan adapts if you miss runs or your fitness changes.")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.secondaryInk)
+                .opacity(stage >= 3 ? 1 : 0)
+                .task { await reveal() }
+                .sensoryFeedback(.success, trigger: stage >= 1)
             case .failure(let error):
                 StepHeader(title: String(localized: "Let's adjust something"), subtitle: error.message)
             case nil:
                 ProgressView()
             }
         }
+    }
+
+    private func reveal() async {
+        guard stage == 0 else { return }
+        if reduceMotion {
+            withAnimation(.easeOut(duration: 0.3)) { stage = 3 }
+            chartReveal = 1
+            return
+        }
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { stage = 1 }
+        try? await Task.sleep(for: .milliseconds(350))
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.85)) { stage = 2 }
+        withAnimation(.easeOut(duration: 1.1).delay(0.15)) { chartReveal = 1 }
+        try? await Task.sleep(for: .milliseconds(900))
+        withAnimation(.easeOut(duration: 0.4)) { stage = 3 }
     }
 }
 

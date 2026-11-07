@@ -209,21 +209,3 @@ struct HeatBar: View {
         .accessibilityHidden(true)
     }
 }
-
-/// Circular icon button, as in a screen header.
-struct CircleIconButton: View {
-    let systemImage: String
-    let label: LocalizedStringKey
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(Theme.ink)
-                .frame(width: 46, height: 46)
-                .background(Theme.card, in: Circle())
-        }
-        .accessibilityLabel(label)
-    }
-}

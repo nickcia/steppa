@@ -3,10 +3,13 @@ import PlanEngine
 
 struct TodayView: View {
     @Environment(AppModel.self) private var model
+    /// Changes when the Today tab is tapped while already showing, to jump back to today.
+    var resetSignal = 0
     @State private var selected: LocalDate = .today
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     header
@@ -30,23 +33,22 @@ struct TodayView: View {
             .navigationDestination(for: Workout.self) { WorkoutDetailView(workout: $0) }
             .navigationDestination(for: WeeklyDistanceRoute.self) { _ in WeeklyDistanceView() }
         }
+        .onChange(of: resetSignal) {
+            path = NavigationPath()
+            withAnimation(.snappy) { selected = model.today }
+        }
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(model.today.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.secondaryInk)
-                Text("Today")
-                    .font(.system(size: 40, weight: .semibold))
-                    .foregroundStyle(Theme.ink)
-            }
-            Spacer()
-            CircleIconButton(systemImage: "scope", label: "Back to today") {
-                withAnimation(.snappy) { selected = model.today }
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            Text(model.today.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                .font(.subheadline)
+                .foregroundStyle(Theme.secondaryInk)
+            Text("Today")
+                .font(.system(size: 40, weight: .semibold))
+                .foregroundStyle(Theme.ink)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, Theme.Spacing.s)
     }
 
@@ -80,6 +82,21 @@ private struct WeekCard: View {
                 HStack(spacing: 6) {
                     title
                     Spacer()
+                    if selected != model.today {
+                        // Only shown once you've moved away from today.
+                        Button {
+                            withAnimation(.snappy) { selected = model.today }
+                        } label: {
+                            Text("Today")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.onAccent)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Theme.accent, in: Capsule())
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                        .accessibilityLabel("Back to today")
+                    }
                     HStack(spacing: 18) {
                         Button { step(-1) } label: { Image(systemName: "chevron.left") }
                             .accessibilityLabel(expanded ? "Previous month" : "Previous week")

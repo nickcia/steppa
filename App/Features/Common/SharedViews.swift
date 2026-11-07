@@ -3,9 +3,16 @@ import SwiftUI
 import PlanEngine
 
 /// Bar chart of nominal weekly volume, coloured by phase.
-struct WeeklyVolumeChart: View {
+struct WeeklyVolumeChart: View, Animatable {
     let plan: TrainingPlan
     var highlight: LocalDate?
+    /// 0 to 1: bars grow in from the left, one after another (the plan-ready reveal). 1 shows them all.
+    var reveal: Double = 1
+
+    var animatableData: Double {
+        get { reveal }
+        set { reveal = newValue }
+    }
     @Environment(\.unitSystem) private var units
 
     private struct Bar: Identifiable {
@@ -20,11 +27,16 @@ struct WeeklyVolumeChart: View {
     /// zero-width bars, and xStart/xEnd with a single y draws a horizontal band, so bars are RectangleMarks with all four edges.
     private var bars: [Bar] {
         let currentWeek = highlight?.startOfWeek
+        let count = Double(max(plan.weeks.count, 1))
         return plan.weeks.map { week in
+            // Each bar takes a quarter of the reveal to grow; later bars start later.
+            let start = Double(week.index) / count * 0.75
+            let grown = min(max((reveal - start) / 0.25, 0), 1)
+            let eased = 1 - pow(1 - grown, 3)
             let x = Double(week.index + 1)
             let emphasised = currentWeek == nil || week.startDate == currentWeek
             return Bar(id: week.index, start: x - 0.36, end: x + 0.36,
-                       distance: week.plannedMeters / units.metersPerUnit,
+                       distance: week.plannedMeters / units.metersPerUnit * eased,
                        color: week.phase.color.opacity(emphasised ? 1 : 0.55))
         }
     }
@@ -33,6 +45,11 @@ struct WeeklyVolumeChart: View {
     private var weekTicks: [Int] {
         let step = plan.weeks.count > 12 ? 4 : 2
         return Array(stride(from: 1, through: plan.weeks.count, by: step))
+    }
+
+    /// Fixed while bars grow, so the axis doesn't rescale during the reveal.
+    private var yMax: Double {
+        (plan.weeks.map(\.plannedMeters).max() ?? 1) / units.metersPerUnit * 1.1
     }
 
     // A little extra room on the right so the last week label isn't clipped.
@@ -46,6 +63,7 @@ struct WeeklyVolumeChart: View {
                 .cornerRadius(3)
         }
         .chartXScale(domain: xDomain)
+        .chartYScale(domain: 0...yMax)
         .chartXAxis { AxisMarks(values: weekTicks) { value in AxisValueLabel { weekLabel(value) } } }
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
