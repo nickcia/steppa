@@ -24,6 +24,8 @@ final class AppModel {
     let intervalsOAuth: IntervalsOAuth?
 
     private(set) var plan: TrainingPlan?
+    /// Set when a plan has just been built in onboarding: the main screen opens on Today and plays its reveal once.
+    var revealNewPlan = false
     private(set) var planID: UUID?
     private(set) var statuses: [String: WorkoutStatus] = [:]
     private(set) var units: UnitSystem = .localeDefault

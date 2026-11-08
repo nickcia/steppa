@@ -8,6 +8,8 @@ struct TodayView: View {
     @State private var selected: LocalDate = .today
     @State private var path = NavigationPath()
     @State private var coaching = false
+    /// The one-time reveal after building a plan: sections rise in one after another. nil when not revealing.
+    @State private var revealStep: Int?
     #if DEBUG
     @State private var debugRecap: CompletedRun?
     #endif
@@ -16,18 +18,18 @@ struct TodayView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    header
+                    header.revealed(0, revealStep)
                     PlanChangeBanner()
-                    WeekCard(selected: $selected)
-                    HeroCard(date: selected)
+                    WeekCard(selected: $selected).revealed(1, revealStep)
+                    HeroCard(date: selected).revealed(2, revealStep)
                     if let strength = model.strengthSession(on: selected) {
-                        StrengthCard(session: strength)
+                        StrengthCard(session: strength).revealed(3, revealStep)
                     }
                     if let plan = model.plan {
-                        DashboardTiles(plan: plan)
-                        TrendCard(plan: plan)
+                        DashboardTiles(plan: plan).revealed(4, revealStep)
+                        TrendCard(plan: plan).revealed(5, revealStep)
                     }
-                    upNext
+                    upNext.revealed(6, revealStep)
                 }
                 .padding(.horizontal, Theme.Spacing.m)
                 .padding(.bottom, Theme.Spacing.xl)
@@ -42,6 +44,13 @@ struct TodayView: View {
             .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
             .navigationDestination(for: StrengthSchedule.Session.self) { StrengthDetailView(session: $0) }
         }
+        .onAppear {
+            guard model.revealNewPlan else { return }
+            model.revealNewPlan = false
+            revealStep = -1
+            Task { await playReveal() }
+        }
+        .sensoryFeedback(.success, trigger: revealStep == 2)
         .onChange(of: resetSignal) {
             path = NavigationPath()
             withAnimation(.snappy) { selected = model.today }
@@ -55,6 +64,18 @@ struct TodayView: View {
         }
         .sheet(item: $debugRecap) { RunRecapView(run: $0) }
         #endif
+    }
+
+    /// Brings the dashboard in section by section, once, right after a plan is built.
+    private func playReveal() async {
+        if UIAccessibility.isReduceMotionEnabled { revealStep = nil; return }
+        try? await Task.sleep(for: .milliseconds(250))
+        for step in 0...6 {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) { revealStep = step }
+            try? await Task.sleep(for: .milliseconds(step == 2 ? 260 : 130))
+        }
+        try? await Task.sleep(for: .milliseconds(500))
+        revealStep = nil
     }
 
     private var header: some View {
@@ -728,5 +749,17 @@ struct WorkoutRow: View {
         .padding(14)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
         .accessibilityElement(children: .combine)
+    }
+}
+
+
+private extension View {
+    /// Hidden and lowered until the reveal reaches `index`; untouched when there's no reveal.
+    func revealed(_ index: Int, _ step: Int?) -> some View {
+        let shown = step.map { $0 >= index } ?? true
+        return self
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 28)
+            .scaleEffect(shown ? 1 : 0.97, anchor: .top)
     }
 }

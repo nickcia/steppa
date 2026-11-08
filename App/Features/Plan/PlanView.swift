@@ -122,23 +122,55 @@ private struct WeekCard: View {
                         .foregroundStyle(Theme.secondaryInk)
                 }
                 Spacer()
-                if week.isStepBack { Pill(text: String(localized: "Recovery week"), color: Theme.secondaryInk) }
-                Pill(text: week.phase.name, color: week.phase.color)
+                if isCurrent {
+                    SheenPill(text: String(localized: "This week"))
+                } else {
+                    if week.isStepBack { Pill(text: String(localized: "Recovery week"), color: Theme.secondaryInk) }
+                    Pill(text: week.phase.name, color: week.phase.color)
+                }
             }
             if isCurrent {
-                Text(String(localized: "This week · \(done) of \(week.workouts.count) done"))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
+                HStack(spacing: 10) {
+                    HeatBar(value: week.workouts.isEmpty ? 0 : Double(done) / Double(week.workouts.count))
+                    Text(String(localized: "\(done) of \(week.workouts.count) done"))
+                        .font(.caption.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.ink)
+                        .fixedSize()
+                }
+                .padding(.vertical, 2)
             }
-            ForEach(week.workouts) { workout in
-                NavigationLink(value: workout) { WorkoutRow(workout: workout) }
-                    .buttonStyle(.plain)
+            ForEach(rows, id: \.id) { row in
+                switch row {
+                case .workout(let workout):
+                    NavigationLink(value: workout) { WorkoutRow(workout: workout) }
+                        .buttonStyle(.plain)
+                case .strength(let session):
+                    NavigationLink(value: session) { StrengthRow(session: session) }
+                        .buttonStyle(.plain)
+                }
             }
         }
         .padding(Theme.Spacing.m)
-        .background(Theme.card.opacity(0.5), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-            .strokeBorder(isCurrent ? Theme.accent : .clear, lineWidth: 2))
+        .background(Theme.card.opacity(isCurrent ? 0 : 0.5), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .currentHighlight(isCurrent, cornerRadius: Theme.Radius.card)
+    }
+
+    private enum Row {
+        case workout(Workout)
+        case strength(StrengthSchedule.Session)
+        var id: String { switch self { case .workout(let w): w.id; case .strength(let s): s.id } }
+        var date: LocalDate { switch self { case .workout(let w): w.date; case .strength(let s): s.date } }
+    }
+
+    /// Runs and strength sessions in date order (a strength session sits after the run on the same day).
+    private var rows: [Row] {
+        let end = week.startDate.adding(days: 7)
+        let strength = model.strengthSessions.filter { $0.date >= week.startDate && $0.date < end }
+        return (week.workouts.map(Row.workout) + strength.map(Row.strength))
+            .enumerated()
+            .sorted { a, b in a.element.date != b.element.date ? a.element.date < b.element.date : a.offset < b.offset }
+            .map(\.element)
     }
 }
 

@@ -134,6 +134,7 @@ struct OnboardingView: View {
         guard let plan = planOrNil else { return }
         model.setUnits(draft.units)
         model.acceptDisclaimer()
+        model.revealNewPlan = true
         model.start(plan)
         model.setStrength(enabled: draft.strengthEnabled, perWeek: draft.strengthPerWeek)
     }

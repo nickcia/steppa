@@ -229,12 +229,7 @@ private struct WeekDistanceRow: View {
                     .foregroundStyle(Theme.secondaryInk)
                 Spacer()
                 if week.isCurrent {
-                    Text("This week")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Theme.accent, in: Capsule())
+                    SheenPill(text: String(localized: "This week"))
                 } else {
                     Text("\(week.startDate.formatted(.dateTime.day().month(.abbreviated))) – \(week.startDate.adding(days: 6).formatted(.dateTime.day().month(.abbreviated)))")
                         .font(.caption)
@@ -268,13 +263,9 @@ private struct WeekDistanceRow: View {
             if !week.isFuture { HeatBar(value: week.ratio) }
         }
         .padding(16)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
-        .overlay {
-            if week.isCurrent {
-                RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
-                    .strokeBorder(Theme.accent, lineWidth: 1.5)
-            }
-        }
+        .background(week.isCurrent ? Color.clear : Theme.card,
+                    in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+        .currentHighlight(week.isCurrent, cornerRadius: Theme.Radius.control)
         .opacity(week.isFuture ? 0.75 : 1)
         .accessibilityElement(children: .combine)
     }

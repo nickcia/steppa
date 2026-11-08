@@ -7,34 +7,52 @@ struct PlanChangeBanner: View {
 
     var body: some View {
         if let change = model.unseenChange {
-            Card {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.sheen, in: Circle())
+                    .shadow(color: Theme.sheenColors[1].opacity(0.3), radius: 8, y: 3)
                 VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                    Label("Your plan has been updated", systemImage: "arrow.triangle.2.circlepath")
+                    Text("Your plan has been updated")
                         .font(.headline)
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.ink)
                     ForEach(change.reasons, id: \.self) { reason in
                         Text(reason.message(model.format))
                             .font(.subheadline)
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(Theme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     if change.reasons.contains(where: \.isAboutMissedTraining) {
                         Text("Ran but didn't tick it off? Mark those runs as done, then undo this change.")
                             .font(.caption)
                             .foregroundStyle(Theme.secondaryInk)
                     }
-                    HStack(spacing: Theme.Spacing.l) {
+                    HStack(spacing: Theme.Spacing.s) {
                         Button("Got it") { withAnimation { model.markChangesSeen() } }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Theme.accent, in: Capsule())
                         if change.previousPlanData != nil {
                             Button("Undo") { withAnimation { model.undo(change) } }
-                                .foregroundStyle(Theme.secondaryInk)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Theme.subtle.opacity(0.7), in: Capsule())
                         }
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.plain)
                     .padding(.top, Theme.Spacing.xs)
                 }
+                Spacer(minLength: 0)
             }
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                .strokeBorder(Theme.accent.opacity(0.4), lineWidth: 1.5))
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .currentHighlight(true, cornerRadius: Theme.Radius.card)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }

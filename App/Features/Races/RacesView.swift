@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import PlanEngine
 
@@ -52,43 +53,64 @@ private struct GoalRaceCard: View {
 
     var body: some View {
         let days = max(0, model.today.days(until: plan.inputs.raceDate))
-        Card(padding: 20) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Goal race").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.6))
+                    Text(plan.inputs.goal.name).font(.title2.weight(.bold)).foregroundStyle(.white)
+                    Text(plan.inputs.raceDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.6))
+                }
+                Spacer()
+                KindIcon(kind: .race, size: 52)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(days)")
+                    .font(.system(size: 58, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Theme.sheen)
+                Text(days == 1 ? "day to go" : "days to go").font(.headline).foregroundStyle(.white.opacity(0.7))
+            }
+            if let prediction = model.prediction {
                 HStack {
-                    KindIcon(kind: .race)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Goal race").font(.caption.weight(.semibold)).foregroundStyle(Theme.secondaryInk)
-                        Text(plan.inputs.goal.name).font(.title3.weight(.bold)).fontDesign(.rounded).foregroundStyle(Theme.ink)
-                        Text(plan.inputs.raceDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
-                            .font(.subheadline).foregroundStyle(Theme.secondaryInk)
-                    }
+                    raceMetric(DisplayFormat.clock(prediction.seconds), String(localized: "predicted"))
+                    raceMetric(plan.inputs.goalTimeSeconds.map(DisplayFormat.clock) ?? "–", String(localized: "goal"))
                 }
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(days)")
-                        .font(.system(size: 54, weight: .heavy, design: .rounded))
-                        .foregroundStyle(WorkoutKind.race.color)
-                    Text(days == 1 ? "day to go" : "days to go").font(.headline).foregroundStyle(Theme.secondaryInk)
-                }
-                if let prediction = model.prediction {
-                    HStack {
-                        Metric(value: DisplayFormat.clock(prediction.seconds), label: String(localized: "predicted"))
-                        Spacer()
-                        Metric(value: plan.inputs.goalTimeSeconds.map(DisplayFormat.clock) ?? "–", label: String(localized: "goal"))
-                        Spacer()
-                    }
-                    Text("Likely range \(DisplayFormat.clock(prediction.fastestSeconds))–\(DisplayFormat.clock(prediction.slowestSeconds)), based on your current fitness.")
-                        .font(.footnote).foregroundStyle(Theme.secondaryInk)
-                }
-                HStack(spacing: Theme.Spacing.s) {
-                    Button("Change date") { changingDate = true }.buttonStyle(.secondary)
-                    Button(plan.inputs.goalTimeSeconds == nil ? "Set goal time" : "Edit goal") { changingGoal = true }
-                        .buttonStyle(.secondary)
-                }
+                Text("Likely range \(DisplayFormat.clock(prediction.fastestSeconds))–\(DisplayFormat.clock(prediction.slowestSeconds)), based on your current fitness.")
+                    .font(.footnote).foregroundStyle(.white.opacity(0.6))
+            }
+            HStack(spacing: Theme.Spacing.s) {
+                Button("Change date") { changingDate = true }.buttonStyle(GlassCardButtonStyle())
+                Button(plan.inputs.goalTimeSeconds == nil ? "Set goal time" : "Edit goal") { changingGoal = true }
+                    .buttonStyle(GlassCardButtonStyle())
             }
         }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .darkGlass(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
         .padding(.top, Theme.Spacing.s)
         .sheet(isPresented: $changingDate) { RaceDateSheet(current: plan.inputs.raceDate) }
         .sheet(isPresented: $changingGoal) { GoalTimeSheet(plan: plan) }
+    }
+}
+
+extension GoalRaceCard {
+    fileprivate func raceMetric(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(.white)
+            Text(label).font(.caption).foregroundStyle(.white.opacity(0.55))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Buttons on the dark goal-race card: a subtle light capsule.
+private struct GlassCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .background(Color.white.opacity(configuration.isPressed ? 0.2 : 0.12), in: Capsule())
     }
 }
 
@@ -189,7 +211,11 @@ private struct RaceRow: View {
             if let result = race.resultSeconds {
                 Text(DisplayFormat.clock(result)).font(.subheadline.weight(.bold)).monospacedDigit().foregroundStyle(Theme.ink)
             } else if days >= 0 {
-                Text(String(localized: "in \(days) days")).font(.caption.weight(.semibold)).foregroundStyle(Theme.accent)
+                if race.persistentModelID == model.races.first(where: { $0.date >= model.today && $0.resultSeconds == nil })?.persistentModelID {
+                    SheenPill(text: String(localized: "Next · in \(days) days"))
+                } else {
+                    Text(String(localized: "in \(days) days")).font(.caption.weight(.semibold)).foregroundStyle(Theme.secondaryInk)
+                }
             }
         }
         .padding(12)

@@ -149,7 +149,7 @@ extension View {
     /// Fades scrolled content out as it reaches the status bar, so nothing runs under the clock and there's no
     /// hard edge (screens without a nav bar). Apply to the scroll view, before its background.
     func statusBarBackdrop() -> some View {
-        mask {
+        mask(alignment: .top) {
             VStack(spacing: 0) {
                 LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
                                        .init(color: .black.opacity(0.35), location: 0.4),
@@ -227,9 +227,11 @@ struct DarkGlass<S: InsettableShape>: ViewModifier {
         content
             .background {
                 ZStack {
+                    // Frosted, so a little of the page shows through, then smoky glass over it.
+                    shape.fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
                     shape.fill(LinearGradient(colors: [Color(hex: 0x303036), Color(hex: 0x151518), Color(hex: 0x09090B)],
-                                              startPoint: .top, endPoint: .bottom))
-                    shape.fill(LinearGradient(colors: [.white.opacity(0.10), .white.opacity(0)],
+                                              startPoint: .top, endPoint: .bottom).opacity(0.78))
+                    shape.fill(LinearGradient(colors: [.white.opacity(0.12), .white.opacity(0)],
                                               startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.4)))
                 }
             }
@@ -250,14 +252,13 @@ struct BarGlass<S: InsettableShape>: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
-                .background(shape.fill(Color.black.opacity(0.55)))
-                .glassEffect(.regular.tint(.black.opacity(0.5)).interactive(), in: shape)
+                .glassEffect(.regular.tint(.black.opacity(0.52)).interactive(), in: shape)
         } else {
             content
                 .background {
                     ZStack {
                         shape.fill(.ultraThinMaterial)
-                        shape.fill(Color.black.opacity(0.72))
+                        shape.fill(Color.black.opacity(0.55))
                     }
                     .environment(\.colorScheme, .dark)
                 }
@@ -273,4 +274,34 @@ struct BarGlass<S: InsettableShape>: ViewModifier {
 extension View {
     func darkGlass<S: InsettableShape>(_ shape: S) -> some View { modifier(DarkGlass(shape: shape)) }
     func barGlass<S: InsettableShape>(_ shape: S) -> some View { modifier(BarGlass(shape: shape)) }
+}
+
+// MARK: - "Now" highlights
+
+/// A small capsule label in the logo's sheen, marking what's current: this week, the next race.
+struct SheenPill: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Theme.sheen, in: Capsule())
+            .shadow(color: Theme.sheenColors[1].opacity(0.3), radius: 6, y: 2)
+    }
+}
+
+extension View {
+    /// Lifts the current item off the page: a solid white card with a soft shadow, where the others sit flatter.
+    func currentHighlight(_ isCurrent: Bool, cornerRadius: CGFloat) -> some View {
+        background {
+            if isCurrent {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
+            }
+        }
+    }
 }

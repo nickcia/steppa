@@ -44,6 +44,8 @@ struct RootView: View {
                     .transition(.opacity)
             } else {
                 MainTabs()
+                    // A fresh set of tabs for each plan, so a new plan always opens on Today.
+                    .id(model.planID)
                     .transition(.opacity)
             }
         }
@@ -163,7 +165,9 @@ private extension View {
     /// A tab's content: hides the system tab bar and leaves room for the floating one.
     func tabRoot(_ tab: AppTab) -> some View {
         self
-            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 64) }
+            // The floating bar is about 60 pt tall plus its shadow: every scroll view in the tab gets that much
+            // extra room at the end, so the last row can scroll clear of it.
+            .contentMargins(.bottom, 84, for: .scrollContent)
             .toolbar(.hidden, for: .tabBar)
             .tag(tab)
     }

@@ -202,6 +202,35 @@ struct StrengthCard: View {
     }
 }
 
+/// A strength session as a list row, alongside runs (the Plan tab).
+struct StrengthRow: View {
+    let session: StrengthSchedule.Session
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let routine = StrengthRoutine.for(session.level)
+        HStack(spacing: 12) {
+            Image(systemName: StrengthStyle.symbol)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(StrengthStyle.gradient, in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(routine.title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Text("\(session.date.shortDayMonth) · ~\(routine.minutes) min · bodyweight")
+                    .font(.caption).foregroundStyle(Theme.secondaryInk)
+            }
+            Spacer()
+            if model.isStrengthDone(session) {
+                Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(Theme.green)
+            }
+        }
+        .padding(14)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
 enum StrengthStyle {
     static let color = Color(hex: 0x8E7CF0)
     static let gradient = LinearGradient(colors: [Color(hex: 0xC6B9FF), color, Color(hex: 0x5B47C9)],
