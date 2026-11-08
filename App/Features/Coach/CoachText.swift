@@ -58,7 +58,7 @@ struct ThinkingIndicator: View {
     }
 }
 
-/// The coach's mark: a purple gradient orb that breathes while the coach works.
+/// The coach's mark: a dark glass orb with the logo's sheen turning inside it, breathing while the coach works.
 struct CoachOrb: View {
     var size: CGFloat = 40
     var animating = false
@@ -69,15 +69,24 @@ struct CoachOrb: View {
             let breath = animating ? (sin(t * 2.4) + 1) / 2 : 0
             ZStack {
                 Circle()
-                    .fill(StrengthStyle.gradient)
+                    .fill(Theme.sheenRing)
                     .blur(radius: size * 0.25)
-                    .opacity(0.35 + 0.35 * breath)
-                    .scaleEffect(1.1 + 0.2 * breath)
+                    .opacity(0.25 + 0.35 * breath)
+                    .scaleEffect(1.05 + 0.2 * breath)
                 Circle()
-                    .fill(AngularGradient(colors: [Color(hex: 0xC6B9FF), StrengthStyle.color, Color(hex: 0x5B47C9),
-                                                   Color(hex: 0x9F8CFF), Color(hex: 0xC6B9FF)],
-                                          center: .center, angle: .degrees(animating ? t * 90 : 0)))
+                    .fill(RadialGradient(colors: [Color(hex: 0x2B2B31), Color(hex: 0x0A0A0C)], center: .init(x: 0.35, y: 0.3),
+                                         startRadius: 0, endRadius: size * 0.7))
                     .scaleEffect(0.94 + 0.06 * breath)
+                Circle()
+                    .strokeBorder(AngularGradient(colors: Theme.sheenColors + [Theme.sheenColors[0]], center: .center,
+                                                  angle: .degrees(animating ? t * 90 : 135)),
+                                  lineWidth: max(1.5, size * 0.07))
+                    .scaleEffect(0.94 + 0.06 * breath)
+                Ellipse()
+                    .fill(.white.opacity(0.35))
+                    .frame(width: size * 0.42, height: size * 0.2)
+                    .blur(radius: size * 0.06)
+                    .offset(x: -size * 0.12, y: -size * 0.24)
                 Image(systemName: "sparkles")
                     .font(.system(size: size * 0.45, weight: .semibold))
                     .foregroundStyle(.white)

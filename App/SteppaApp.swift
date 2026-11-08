@@ -152,7 +152,7 @@ private struct TabBar: View {
             }
         }
         .padding(6)
-        .background(Theme.accent, in: Capsule())
+        .darkGlass(Capsule())
         .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
         .padding(.horizontal, Theme.Spacing.m)
         .padding(.bottom, 2)

@@ -99,7 +99,7 @@ struct RunDetailView: View {
                         Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.7))
                     }
                     .padding(16)
-                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                    .darkGlass(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .sheet(isPresented: $askingCoach) {

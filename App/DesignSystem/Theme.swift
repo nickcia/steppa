@@ -5,8 +5,9 @@ import PlanEngine
 /// The app's visual language. Everything colour- and spacing-related lives here so the look
 /// can be changed in one place.
 enum Theme {
-    // A light, calm look: soft grey page, near-white cards, near-black type and pills, and one signature
-    // gradient (red → amber → green) for progress and effort. The app always uses light mode (see SteppaApp).
+    // A light, calm look: soft grey page, near-white cards and near-black type, with accents from the logo:
+    // dark glass for the hero card, tab bar and main buttons, and its iridescent sheen for progress and
+    // highlights. Red → amber → green still marks effort and how a week went. Always light mode (see SteppaApp).
     /// Selected states and main actions are near-black pills.
     static let accent = Color(hex: 0x141414)
     /// Text and icons on an accent fill.
@@ -26,6 +27,12 @@ enum Theme {
     private static let redHex: UInt32 = 0xF26D6D
     private static let amberHex: UInt32 = 0xF5B13D
     private static let greenHex: UInt32 = 0x5CCB6A
+
+    /// The logo's iridescent sheen: cyan, violet, pink, amber. Used for progress and highlights.
+    static let sheenColors = [Color(hex: 0x59D9FF), Color(hex: 0x8C73FF), Color(hex: 0xFF6BBF), Color(hex: 0xFFB861)]
+    static let sheen = LinearGradient(colors: sheenColors, startPoint: .leading, endPoint: .trailing)
+    /// The sheen going all the way round, for rings and rims.
+    static let sheenRing = AngularGradient(colors: sheenColors + [sheenColors[0]], center: .center)
 
     /// The signature gradient, low to high: red, amber, green.
     static let heat = LinearGradient(colors: [red, amber, green], startPoint: .leading, endPoint: .trailing)

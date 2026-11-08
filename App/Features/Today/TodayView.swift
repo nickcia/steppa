@@ -70,12 +70,14 @@ struct TodayView: View {
             Spacer()
             if model.showsCoach {
                 Button { coaching = true } label: {
-                    Label("Coach", systemImage: "sparkles")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(Theme.accent, in: Capsule())
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles").foregroundStyle(Theme.sheen)
+                        Text("Coach").foregroundStyle(Theme.onAccent)
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .darkGlass(Capsule(), glow: false)
                 }
                 .sheet(isPresented: $coaching) { CoachView() }
             }
@@ -302,7 +304,7 @@ private struct HeroCard: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .darkGlass(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
     }
 
     private func summary(_ workout: Workout?) -> some View {

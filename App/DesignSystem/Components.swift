@@ -23,12 +23,9 @@ struct PrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: 54)
             .foregroundStyle(isEnabled ? Theme.onAccent : Theme.secondaryInk)
             .background {
-                if isEnabled {
-                    Capsule().fill(Theme.accent)
-                } else {
-                    Capsule().fill(Theme.subtle)
-                }
+                if !isEnabled { Capsule().fill(Theme.subtle) }
             }
+            .modifier(OptionalGlass(enabled: isEnabled))
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)
     }
@@ -192,7 +189,7 @@ struct DeltaBadge: View {
     }
 }
 
-/// A thin track filled from red through amber to green, up to `value` (0–1).
+/// A thin track filled with the logo's sheen up to `value` (0–1).
 struct HeatBar: View {
     let value: Double
 
@@ -201,13 +198,63 @@ struct HeatBar: View {
             let width = geometry.size.width
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.subtle)
-                // The gradient spans the whole track, so a short bar stays red and a full one ends green.
-                Theme.heat
+                // The gradient spans the whole track, so the colours shift along as the bar fills.
+                Theme.sheen
                     .frame(width: width)
                     .mask(alignment: .leading) { Capsule().frame(width: max(4, width * min(max(value, 0), 1))) }
             }
         }
         .frame(height: 4)
         .accessibilityHidden(true)
+    }
+}
+
+
+// MARK: - Dark glass (the logo's material)
+
+/// Smoky dark glass, as in the logo: a deep gradient with a soft reflection across the top, a bright edge where
+/// the light catches the top left, and the iridescent sheen along the bottom-right rim.
+struct DarkGlass<S: InsettableShape>: ViewModifier {
+    let shape: S
+    var glow = true
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                ZStack {
+                    shape.fill(LinearGradient(colors: [Color(hex: 0x2B2B31), Color(hex: 0x141418), Color(hex: 0x09090B)],
+                                              startPoint: .top, endPoint: .bottom))
+                    shape.fill(LinearGradient(colors: [.white.opacity(0.10), .white.opacity(0)],
+                                              startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45)))
+                }
+            }
+            .overlay {
+                ZStack {
+                    // Pink and amber along the bottom, cyan and violet up the right, fading out towards the top left.
+                    shape.strokeBorder(LinearGradient(colors: [Theme.sheenColors[2], Theme.sheenColors[3],
+                                                               Theme.sheenColors[0], Theme.sheenColors[1]],
+                                                      startPoint: .bottomLeading, endPoint: .topTrailing), lineWidth: 2)
+                        .mask(LinearGradient(stops: [.init(color: .clear, location: 0.25), .init(color: .black, location: 0.7)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                    shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.08), .clear],
+                                                      startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+                }
+                .allowsHitTesting(false)
+            }
+            .shadow(color: glow ? Color(hex: 0x8C73FF).opacity(0.16) : .clear, radius: 14, y: 6)
+    }
+}
+
+extension View {
+    func darkGlass<S: InsettableShape>(_ shape: S, glow: Bool = true) -> some View {
+        modifier(DarkGlass(shape: shape, glow: glow))
+    }
+}
+
+/// Dark glass on a capsule, only when enabled (disabled main buttons stay flat grey).
+private struct OptionalGlass: ViewModifier {
+    let enabled: Bool
+    func body(content: Content) -> some View {
+        if enabled { content.darkGlass(Capsule(), glow: false) } else { content }
     }
 }

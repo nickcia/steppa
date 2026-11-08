@@ -60,8 +60,10 @@ struct OnboardingView: View {
                     .background(Theme.card, in: Circle())
             }
             .accessibilityLabel("Back")
-            ProgressView(value: Double(draft.step.rawValue), total: Double(OnboardingDraft.Step.allCases.count - 1))
-                .tint(Theme.accent)
+            HeatBar(value: Double(draft.step.rawValue) / Double(OnboardingDraft.Step.allCases.count - 1))
+                .animation(.snappy, value: draft.step)
+                .accessibilityElement()
+                .accessibilityLabel("Step \(draft.step.rawValue) of \(OnboardingDraft.Step.allCases.count - 1)")
         }
         .padding(.horizontal, Theme.Spacing.l)
         .padding(.top, Theme.Spacing.s)
@@ -800,7 +802,7 @@ private struct ReviewStep: View {
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(Theme.onAccent)
                         .frame(width: 52, height: 52)
-                        .background(Theme.accent, in: Circle())
+                        .darkGlass(Circle())
                         .scaleEffect(stage >= 1 ? 1 : 0.4)
                         .opacity(stage >= 1 ? 1 : 0)
                     StepHeader(title: String(localized: "Your plan is ready"),
