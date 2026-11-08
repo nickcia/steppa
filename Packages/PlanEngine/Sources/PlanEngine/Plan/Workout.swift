@@ -10,9 +10,11 @@ public enum WorkoutKind: String, Codable, Sendable, CaseIterable {
     case race
     /// Uphill repeats run by effort: strength and power with less pounding than flat speedwork.
     case hills
+    /// Alternating running and walking, for new runners (see `RunWalk`). Easy effort, so not a hard day.
+    case runWalk
 
     /// Hard days must never fall on consecutive dates.
-    public var isHard: Bool { self != .easy }
+    public var isHard: Bool { self != .easy && self != .runWalk }
 }
 
 public enum StepGoal: Codable, Hashable, Sendable {

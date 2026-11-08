@@ -68,7 +68,7 @@ struct PlanView: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                     Text("Weekly distance").font(.headline).foregroundStyle(Theme.ink)
                     WeeklyVolumeChart(plan: plan, highlight: model.today)
-                    PhaseLegend(phases: Phase.allCases.filter { p in plan.weeks.contains { $0.phase == p } })
+                    PhaseLegend(plan: plan)
                 }
             }
             ForEach(plan.weeks, id: \.index) { week in
@@ -97,7 +97,11 @@ private struct RaceHeader: View {
                 HStack {
                     Metric(value: "\(max(0, model.today.days(until: plan.inputs.raceDate)))", label: String(localized: "days to go"))
                     Spacer()
-                    Metric(value: DisplayFormat.clock(plan.predictedRaceSeconds), label: String(localized: "predicted"))
+                    if plan.runWalkWeeksLeft(from: model.today) > 0 {
+                        Metric(value: "\(plan.runWalkWeeksLeft(from: model.today))", label: String(localized: "weeks to 30 min"))
+                    } else {
+                        Metric(value: DisplayFormat.clock(model.prediction?.seconds ?? plan.predictedRaceSeconds), label: String(localized: "predicted"))
+                    }
                     Spacer()
                     if let goal = plan.inputs.goalTimeSeconds {
                         Metric(value: DisplayFormat.clock(goal), label: String(localized: "goal"))
@@ -235,7 +239,8 @@ struct WorkoutDetailView: View {
                 Card {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                         Text("Structure").font(.headline).foregroundStyle(Theme.ink)
-                        TargetDisplayPicker()
+                        // Run/walk is by feel: no targets to show as pace, heart rate or speed.
+                        if !workout.isRunWalkSession { TargetDisplayPicker() }
                         WorkoutStepsView(workout: workout)
                             .animation(.snappy, value: model.targetDisplay)
                             .contentTransition(.numericText())

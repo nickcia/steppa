@@ -59,4 +59,35 @@ import Testing
         #expect(failures.isEmpty, "\(failures.joined(separator: "\n"))")
         #expect(checked > 10_000)
     }
+
+    /// New runners (run/walk first) on every schedule, plan length, start day and goal, with and without time off.
+    @Test func everyRunWalkPlanPassesValidation() throws {
+        var failures: [String] = []
+        let monday = LocalDate(year: 2026, month: 11, day: 2)
+        for goal in RaceDistance.allCases {
+            for (si, schedule) in Self.schedules.enumerated() {
+                for weeks in Self.weekCounts + [9, 10, 13] {
+                    for offset in Self.startOffsets {
+                        for withBreak in [false, true] {
+                            let start = monday.adding(days: offset)
+                            let race = start.adding(days: weeks * 7 + (si + offset) % 7 - 3)
+                            guard race > start else { continue }
+                            let off = start.adding(days: 17)
+                            let inputs = PlanInputs(goal: goal, raceDate: race, startDate: start, currentWeeklyMeters: 0,
+                                                    fitness: .estimated, runDays: schedule.days, longRunDay: schedule.long,
+                                                    experience: .beginner,
+                                                    timeOff: withBreak ? [TimeOff(reason: .injury, start: off, end: off.adding(days: 9))] : nil,
+                                                    runWalkStart: start)
+                            let plan = try PlanBuilder.build(inputs)
+                            let violations = PlanValidator.validate(plan)
+                            if !violations.isEmpty, failures.count < 15 {
+                                failures.append("\(goal) days=\(schedule.days.map(\.rawValue).sorted()) start=\(start) race=\(race) break=\(withBreak): \(violations.prefix(3))")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        #expect(failures.isEmpty, "\(failures.joined(separator: "\n"))")
+    }
 }

@@ -572,7 +572,15 @@ private struct DashboardTiles: View {
     }
 
     @ViewBuilder private var predictionTile: some View {
-        if let prediction = model.prediction {
+        let runWalkLeft = plan.runWalkWeeksLeft(from: model.today)
+        if runWalkLeft > 0 {
+            // New runners: progress towards 30 minutes non-stop instead of a race prediction.
+            let total = plan.runWalkWeeksLeft(from: plan.inputs.startDate)
+            StatCard(title: String(localized: "Run/walk"), symbol: WorkoutKind.runWalk.symbol, tint: WorkoutKind.runWalk.color,
+                     value: "\(total - runWalkLeft + 1)/\(total)", badge: nil,
+                     note: String(localized: "weeks to 30 min non-stop"),
+                     progress: Double(total - runWalkLeft) / Double(max(total, 1)))
+        } else if let prediction = model.prediction {
             let goal = plan.inputs.goalTimeSeconds
             StatCard(title: String(localized: "Prediction"), symbol: "stopwatch", tint: Theme.amber,
                      value: DisplayFormat.clock(prediction.seconds),

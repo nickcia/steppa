@@ -32,6 +32,8 @@ enum WeekLayout {
         /// Planned training distance, and the part at threshold or faster, already in the week.
         var trainingMeters: Double = 0
         var highIntensityMeters: Double = 0
+        /// Runs already done this week (run/walk weeks keep to three sessions in all).
+        var runCount = 0
     }
 
     struct Result {
@@ -43,6 +45,8 @@ enum WeekLayout {
 
     static func layout(_ c: Context) -> Result {
         let inputs = c.inputs
+        // New runners: run/walk weeks first (see `RunWalk`).
+        if let stage = RunWalk.stage(for: c.monday, inputs: inputs) { return RunWalk.layout(c, stage: stage) }
         let lastTrainingDay = c.isRaceWeek ? inputs.raceDate.adding(days: -1) : c.monday.adding(days: 6)
         // Days off (holiday, injury…) hold no runs; the week shrinks in proportion, like a partial week.
         let trainingDates = (0..<7).map { c.monday.adding(days: $0) }.filter {

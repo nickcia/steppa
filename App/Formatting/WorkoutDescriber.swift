@@ -116,6 +116,7 @@ struct WorkoutDescriber {
     }
 
     func sections(_ workout: Workout) -> [Section] {
+        if workout.isRunWalkSession { return runWalkSections(workout) }
         var result: [Section] = []
         if let warmup = workout.warmup {
             result.append(.single(line(warmup, title: String(localized: "Warm up"))))
@@ -134,11 +135,44 @@ struct WorkoutDescriber {
         return result
     }
 
+    private func minutes(_ goal: StepGoal) -> String {
+        if case .time(let seconds) = goal { return DisplayFormat.minutes(seconds) }
+        return self.goal(goal)
+    }
+
+    /// Run/walk sessions are by feel: walk, run gently, walk.
+    private func runWalkSections(_ workout: Workout) -> [Section] {
+        func goal(_ goal: StepGoal) -> String { minutes(goal) }
+        func walk(_ step: Step, _ detail: String) -> Line {
+            Line(title: String(localized: "Walk · \(goal(step.goal))"), detail: detail, zone: nil, isRecovery: true)
+        }
+        func run(_ step: Step) -> Line {
+            Line(title: String(localized: "Run · \(goal(step.goal))"), detail: String(localized: "Gently, slow enough to talk"),
+                 zone: .easy, isRecovery: false)
+        }
+        var result: [Section] = []
+        if let warmup = workout.warmup { result.append(.single(walk(warmup, String(localized: "Brisk walk to warm up")))) }
+        for block in workout.blocks {
+            let lines = block.steps.map { $0.purpose == .work ? run($0.step) : walk($0.step, String(localized: "Brisk walk, get your breath back")) }
+            result.append(block.iterations > 1 ? .repeated(times: block.iterations, lines: lines) : .single(lines[0]))
+        }
+        if let cooldown = workout.cooldown { result.append(.single(walk(cooldown, String(localized: "Easy walk to cool down")))) }
+        return result
+    }
+
     /// One-line summary for lists: "8 km easy", "5 × 800 m intervals", "6 km threshold".
     func summary(_ workout: Workout) -> String {
+        if workout.isRunWalkSession, let block = workout.blocks.first, let run = block.steps.first?.step {
+            func goal(_ goal: StepGoal) -> String { minutes(goal) }
+            // "8 × 1 min run, 1:30 walk", "30 min non-stop"
+            if block.steps.count < 2 { return String(localized: "\(goal(run.goal)) non-stop") }
+            return String(localized: "\(block.iterations) × \(goal(run.goal)) run, \(goal(block.steps[1].step.goal)) walk")
+        }
         switch workout.kind {
         case .easy, .long:
             return format.distance(workout.totalMeters)
+        case .runWalk:
+            return DisplayFormat.shortDuration(workout.totalSeconds)
         case .race:
             return format.distance(workout.totalMeters)
         case .tempo, .intervals, .marathonPaceLong, .hills:

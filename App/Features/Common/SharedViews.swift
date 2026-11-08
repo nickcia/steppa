@@ -37,7 +37,8 @@ struct WeeklyVolumeChart: View, Animatable {
             let emphasised = currentWeek == nil || week.startDate == currentWeek
             return Bar(id: week.index, start: x - 0.36, end: x + 0.36,
                        distance: week.plannedMeters / units.metersPerUnit * eased,
-                       color: week.phase.color.opacity(emphasised ? 1 : 0.55))
+                       color: (plan.isRunWalkWeek(week) ? WorkoutKind.runWalk.color : week.phase.color)
+                           .opacity(emphasised ? 1 : 0.55))
         }
     }
 
@@ -85,11 +86,36 @@ struct WeeklyVolumeChart: View, Animatable {
     }
 }
 
+extension TrainingPlan {
+    /// One of a new runner's run/walk weeks (see `RunWalk`).
+    func isRunWalkWeek(_ week: PlanWeek) -> Bool {
+        RunWalk.stage(for: week.startDate, inputs: inputs) != nil
+    }
+
+    /// Run/walk weeks from the week containing `date` on.
+    func runWalkWeeksLeft(from date: LocalDate) -> Int {
+        weeks.filter { $0.startDate >= date.startOfWeek && isRunWalkWeek($0) }.count
+    }
+}
+
 struct PhaseLegend: View {
     let phases: [Phase]
+    var runWalk = false
+
+    /// The phases in this plan, with Run/walk first for a new runner's plan.
+    init(plan: TrainingPlan) {
+        phases = Phase.allCases.filter { p in plan.weeks.contains { $0.phase == p && !plan.isRunWalkWeek($0) } }
+        runWalk = plan.weeks.contains { plan.isRunWalkWeek($0) }
+    }
 
     var body: some View {
         HStack(spacing: Theme.Spacing.m) {
+            if runWalk {
+                HStack(spacing: 6) {
+                    Circle().fill(WorkoutKind.runWalk.color).frame(width: 8, height: 8)
+                    Text("Run/walk").font(.caption).foregroundStyle(Theme.secondaryInk)
+                }
+            }
             ForEach(phases, id: \.self) { phase in
                 HStack(spacing: 6) {
                     Circle().fill(phase.color).frame(width: 8, height: 8)

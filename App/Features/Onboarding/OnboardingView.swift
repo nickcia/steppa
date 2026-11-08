@@ -34,6 +34,16 @@ struct OnboardingView: View {
                 draft.acceptedDisclaimer = true
                 go(to: .review)
             }
+            // `-newRunner`: build a run/walk plan for a 5K in 14 weeks.
+            if ProcessInfo.processInfo.arguments.contains("-newRunner") {
+                draft.acceptedDisclaimer = true
+                draft.goal = .fiveK
+                draft.raceDate = Calendar.current.date(byAdding: .day, value: 14 * 7, to: .now) ?? .now
+                draft.experience = .beginner
+                draft.startsWithRunWalk = true
+                draft.daysPerWeek = 3
+                go(to: .review)
+            }
             // `-availability`: jump to the run-days step with a 3-hour marathon goal (shows the warning at 2 days).
             if ProcessInfo.processInfo.arguments.contains("-availability") {
                 draft.acceptedDisclaimer = true
@@ -52,7 +62,7 @@ struct OnboardingView: View {
     private var topBar: some View {
         HStack(spacing: Theme.Spacing.m) {
             Button {
-                go(to: OnboardingDraft.Step(rawValue: draft.step.rawValue - 1) ?? .welcome)
+                go(to: draft.previousStep)
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.headline)
@@ -91,7 +101,7 @@ struct OnboardingView: View {
                     .buttonStyle(.primary)
                     .disabled(!draft.canContinue)
             default:
-                Button("Continue") { go(to: OnboardingDraft.Step(rawValue: draft.step.rawValue + 1)!) }
+                Button("Continue") { go(to: draft.nextStep) }
                     .buttonStyle(.primary)
                     .disabled(!draft.canContinue)
             }
@@ -360,8 +370,22 @@ private struct ExperienceStep: View {
     var body: some View {
         VStack(spacing: Theme.Spacing.m) {
             StepHeader(title: String(localized: "How would you describe your running?"))
+            ChoiceCard(selected: draft.startsWithRunWalk, action: {
+                draft.experience = .beginner
+                draft.startsWithRunWalk = true
+                draft.hasGoalTime = false
+            }) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Just starting out").font(.headline).foregroundStyle(Theme.ink)
+                    Text("Can't run 30 minutes without stopping yet. Start with run/walk and build up to it, about 9 weeks.")
+                        .font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                }
+            }
             ForEach(Experience.allCases, id: \.self) { level in
-                ChoiceCard(selected: draft.experience == level, action: { draft.experience = level }) {
+                ChoiceCard(selected: !draft.startsWithRunWalk && draft.experience == level, action: {
+                    draft.experience = level
+                    draft.startsWithRunWalk = false
+                }) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(level.name).font(.headline).foregroundStyle(Theme.ink)
                         Text(level.detail).font(.subheadline).foregroundStyle(Theme.secondaryInk)
@@ -458,7 +482,9 @@ private struct AvailabilityStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             StepHeader(title: String(localized: "How many days a week can you run?"),
-                       subtitle: String(localized: "Be realistic about a normal week. Four or more lets the plan include more variety."))
+                       subtitle: draft.startsWithRunWalk
+                           ? String(localized: "Three is ideal to start: run/walk every other day, with a rest day in between. Extra days are used once you're running non-stop.")
+                           : String(localized: "Be realistic about a normal week. Four or more lets the plan include more variety."))
             HStack(spacing: 6) {
                 ForEach(2...7, id: \.self) { count in
                     let on = draft.daysPerWeek == count
@@ -746,6 +772,23 @@ private struct BuildingPlanView: View {
         if let calibration {
             items.append(Item(title: String(localized: "Checking your recent runs"), detail: volumeText(calibration, format)))
         }
+        if plan.inputs.runWalkStart != nil {
+            let runWalkWeeks = plan.weeks.filter { RunWalk.stage(for: $0.startDate, inputs: plan.inputs) != nil }.count
+            let first = RunWalk.stage(for: plan.weeks.first(where: { RunWalk.stage(for: $0.startDate, inputs: plan.inputs) != nil })?.startDate
+                                          ?? plan.inputs.startDate, inputs: plan.inputs)
+            items.append(Item(title: String(localized: "Starting with run/walk"),
+                              detail: first.map { String(localized: "\($0.reps) × \(DisplayFormat.minutes($0.runSeconds)) running with walks in between, three times a week") }
+                                  ?? String(localized: "Three sessions a week")))
+            items.append(Item(title: String(localized: "Building to 30 minutes non-stop"),
+                              detail: String(localized: "Over \(runWalkWeeks) weeks, running a little more each week")))
+            let normal = plan.weeks.count - runWalkWeeks
+            items.append(Item(title: String(localized: "Then training for your \(plan.inputs.goal.name)"),
+                              detail: normal > 1 ? String(localized: "\(normal) weeks up to \(format.distance(plan.weeks.filter { !plan.isRunWalkWeek($0) && $0.phase != .taper }.map(\.targetMeters).max() ?? 0)) a week, then race day")
+                                                 : String(localized: "Then race day: run/walk it if you need to")))
+            items.append(Item(title: String(localized: "Checking the safety rules"),
+                              detail: String(localized: "Easy effort, rest days between sessions, checked week by week")))
+            return items
+        }
         items.append(Item(title: String(localized: "Reading your fitness"), detail: fitnessText(format)))
         items.append(Item(title: String(localized: "Setting your paces"),
                           detail: String(localized: "Easy about \(DisplayFormat.clock(format.paceSeconds(plan.paces.easy.mid))) · threshold \(format.pace(plan.paces.threshold.mid))")))
@@ -816,16 +859,22 @@ private struct ReviewStep: View {
                         HStack {
                             Metric(value: stage >= 2 ? "\(plan.weeks.count)" : "0", label: String(localized: "weeks"))
                             Spacer()
-                            Metric(value: stage >= 2 ? format.distance(plan.weeks.map(\.targetMeters).max() ?? 0)
+                            Metric(value: stage >= 2 ? format.distance(plan.weeks.filter { !plan.isRunWalkWeek($0) }.map(\.targetMeters).max() ?? 0)
                                                     : format.distance(0),
                                    label: String(localized: "peak week"))
                             Spacer()
-                            Metric(value: stage >= 2 ? DisplayFormat.clock(plan.predictedRaceSeconds) : "0:00:00",
-                                   label: String(localized: "predicted today"))
+                            if plan.inputs.runWalkStart != nil {
+                                // Someone who can't run 30 minutes yet gets no race prediction, just the first goal.
+                                Metric(value: stage >= 2 ? "\(plan.runWalkWeeksLeft(from: plan.inputs.startDate))" : "0",
+                                       label: String(localized: "weeks to 30 min"))
+                            } else {
+                                Metric(value: stage >= 2 ? DisplayFormat.clock(plan.predictedRaceSeconds) : "0:00:00",
+                                       label: String(localized: "predicted today"))
+                            }
                         }
                         .contentTransition(.numericText())
                         WeeklyVolumeChart(plan: plan, reveal: chartReveal)
-                        PhaseLegend(phases: Phase.allCases.filter { p in plan.weeks.contains { $0.phase == p } })
+                        PhaseLegend(plan: plan)
                             .opacity(stage >= 3 ? 1 : 0)
                     }
                 }
@@ -843,7 +892,9 @@ private struct ReviewStep: View {
                             }
                         }
                     }
-                    Text("Your predicted time improves as you train. The plan adapts if you miss runs or your fitness changes.")
+                    Text(plan.inputs.runWalkStart != nil
+                         ? String(localized: "Walking breaks are part of the plan, not a failure. Run slowly enough to talk. The plan adapts if you miss runs.")
+                         : String(localized: "Your predicted time improves as you train. The plan adapts if you miss runs or your fitness changes."))
                         .font(.footnote)
                         .foregroundStyle(Theme.secondaryInk)
                 }

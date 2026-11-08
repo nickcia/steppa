@@ -9,13 +9,13 @@ struct TrackStarApp: App {
     @State private var crashes = CrashReporter()
 
     init() {
-        let container = Persistence.makeContainer(inMemory: DemoData.isRequested)
+        let container = Persistence.makeContainer(inMemory: DemoData.usesMemoryStore)
         self.container = container
         let model = AppModel(container: container,
-                             runSource: DemoData.isRequested ? nil : HealthKitRunSource(),
+                             runSource: DemoData.usesMemoryStore ? nil : HealthKitRunSource(),
                              reminders: ReminderService(), watch: WatchService(),
-                             calendar: DemoData.isRequested ? nil : CalendarService(),
-                             intervals: DemoData.isRequested ? nil : IntervalsClient(),
+                             calendar: DemoData.usesMemoryStore ? nil : CalendarService(),
+                             intervals: DemoData.usesMemoryStore ? nil : IntervalsClient(),
                              intervalsOAuth: .configured)
         DemoData.seedIfRequested(model)
         _model = State(initialValue: model)
@@ -191,6 +191,15 @@ enum DemoData {
     static var isRequested: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-demo")
+        #else
+        false
+        #endif
+    }
+
+    /// Demo mode and `-newRunner` (onboarding as a new runner) never touch real data.
+    static var usesMemoryStore: Bool {
+        #if DEBUG
+        isRequested || ProcessInfo.processInfo.arguments.contains("-newRunner")
         #else
         false
         #endif

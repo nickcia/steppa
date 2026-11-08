@@ -214,10 +214,14 @@ struct PlanUpdateView: View {
                             Spacer()
                             Metric(value: format.distance(plan.weeks.map(\.targetMeters).max() ?? 0), label: String(localized: "peak week"))
                             Spacer()
-                            Metric(value: DisplayFormat.clock(plan.predictedRaceSeconds), label: String(localized: "predicted today"))
+                            if plan.runWalkWeeksLeft(from: model.today) > 0 {
+                                Metric(value: "\(plan.runWalkWeeksLeft(from: model.today))", label: String(localized: "weeks to 30 min"))
+                            } else {
+                                Metric(value: DisplayFormat.clock(plan.predictedRaceSeconds), label: String(localized: "predicted today"))
+                            }
                         }
                         WeeklyVolumeChart(plan: plan, highlight: model.today, reveal: chartReveal)
-                        PhaseLegend(phases: Phase.allCases.filter { p in plan.weeks.contains { $0.phase == p } })
+                        PhaseLegend(plan: plan)
                     }
                 }
                 .opacity(stage >= 2 ? 1 : 0)

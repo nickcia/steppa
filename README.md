@@ -26,6 +26,8 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
 - **Adapts as you go.** Runs from Apple Health tick workouts off automatically. Miss a few runs, take a
   break, run faster or slower than planned, change your race date or your free days, and the rest of the
   plan adjusts. It never tries to make you "catch up".
+- **Starting from zero.** Can't run 30 minutes yet? The plan starts with three run/walk sessions a week and
+  builds you to 30 minutes non-stop (about nine weeks) before training for your race.
 - **Holidays, busy weeks, injury and illness.** Mark time off and the plan clears those days, shrinks those
   weeks and, after a week or more away, eases you back in. Injured with no end date? The plan pauses until you
   tap I'm better, then starts with an easy week.

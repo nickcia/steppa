@@ -97,6 +97,12 @@ extension CoachSnapshot {
         Predicted \(plan.inputs.goal.name) time now: \(DisplayFormat.clock(model.prediction?.seconds ?? plan.predictedRaceSeconds)).
         """
         if let goal = plan.inputs.goalTimeSeconds { overview += " Goal time: \(DisplayFormat.clock(goal))." }
+        if plan.inputs.runWalkStart != nil {
+            let left = plan.weeks.filter { $0.startDate >= today.startOfWeek && RunWalk.stage(for: $0.startDate, inputs: plan.inputs) != nil }.count
+            overview += left > 0
+                ? "\nNew runner: the plan starts with run/walk sessions (run gently, walk briskly), building to 30 minutes non-stop; \(left) run/walk weeks left. Walking breaks are part of the plan, not a failure."
+                : "\nStarted as a new runner with run/walk and now runs non-stop."
+        }
         let timeOff = plan.inputs.timeOffPeriods.filter { ($0.end ?? today) >= today }
         if !timeOff.isEmpty {
             overview += "\nTime off already marked (nothing planned then): " + timeOff.map { "\($0.reason.name.lowercased()) \($0.datesText)" }.joined(separator: "; ") + "."

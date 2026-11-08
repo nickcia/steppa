@@ -15,18 +15,22 @@ enum WatchWorkoutBuilder {
 
     static func customWorkout(_ workout: PlanEngine.Workout, format: DisplayFormat) -> CustomWorkout {
         let describer = WorkoutDescriber(format: format)
+        // Run/walk sessions name every step, so the watch says Walk and Run rather than Warm up and Recovery.
+        let walk = workout.isRunWalkSession ? String(localized: "Walk") : nil
         return CustomWorkout(
             activity: .running,
             location: .outdoor,
             displayName: "\(workout.kind.name) · \(describer.summary(workout))",
-            warmup: workout.warmup.map { step($0, name: String(localized: "Warm up"), alert: false) },
+            warmup: workout.warmup.map { step($0, name: walk ?? String(localized: "Warm up"), alert: false) },
             blocks: workout.blocks.map { block in
                 WorkoutKit.IntervalBlock(steps: block.steps.map { interval in
                     WorkoutKit.IntervalStep(interval.purpose == .work ? .work : .recovery,
-                                            step: step(interval.step, name: nil, alert: interval.purpose == .work))
+                                            step: step(interval.step,
+                                                       name: walk.map { interval.purpose == .work ? String(localized: "Run") : $0 },
+                                                       alert: interval.purpose == .work))
                 }, iterations: block.iterations)
             },
-            cooldown: workout.cooldown.map { step($0, name: String(localized: "Cool down"), alert: false) })
+            cooldown: workout.cooldown.map { step($0, name: walk ?? String(localized: "Cool down"), alert: false) })
     }
 
     static func step(_ step: PlanEngine.Step, name: String?, alert: Bool) -> WorkoutKit.WorkoutStep {

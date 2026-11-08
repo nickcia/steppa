@@ -36,6 +36,12 @@ public enum PlanValidator {
         var loadingRun = 0
         let maxLoadingRun = PlanRules.loadingWeeksBeforeStepBack(inputs.experience)
         for week in plan.weeks {
+            // Run/walk weeks come before the plan's volume progression starts.
+            if RunWalk.stage(for: week.startDate, inputs: inputs) != nil {
+                lastLoading = nil
+                loadingRun = 0
+                continue
+            }
             // A week mostly lost to time off (a holiday, injury…) is rest, not a loading week.
             let daysOff = (0..<7).filter { plan.inputs.isUnavailable(week.startDate.adding(days: $0)) }.count
             if daysOff > 0, week.trainingMeters < week.targetMeters * 0.5 {

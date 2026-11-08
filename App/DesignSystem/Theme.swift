@@ -106,6 +106,7 @@ extension WorkoutKind {
         case .marathonPaceLong: [Color(hex: 0xCDB8FF), Color(hex: 0x9A78F0), Color(hex: 0x6F4FD0)]
         case .race: [Color(hex: 0xFFB3CF), Color(hex: 0xEC5D93), Color(hex: 0xC23A6E)]
         case .hills: [Color(hex: 0xF4C7A1), Color(hex: 0xD98A55), Color(hex: 0xA85A2C)]
+        case .runWalk: [Color(hex: 0xA6EDE0), Color(hex: 0x4FC9B4), Color(hex: 0x2E9A88)]
         }
     }
 
@@ -124,6 +125,7 @@ extension WorkoutKind {
         case .marathonPaceLong: "speedometer"
         case .race: "flag.checkered"
         case .hills: "mountain.2"
+        case .runWalk: "figure.walk.motion"
         }
     }
 
@@ -137,6 +139,7 @@ extension WorkoutKind {
         case .marathonPaceLong: String(localized: "marathon-pace long run")
         case .race: String(localized: "race")
         case .hills: String(localized: "hill session")
+        case .runWalk: String(localized: "run/walk")
         }
     }
 
@@ -149,6 +152,7 @@ extension WorkoutKind {
         case .marathonPaceLong: String(localized: "Marathon-pace long run")
         case .race: String(localized: "Race day")
         case .hills: String(localized: "Hills")
+        case .runWalk: String(localized: "Run/walk")
         }
     }
 
@@ -161,6 +165,7 @@ extension WorkoutKind {
         case .marathonPaceLong: String(localized: "Practises race pace on tired legs. Start easy, then settle into goal pace.")
         case .race: String(localized: "This is what you trained for. Start controlled and enjoy it.")
         case .hills: String(localized: "Builds strength and power with less pounding than flat speedwork. Run the climbs hard but controlled, about 5K effort, and jog back down.")
+        case .runWalk: String(localized: "Builds you up to running non-stop. Run gently, slow enough to talk, and walk briskly in the breaks. Slower is fine; finishing is the goal.")
         }
     }
 }
@@ -226,7 +231,7 @@ extension RaceDistance {
 extension Experience {
     var name: String {
         switch self {
-        case .beginner: String(localized: "New to running")
+        case .beginner: String(localized: "Newer runner")
         case .intermediate: String(localized: "Regular runner")
         case .advanced: String(localized: "Experienced")
         }
@@ -234,7 +239,7 @@ extension Experience {
 
     var detail: String {
         switch self {
-        case .beginner: String(localized: "Running for under a year, or new to structured training.")
+        case .beginner: String(localized: "Can run 30 minutes, but running for under a year or new to structured training.")
         case .intermediate: String(localized: "Running most weeks and have done a few races.")
         case .advanced: String(localized: "Training consistently with sessions like intervals and tempo runs.")
         }

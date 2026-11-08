@@ -18,6 +18,10 @@ public struct PlanInputs: Codable, Hashable, Sendable {
     /// Holidays, busy stretches, injuries and illness (see `TimeOff`). Optional so plans saved before it existed
     /// still load.
     public var timeOff: [TimeOff]?
+    /// Set for someone who can't yet run 30 minutes non-stop: the day their run/walk programme starts. The first
+    /// weeks are run/walk sessions building to 30 minutes of continuous running (see `RunWalk`), then the normal
+    /// plan takes over. nil for everyone else (and for plans saved before it existed).
+    public var runWalkStart: LocalDate?
 
     public init(
         goal: RaceDistance,
@@ -29,7 +33,8 @@ public struct PlanInputs: Codable, Hashable, Sendable {
         longRunDay: Weekday,
         experience: Experience,
         goalTimeSeconds: Double? = nil,
-        timeOff: [TimeOff]? = nil
+        timeOff: [TimeOff]? = nil,
+        runWalkStart: LocalDate? = nil
     ) {
         self.goal = goal
         self.raceDate = raceDate
@@ -41,6 +46,7 @@ public struct PlanInputs: Codable, Hashable, Sendable {
         self.experience = experience
         self.goalTimeSeconds = goalTimeSeconds
         self.timeOff = timeOff
+        self.runWalkStart = runWalkStart
     }
 }
 

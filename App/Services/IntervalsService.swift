@@ -56,6 +56,7 @@ enum IntervalsWorkoutBuilder {
     ///     Cooldown
     ///     - 10m
     static func description(for workout: Workout, units: UnitSystem) -> String {
+        if workout.isRunWalkSession { return runWalkDescription(workout) }
         var sections: [String] = []
         if let warmup = workout.warmup {
             sections.append("Warmup\n" + line(warmup, units: units))
@@ -68,6 +69,19 @@ enum IntervalsWorkoutBuilder {
         if let cooldown = workout.cooldown {
             sections.append("Cooldown\n" + line(cooldown, units: units))
         }
+        return sections.joined(separator: "\n\n")
+    }
+
+    /// Run/walk: every step named, so the watch shows Walk and Run; no pace targets (it's by feel).
+    static func runWalkDescription(_ workout: Workout) -> String {
+        var sections: [String] = []
+        if let warmup = workout.warmup { sections.append("Warmup\n- Walk \(amount(warmup.goal))") }
+        for block in workout.blocks {
+            let header = block.iterations > 1 ? "Main set \(block.iterations)x" : "Main set"
+            sections.append(([header] + block.steps.map { "- \($0.purpose == .work ? "Run" : "Walk") \(amount($0.step.goal))" })
+                .joined(separator: "\n"))
+        }
+        if let cooldown = workout.cooldown { sections.append("Cooldown\n- Walk \(amount(cooldown.goal))") }
         return sections.joined(separator: "\n\n")
     }
 

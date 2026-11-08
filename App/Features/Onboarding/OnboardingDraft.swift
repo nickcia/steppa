@@ -41,6 +41,9 @@ final class OnboardingDraft {
     var goalTimeSeconds: Double = 2 * 3600
 
     var experience: Experience = .intermediate
+    /// Can't run 30 minutes non-stop yet: the plan starts with run/walk (see `RunWalk`), and the fitness and
+    /// weekly-distance questions are skipped.
+    var startsWithRunWalk = false
 
     var hasRecentRace = true
     var recentDistance: RaceDistance = .fiveK
@@ -62,7 +65,21 @@ final class OnboardingDraft {
 
     /// Run days this goal usually needs; fewer gets a clear warning.
     var recommendedRunDays: Int {
-        PlanRules.recommendedRunDays(goal, goalTimeSeconds: hasGoalTime ? goalTimeSeconds : nil)
+        let days = PlanRules.recommendedRunDays(goal, goalTimeSeconds: hasGoalTime ? goalTimeSeconds : nil)
+        return startsWithRunWalk ? max(days, RunWalk.sessionsPerWeek) : days
+    }
+
+    /// Steps in order, without the ones that don't apply.
+    private var steps: [Step] {
+        Step.allCases.filter { !(startsWithRunWalk && ($0 == .fitness || $0 == .volume)) }
+    }
+
+    var nextStep: Step {
+        steps.first { $0.rawValue > step.rawValue } ?? .review
+    }
+
+    var previousStep: Step {
+        steps.last { $0.rawValue < step.rawValue } ?? .welcome
     }
 
     /// A sensible spread for a number of days, with rest between runs where possible and the long run kept.
@@ -104,15 +121,16 @@ final class OnboardingDraft {
             goal: goal,
             raceDate: race,
             startDate: today,
-            currentWeeklyMeters: weeklyDistance * units.metersPerUnit,
-            fitness: hasRecentRace
+            currentWeeklyMeters: startsWithRunWalk ? 0 : weeklyDistance * units.metersPerUnit,
+            fitness: hasRecentRace && !startsWithRunWalk
                 ? .recentRace(RacePerformance(recentDistance, timeSeconds: recentTimeSeconds,
                                               date: today.adding(days: -recentAge.daysAgo)))
                 : .estimated,
             runDays: runDays,
             longRunDay: longRunDay,
             experience: experience,
-            goalTimeSeconds: hasGoalTime ? goalTimeSeconds : nil
+            goalTimeSeconds: hasGoalTime ? goalTimeSeconds : nil,
+            runWalkStart: startsWithRunWalk ? today : nil
         )
     }
 

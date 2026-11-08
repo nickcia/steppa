@@ -527,6 +527,7 @@ enum BenchmarkGrid {
         case .intervals: return "I \(reps)×\(Int(work?.estimatedMeters ?? 0)) m (\(km(w.totalMeters)))"
         case .race: return "**RACE**"
         case .hills: return "H \(reps)×\(Int(work?.estimatedSeconds ?? 0)) s uphill (\(km(w.totalMeters)))"
+        case .runWalk: return "RW \(reps)×\(Int(work?.estimatedSeconds ?? 0)) s run"
         }
     }
 

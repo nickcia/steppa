@@ -956,8 +956,9 @@ final class AppModel {
         plan?.weeks.first { $0.startDate == date.startOfWeek }
     }
 
+    /// nil while a new runner is still on run/walk: a race time means little before they can run 30 minutes.
     var prediction: RacePrediction? {
-        guard let plan else { return nil }
+        guard let plan, plan.runWalkWeeksLeft(from: today) == 0 else { return nil }
         return RacePredictor.predict(plan.inputs.goal, fitness: plan.fitness, recentRuns: trainingLog.runs, asOf: today)
     }
 }

@@ -4,7 +4,7 @@ import Foundation
 /// Pure and deterministic: the same inputs always produce the same plan.
 public enum PlanBuilder {
     /// Bump when plan output changes, so stored plans can record which rules made them.
-    public static let engineVersion = 4
+    public static let engineVersion = 5
 
     public static func build(_ inputs: PlanInputs) throws(PlanError) -> TrainingPlan {
         guard inputs.raceDate > inputs.startDate else { throw .raceNotAfterStart }
@@ -20,18 +20,28 @@ public enum PlanBuilder {
 
         var warnings: [PlanWarning] = []
         let recommendedWeeks = PlanRules.recommendedWeeks(inputs.goal)
-        if weeks.count < PlanRules.minimumWeeks(inputs.goal) {
+        if inputs.runWalkStart != nil {
+            // Run/walk to 30 minutes takes about nine weeks before any race training starts.
+            let wanted = RunWalk.stages.count + recommendedWeeks / 2
+            if weeks.count < RunWalk.stages.count + 1 {
+                warnings.append(.shortPlan(weeks: weeks.count, recommendedWeeks: wanted))
+            }
+        } else if weeks.count < PlanRules.minimumWeeks(inputs.goal) {
             warnings.append(.shortPlan(weeks: weeks.count, recommendedWeeks: recommendedWeeks))
         }
         let recommendedVolume = PlanRules.recommendedCurrentMeters(inputs.goal)
-        if inputs.currentWeeklyMeters < recommendedVolume {
+        if inputs.runWalkStart == nil, inputs.currentWeeklyMeters < recommendedVolume {
             warnings.append(.lowStartingVolume(recommendedMeters: recommendedVolume))
         }
-        let recommendedDays = PlanRules.recommendedRunDays(inputs.goal, goalTimeSeconds: inputs.goalTimeSeconds)
+        var recommendedDays = PlanRules.recommendedRunDays(inputs.goal, goalTimeSeconds: inputs.goalTimeSeconds)
+        if inputs.runWalkStart != nil { recommendedDays = max(recommendedDays, RunWalk.sessionsPerWeek) }
         if inputs.runDays.count < recommendedDays {
             warnings.append(.fewRunDays(recommended: recommendedDays))
         }
-        if limited { warnings.append(.volumeLimitedByAvailability) }
+        // New runners aren't nudged to add run days: three is the right number while they start.
+        if limited, inputs.runWalkStart == nil || inputs.runDays.count < RunWalk.sessionsPerWeek {
+            warnings.append(.volumeLimitedByAvailability)
+        }
         let predicted = FitnessModel.raceTimeSeconds(distanceMeters: inputs.goal.meters, score: fitness.score)
         if let goalTime = inputs.goalTimeSeconds, goalTime > 0,
            FitnessModel.score(distanceMeters: inputs.goal.meters, timeSeconds: goalTime) > fitness.score * 1.06 {
@@ -62,9 +72,20 @@ public enum PlanBuilder {
         layoutInputs.startDate = start
         let firstMonday = start.startOfWeek
         let weekCount = firstMonday.days(until: inputs.raceDate.startOfWeek) / 7 + 1
-        let phases = Periodisation.phases(weekCount: weekCount, goal: inputs.goal)
-        var volumes = Periodisation.volumes(phases: phases, goal: inputs.goal, experience: inputs.experience,
-                                            currentMeters: inputs.currentWeeklyMeters, resuming: resuming)
+        // New runners' run/walk weeks come first; the phases and volume progression cover the weeks after them,
+        // starting from what run/walk ends at (three 30-minute runs a week).
+        let runWalkWeeks = (0..<weekCount).filter {
+            RunWalk.stage(for: firstMonday.adding(days: 7 * $0), inputs: inputs) != nil
+        }.count
+        let normalCount = weekCount - runWalkWeeks
+        let currentMeters = inputs.runWalkStart == nil ? inputs.currentWeeklyMeters
+            : max(inputs.currentWeeklyMeters, RunWalk.handoffMeters(paces))
+        let phases = Array(repeating: Phase.base, count: runWalkWeeks)
+            + Periodisation.phases(weekCount: normalCount, goal: inputs.goal)
+        var volumes = Array(repeating: Periodisation.WeekVolume(meters: 0, isStepBack: false), count: runWalkWeeks)
+            + Periodisation.volumes(phases: Array(phases[runWalkWeeks...]), goal: inputs.goal,
+                                    experience: inputs.experience, currentMeters: currentMeters,
+                                    resuming: runWalkWeeks > 0 ? nil : resuming)
         // The last loading week the athlete actually trained in, for restarting after a break.
         var lastHeldLoading = resuming?.lastLoadingMeters
         var breaksHandled: Set<UUID> = []
@@ -99,13 +120,23 @@ public enum PlanBuilder {
                                   min(PlanRules.minimumStartingMeters, before))
                 // The first week back is the restart; the weeks after it grow from there by the usual rules.
                 let rest = Periodisation.volumes(phases: Array(phases[(index + 1)...]), goal: inputs.goal,
-                                                 experience: inputs.experience, currentMeters: inputs.currentWeeklyMeters,
+                                                 experience: inputs.experience, currentMeters: currentMeters,
                                                  resuming: .init(lastLoadingMeters: restart, consecutiveLoadingWeeks: 1))
                 volumes.replaceSubrange(index..., with: [.init(meters: restart, isStepBack: false)] + rest)
             }
+            if index < runWalkWeeks {
+                let result = WeekLayout.layout(.init(monday: monday, weekIndex: index, phase: .base,
+                                                     volume: volumes[index], inputs: layoutInputs, paces: paces,
+                                                     isRaceWeek: false,
+                                                     existing: index == 0 ? firstWeekExisting : .init()))
+                let held = result.workouts.reduce(0) { $0 + $1.totalMeters }
+                weeks.append(PlanWeek(index: index, startDate: monday, phase: .base, isStepBack: false,
+                                      targetMeters: held, workouts: result.workouts))
+                continue
+            }
             var volume = volumes[index]
             if volume.isStepBack || phases[index] == .taper { volume.meters *= heldShare }
-            let result = WeekLayout.layout(.init(monday: monday, weekIndex: index, phase: phases[index],
+            let result = WeekLayout.layout(.init(monday: monday, weekIndex: index - runWalkWeeks, phase: phases[index],
                                                  volume: volume, inputs: layoutInputs, paces: paces,
                                                  isRaceWeek: index == weekCount - 1,
                                                  existing: index == 0 ? firstWeekExisting : .init(),

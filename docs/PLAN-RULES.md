@@ -154,6 +154,19 @@ weeks) get a warning.
 Every workout is a warm-up, repeated blocks and a cool-down. This maps directly onto Apple Watch
 structured workouts.
 
+### New runners: run/walk first
+
+Someone who can't yet run 30 minutes non-stop ("Just starting out" in onboarding) is planned as a beginner, with
+run/walk weeks before everything else. Each week has three run/walk sessions on free run days, spread out with the
+long-run day first: a 5-minute walk, repeats of running and walking, and a 5-minute walk. Running is by feel, so the
+steps have no pace target. The stages are 8 × (1 min run, 1:30 walk), 7 × (1:30, 1:30), 6 × (2:00, 1:30),
+5 × (3:00, 1:30), 4 × (5:00, 2:00), 3 × (8:00, 2:00), 2 × (12:00, 2:00), then 25 and 30 minutes non-stop: short run
+intervals, walk breaks of two minutes at most, about nine weeks, like the usual beginner programmes. With less
+time before race week the stages are compressed, always ending at 30 minutes non-stop. A week with fewer than two
+free run days (a partial first week, or time off) doesn't move the athlete on a stage. Run/walk weeks sit outside
+the volume rules (phases, the 10% rule and step-backs start after them), and the normal plan then starts from three
+30-minute runs a week. The recommended run days are at least 3, and plans shorter than ten weeks get a warning.
+
 ### Time off (holidays, busy weeks, injury and illness)
 
 Days marked as time off get no runs; the week shrinks in proportion to the run days left, as a partial week does.

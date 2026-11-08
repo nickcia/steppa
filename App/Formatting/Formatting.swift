@@ -68,6 +68,12 @@ struct DisplayFormat {
     }
 
     /// Short duration for recoveries: "90 s", "2 min", "2:30".
+    /// Minutes for run/walk steps: "1 min", "1:30 min", "12 min".
+    static func minutes(_ seconds: Double) -> String {
+        let s = Int(seconds.rounded())
+        return s % 60 == 0 ? String(localized: "\(s / 60) min") : String(localized: "\(clock(seconds)) min")
+    }
+
     static func shortDuration(_ seconds: Double) -> String {
         let s = Int(seconds.rounded())
         if s < 120 { return "\(s) s" }

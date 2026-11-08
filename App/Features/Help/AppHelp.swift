@@ -101,6 +101,11 @@ nonisolated enum AppHelp {
                     body: """
                     With iCloud on, your plan follows you to a new iPhone. You can also save everything as a file with Settings › Your data › Export data, and bring it back with Import data. To start a new plan, Settings › Training › End this plan, then answer the questions again.
                     """),
+        HelpArticle(id: "runwalk", title: "New to running: run/walk",
+                    keywords: ["beginner", "new runner", "couch", "run/walk", "run walk", "walk breaks", "can't run", "start running", "first 5k", "walking"],
+                    body: """
+                    If you can't run 30 minutes without stopping yet, choose Just starting out when you make a plan. The first weeks are three run/walk sessions a week: a 5-minute walk, short runs with walking breaks, and a 5-minute walk. The runs get longer and the breaks fewer each week until you run 30 minutes non-stop (about 9 weeks), then the plan trains you for your race. Run slowly enough to talk. If you need a break (ill, injured or away), add it as time off: the run/walk weeks pause and pick up at the same stage when you're back. To start again as a new runner, Settings › Training › End this plan.
+                    """),
         HelpArticle(id: "reminders", title: "Workout reminders",
                     keywords: ["reminder", "notification", "notify", "alert", "morning"],
                     body: """

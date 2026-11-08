@@ -263,7 +263,8 @@ public enum PlanAdapter {
                                 hasLongRun: past.contains { $0.kind == .long || $0.kind == .marathonPaceLong },
                                 remainingMeters: current.targetMeters - pastMeters,
                                 trainingMeters: pastMeters,
-                                highIntensityMeters: past.reduce(0) { $0 + $1.highIntensityMeters }),
+                                highIntensityMeters: past.reduce(0) { $0 + $1.highIntensityMeters },
+                                runCount: past.filter { $0.kind != .race }.count),
                 recentLongestMeters: WeekLayout.recentLongestMeters(plan.workouts, before: currentMonday)))
             var merged = current
             merged.workouts = past + thisWeek.workouts
