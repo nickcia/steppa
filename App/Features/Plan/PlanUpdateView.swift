@@ -181,7 +181,7 @@ struct PlanUpdateView: View {
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Theme.onAccent)
                     .frame(width: 52, height: 52)
-                    .darkGlass(Circle())
+                    .background(Theme.accent, in: Circle())
                     .scaleEffect(stage >= 1 ? 1 : 0.4)
                     .opacity(stage >= 1 ? 1 : 0)
                 VStack(alignment: .leading, spacing: 6) {

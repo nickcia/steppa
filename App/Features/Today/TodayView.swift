@@ -77,7 +77,7 @@ struct TodayView: View {
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .darkGlass(Capsule(), glow: false)
+                    .darkGlass(Capsule())
                 }
                 .sheet(isPresented: $coaching) { CoachView() }
             }

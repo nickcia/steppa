@@ -23,9 +23,12 @@ struct PrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: 54)
             .foregroundStyle(isEnabled ? Theme.onAccent : Theme.secondaryInk)
             .background {
-                if !isEnabled { Capsule().fill(Theme.subtle) }
+                if isEnabled {
+                    Capsule().fill(Theme.accent)
+                } else {
+                    Capsule().fill(Theme.subtle)
+                }
             }
-            .modifier(OptionalGlass(enabled: isEnabled))
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)
     }
@@ -143,17 +146,19 @@ extension View {
         background(Theme.background.ignoresSafeArea())
     }
 
-    /// Covers the status bar area so scrolled content doesn't run under the clock (screens without a nav bar).
+    /// Fades scrolled content out as it reaches the status bar, so nothing runs under the clock and there's no
+    /// hard edge (screens without a nav bar). Apply to the scroll view, before its background.
     func statusBarBackdrop() -> some View {
-        overlay(alignment: .top) {
-            // Solid behind the status bar only, then a short fade, so content scrolling up softens out without
-            // covering the top of the page when it's at rest.
+        mask {
             VStack(spacing: 0) {
-                Theme.background.frame(height: 0).ignoresSafeArea(edges: .top)
-                LinearGradient(colors: [Theme.background, Theme.background.opacity(0)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 10)
+                LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
+                                       .init(color: .black.opacity(0.35), location: 0.4),
+                                       .init(color: .black, location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: 18)
+                // Reaches past the bottom edge, so content under the floating tab bar stays visible.
+                Color.black.padding(.bottom, -400)
             }
-            .allowsHitTesting(false)
         }
     }
 }
@@ -210,51 +215,62 @@ struct HeatBar: View {
 }
 
 
-// MARK: - Dark glass (the logo's material)
+// MARK: - Glass (the logo's material), for the few floating, important pieces
 
-/// Smoky dark glass, as in the logo: a deep gradient with a soft reflection across the top, a bright edge where
-/// the light catches the top left, and the iridescent sheen along the bottom-right rim.
+/// Dark glass, used only where it means something: today's workout and the Coach button. A deep smoky
+/// gradient with a soft reflection across the top and a bright edge where the light catches the top left, like
+/// the logo. No colour fringe: the logo's sheen is kept for progress and the coach.
 struct DarkGlass<S: InsettableShape>: ViewModifier {
     let shape: S
-    var glow = true
 
     func body(content: Content) -> some View {
         content
             .background {
                 ZStack {
-                    shape.fill(LinearGradient(colors: [Color(hex: 0x2B2B31), Color(hex: 0x141418), Color(hex: 0x09090B)],
+                    shape.fill(LinearGradient(colors: [Color(hex: 0x303036), Color(hex: 0x151518), Color(hex: 0x09090B)],
                                               startPoint: .top, endPoint: .bottom))
                     shape.fill(LinearGradient(colors: [.white.opacity(0.10), .white.opacity(0)],
-                                              startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45)))
+                                              startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.4)))
                 }
             }
             .overlay {
-                ZStack {
-                    // Pink and amber along the bottom, cyan and violet up the right, fading out towards the top left.
-                    shape.strokeBorder(LinearGradient(colors: [Theme.sheenColors[2], Theme.sheenColors[3],
-                                                               Theme.sheenColors[0], Theme.sheenColors[1]],
-                                                      startPoint: .bottomLeading, endPoint: .topTrailing), lineWidth: 2)
-                        .mask(LinearGradient(stops: [.init(color: .clear, location: 0.25), .init(color: .black, location: 0.7)],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
-                    shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.08), .clear],
-                                                      startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
-                }
-                .allowsHitTesting(false)
+                shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.06), .white.opacity(0.14)],
+                                                  startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+                    .allowsHitTesting(false)
             }
-            .shadow(color: glow ? Color(hex: 0x8C73FF).opacity(0.16) : .clear, radius: 14, y: 6)
+            .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
+    }
+}
+
+/// The floating tab bar: the system's Liquid Glass on iOS 26 and later, tinted dark, so content scrolling behind
+/// it shows through refracted; frosted dark glass on earlier iOS.
+struct BarGlass<S: InsettableShape>: ViewModifier {
+    let shape: S
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .background(shape.fill(Color.black.opacity(0.55)))
+                .glassEffect(.regular.tint(.black.opacity(0.5)).interactive(), in: shape)
+        } else {
+            content
+                .background {
+                    ZStack {
+                        shape.fill(.ultraThinMaterial)
+                        shape.fill(Color.black.opacity(0.72))
+                    }
+                    .environment(\.colorScheme, .dark)
+                }
+                .overlay {
+                    shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.4), .white.opacity(0.05), .white.opacity(0.12)],
+                                                      startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+        }
     }
 }
 
 extension View {
-    func darkGlass<S: InsettableShape>(_ shape: S, glow: Bool = true) -> some View {
-        modifier(DarkGlass(shape: shape, glow: glow))
-    }
-}
-
-/// Dark glass on a capsule, only when enabled (disabled main buttons stay flat grey).
-private struct OptionalGlass: ViewModifier {
-    let enabled: Bool
-    func body(content: Content) -> some View {
-        if enabled { content.darkGlass(Capsule(), glow: false) } else { content }
-    }
+    func darkGlass<S: InsettableShape>(_ shape: S) -> some View { modifier(DarkGlass(shape: shape)) }
+    func barGlass<S: InsettableShape>(_ shape: S) -> some View { modifier(BarGlass(shape: shape)) }
 }
