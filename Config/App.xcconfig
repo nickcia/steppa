@@ -1,8 +1,9 @@
-// App identity. "Steppa" is a working title: change the display name here.
+// App identity: the name people see is set here. (The project, targets and code keep the earlier working
+// name, Steppa, which nobody sees.)
 //
 // The bundle ID and iCloud container can't change once the app ships, so they deliberately
 // don't include the app name. Set BUNDLE_ID_PREFIX to your own reverse-domain prefix.
-APP_DISPLAY_NAME = Steppa
+APP_DISPLAY_NAME = TrackStar
 BUNDLE_ID_PREFIX = io.github.nickcia
 PRODUCT_BUNDLE_IDENTIFIER = $(BUNDLE_ID_PREFIX).runcoach
 

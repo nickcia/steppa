@@ -2,11 +2,11 @@
 
 _Last updated: 7 November 2026_
 
-Steppa is a free, open-source running coach for iPhone. It's built so that your data stays yours.
+TrackStar is a free, open-source running coach for iPhone. It's built so that your data stays yours.
 
 ## The short version
 
-- There are no Steppa accounts, servers, ads, analytics or tracking.
+- There are no TrackStar accounts, servers, ads, analytics or tracking.
 - Your training plan and progress are stored on your iPhone (and in your own private iCloud, if sync is on).
 - Nothing is sent to the developer, ever.
 - If you choose to connect Intervals.icu, your upcoming workouts are sent to your own Intervals.icu account so

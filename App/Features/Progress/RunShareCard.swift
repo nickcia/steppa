@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import PlanEngine
 
 /// A run as a picture for Strava, Instagram or a message: the session, the key numbers, splits and heart-rate
-/// zones. Made on the phone; sharing goes through the iPhone share sheet, so nothing passes through Steppa.
+/// zones. Made on the phone; sharing goes through the iPhone share sheet, so nothing passes through TrackStar.
 struct RunShareCard: View {
     let run: CompletedRun
     let analysis: RunAnalysis
@@ -61,7 +61,7 @@ struct RunShareCard: View {
             zones
 
             HStack {
-                Text("Planned and coached by Steppa")
+                Text("Planned and coached by TrackStar")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Theme.secondaryInk)
                 Spacer()

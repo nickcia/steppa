@@ -1,10 +1,10 @@
-# How Steppa's plans compare with published coaching methods
+# How TrackStar's plans compare with published coaching methods
 
-People reasonably ask whether Steppa's plans are as good as a commercial app's or a coach's. Commercial
-plan engines are proprietary, and Steppa collects no outcome data (no servers, no analytics), so we
+People reasonably ask whether TrackStar's plans are as good as a commercial app's or a coach's. Commercial
+plan engines are proprietary, and TrackStar collects no outcome data (no servers, no analytics), so we
 can't compare race results. What we can do:
 
-1. measure Steppa's generated plans against numbers that well-regarded coaching books and sports-science
+1. measure TrackStar's generated plans against numbers that well-regarded coaching books and sports-science
    research publish, and say plainly where they differ;
 2. ask qualified coaches to review sample plans (see the [coach review kit](#coach-review-kit)).
 
@@ -55,12 +55,12 @@ on a Sunday and uses a recent race result typical for the level. Every plan must
 
 ## Results
 
-✅ inside the range. ⚠️ outside: a known deviation, explained below. Steppa's figures are the minimum to
+✅ inside the range. ⚠️ outside: a known deviation, explained below. TrackStar's figures are the minimum to
 maximum across the grid. B / I / A = beginner / intermediate / advanced.
 
 ### Volume and progression
 
-| Metric | Reference | Source | Steppa | |
+| Metric | Reference | Source | TrackStar | |
 |---|---|---|---|---|
 | Recommended plan length | 5K 6–12 wk · 10K 8–12 · half 10–16 · marathon 12–24 | Higdon; Pfitzinger & Latter; Pfitzinger & Douglas; Daniels (schedules) | 8 · 10 · 12 · 16 | ✅ |
 | Peak ÷ starting volume | 1.0–2.7× | Higdon; Pfitzinger & Douglas (schedules) | 1.1–2.2× | ✅ |
@@ -71,7 +71,7 @@ maximum across the grid. B / I / A = beginner / intermediate / advanced.
 
 ### Long runs
 
-| Metric | Reference | Source | Steppa | |
+| Metric | Reference | Source | TrackStar | |
 |---|---|---|---|---|
 | Long-run share, mean | 25–50% | Daniels (≤ 25%, ≤ 30% under 64 km/wk); Higdon novice plans reach ~50% | 29–48% | ✅ |
 | Long-run share, max | ≤ 50% | Higdon | 30–50% | ✅ |
@@ -82,7 +82,7 @@ maximum across the grid. B / I / A = beginner / intermediate / advanced.
 
 ### Intensity
 
-| Metric | Reference | Source | Steppa | |
+| Metric | Reference | Source | TrackStar | |
 |---|---|---|---|---|
 | Share below threshold | ≥ 75% (about 80/20) | Seiler 2010; Stöggl & Sperlich 2015 | 88–100% | ✅ |
 | Quality sessions per week (build/peak) | B 0–1 · I 1–2 · A 2 | Higdon (novice plans: none); Daniels "2Q" | B 0–1 · I 2 · A 2 | ✅ |
@@ -91,7 +91,7 @@ maximum across the grid. B / I / A = beginner / intermediate / advanced.
 
 ### Taper
 
-| Metric | Reference | Source | Steppa | |
+| Metric | Reference | Source | TrackStar | |
 |---|---|---|---|---|
 | Taper length | 5K/10K 1–2 wk · half 1–3 · marathon 2–3 | Mujika & Padilla 2003 (4–28 days); Bosquet 2007 (~2 wk); Pfitzinger & Douglas and Smyth & Lawlor 2021 (3 wk marathon) | 1 · 2 · 3 | ✅ |
 | Taper volume cut, half | 41–60% | Bosquet 2007 | 43–53% | ✅ |
@@ -102,7 +102,7 @@ maximum across the grid. B / I / A = beginner / intermediate / advanced.
 
 Checked for every fitness score from 30 to 70 in steps of 2.5.
 
-| Relationship | Reference | Source | Steppa | |
+| Relationship | Reference | Source | TrackStar | |
 |---|---|---|---|---|
 | Threshold pace | between 10K and half-marathon race pace | Daniels (about 1-hour race pace); Pfitzinger (15K to half-marathon pace) | inside | ✅ |
 | Interval pace | race pace for a 10–15 min effort; 3K–5K pace for runners who race 3K in ≤ ~15 min | Daniels; Pfitzinger | ≈ 15-min race pace | ✅ |
@@ -165,7 +165,7 @@ Padilla's 60–90%. We haven't changed it, because adding race-week running isn'
 **3. One beginner marathon case cuts 40.7%, just under 41%.** Beginners step back every third week, so
 the average of the last three loading weeks includes lower weeks.
 
-## Where Steppa differs from a coach-built plan
+## Where TrackStar differs from a coach-built plan
 
 The benchmark checks numbers, but a coach also brings things the numbers don't capture:
 
@@ -182,11 +182,11 @@ The benchmark checks numbers, but a coach also brings things the numbers don't c
   run can be an easy run as long as the long run (sample D). A coach would shorten it or make it a rest
   day.
 - **No individual judgement.** No account of injury history, age, sex, menstrual cycle, sleep, work or
-  life stress, heat, altitude or terrain. Steppa adapts to completed runs, missed runs and faster or
+  life stress, heat, altitude or terrain. TrackStar adapts to completed runs, missed runs and faster or
   slower sessions, but a coach can read context.
 - **Fitness comes from equations.** The Daniels & Gilbert equations and the low-mileage penalty for long
   races are population-level estimates.
-- **Not tested on outcomes.** We don't know how many Steppa users finish, improve or get injured. This
+- **Not tested on outcomes.** We don't know how many TrackStar users finish, improve or get injured. This
   benchmark checks plans against methods, not results.
 
 ## Coach review kit

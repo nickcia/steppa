@@ -27,7 +27,7 @@ struct BugReport: Equatable {
         return components.url!
     }
 
-    var mailSubject: String { "Steppa bug report (\(appVersion))" }
+    var mailSubject: String { "TrackStar bug report (\(appVersion))" }
 
     /// Prompts for the description, then the details.
     var mailBody: String {
@@ -96,7 +96,7 @@ struct BugReportView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Your email app opens with a message ready to go. Describe what happened, add a screenshot if it helps, and send. Nothing is sent from Steppa itself.")
+                    Text("Your email app opens with a message ready to go. Describe what happened, add a screenshot if it helps, and send. Nothing is sent from TrackStar itself.")
                         .font(.subheadline)
                 }
                 Section {

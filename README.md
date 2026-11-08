@@ -1,11 +1,11 @@
-# Steppa
+# TrackStar
 
 **A free, open-source running coach for iPhone.** Personal training plans for 5K to marathon that adapt
 to the running you actually do, with structured workouts sent straight to Apple Watch.
 
 No accounts. No servers. No ads. No tracking. Your data stays on your phone and in your own iCloud.
 
-> "Steppa" is a working title and may change before release.
+> The Xcode project and code still use the earlier working name, Steppa; the app is called TrackStar.
 
 <p>
   <img src="docs/screenshots/today.png" width="200" alt="Today: a threshold session with warm-up, repeats and cool-down">
@@ -73,7 +73,7 @@ changes, and requires every result to pass.
 
 How do the plans compare with published coaching methods? [docs/PLAN-BENCHMARK.md](docs/PLAN-BENCHMARK.md)
 measures generated plans against ranges from Daniels, Pfitzinger, Higdon and sports-science research, lists
-where Steppa falls short, and includes a review kit for a qualified coach.
+where TrackStar falls short, and includes a review kit for a qualified coach.
 
 ## Privacy
 

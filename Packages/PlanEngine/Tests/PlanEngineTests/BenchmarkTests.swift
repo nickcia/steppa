@@ -436,8 +436,8 @@ enum BenchmarkGrid {
     static func table(_ rows: [Row]) -> String {
         func pad(_ s: String, _ n: Int) -> String { s.count >= n ? s : s + String(repeating: " ", count: n - s.count) }
         let level = ["beginner": "beg", "intermediate": "int", "advanced": "adv"]
-        var out = "\nSteppa plan benchmark (\(Metric.allCases.count) metrics; ✅ in range, ⚠️ known deviation, ❌ outside)\n"
-        out += pad("Metric", 26) + pad("Race", 13) + pad("Lvl", 5) + pad("Steppa", 13) + pad("Reference", 13) + "Source\n"
+        var out = "\nTrackStar plan benchmark (\(Metric.allCases.count) metrics; ✅ in range, ⚠️ known deviation, ❌ outside)\n"
+        out += pad("Metric", 26) + pad("Race", 13) + pad("Lvl", 5) + pad("TrackStar", 13) + pad("Reference", 13) + "Source\n"
         for row in rows {
             let known = ReferenceRanges.knownDeviations[ReferenceRanges.key(row.metric, row.goal, row.level)] != nil
             let mark = row.reference == nil ? "  " : row.inRange ? "✅" : known ? "⚠️" : "❌"

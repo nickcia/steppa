@@ -151,7 +151,13 @@ final class CalendarService {
 
     /// The calendar this app created, made on first use in the same account as the default calendar.
     private func appCalendar() throws -> EKCalendar {
+        let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "TrackStar"
         if let id = defaults.string(forKey: Self.calendarIDKey), let existing = store.calendar(withIdentifier: id) {
+            // Calendars made before the app was renamed carry the old name.
+            if existing.title == "Steppa", existing.title != name {
+                existing.title = name
+                try? store.saveCalendar(existing, commit: true)
+            }
             return existing
         }
         guard let source = store.defaultCalendarForNewEvents?.source
@@ -159,7 +165,7 @@ final class CalendarService {
             throw SyncError.noCalendarSource
         }
         let calendar = EKCalendar(for: .event, eventStore: store)
-        calendar.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Steppa"
+        calendar.title = name
         calendar.source = source
         calendar.cgColor = UIColor(hex: 0x5CCB6A).cgColor
         try store.saveCalendar(calendar, commit: true)
