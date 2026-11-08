@@ -470,15 +470,18 @@ private struct IntervalsSection: View {
     @ViewBuilder private var watchRows: some View {
         if let athlete = model.intervalsAthlete {
             ForEach(athlete.links) { link in
-                // A plain row: LabeledContent with a Label value grew a large empty space below it on iOS 27.
+                // A plain row: LabeledContent with a Label value grew a large empty space below it on iOS 27, and a
+                // Label here showed only its icon.
                 HStack {
                     Text(link.name)
                     Spacer(minLength: 8)
                     if link.uploading {
-                        Label("Receiving workouts", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .lineLimit(1)
-                            .fixedSize()
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Receiving workouts")
+                        }
+                        .foregroundStyle(.green)
+                        .lineLimit(1)
                     } else {
                         Button("Turn on") { Task { await model.enableIntervalsUpload(link) } }
                     }
