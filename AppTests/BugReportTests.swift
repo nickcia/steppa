@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import PlanEngine
-@testable import Steppa
+@testable import TrackStar
 
 @MainActor
 struct BugReportTests {

@@ -900,7 +900,9 @@ nonisolated struct ExportBundle: Codable, Equatable {
         var reasons: [AdaptationReason]
     }
 
-    static let currentFormat = "steppa-export"
+    static let currentFormat = "trackstar-export"
+    /// Backups made before the app was renamed.
+    static let legacyFormats = ["steppa-export"]
     static let currentVersion = 1
 
     var format = currentFormat
@@ -936,7 +938,7 @@ nonisolated struct ExportBundle: Codable, Equatable {
         decoder.dateDecodingStrategy = .iso8601
         let bundle: ExportBundle
         do { bundle = try decoder.decode(ExportBundle.self, from: data) } catch { throw ImportError.notAnExport }
-        guard bundle.format == currentFormat else { throw ImportError.notAnExport }
+        guard bundle.format == currentFormat || legacyFormats.contains(bundle.format) else { throw ImportError.notAnExport }
         guard bundle.version <= currentVersion else { throw ImportError.newerVersion }
         return bundle
     }

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import WorkoutKit
 import PlanEngine
-@testable import Steppa
+@testable import TrackStar
 
 @MainActor
 struct HillsAndStridesTests {

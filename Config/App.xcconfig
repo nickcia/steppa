@@ -1,5 +1,4 @@
-// App identity: the name people see is set here. (The project, targets and code keep the earlier working
-// name, Steppa, which nobody sees.)
+// App identity: the name people see is set here.
 //
 // The bundle ID and iCloud container can't change once the app ships, so they deliberately
 // don't include the app name. Set BUNDLE_ID_PREFIX to your own reverse-domain prefix.
@@ -19,8 +18,8 @@ CURRENT_PROJECT_VERSION = 1
 ENABLE_ICLOUD = NO
 ICLOUD_CONTAINER = iCloud.$(BUNDLE_ID_PREFIX).runcoach
 
-ENTITLEMENTS_ICLOUD_YES = Config/Steppa-iCloud.entitlements
-ENTITLEMENTS_ICLOUD_NO = Config/Steppa.entitlements
+ENTITLEMENTS_ICLOUD_YES = Config/TrackStar-iCloud.entitlements
+ENTITLEMENTS_ICLOUD_NO = Config/TrackStar.entitlements
 CODE_SIGN_ENTITLEMENTS = $(ENTITLEMENTS_ICLOUD_$(ENABLE_ICLOUD))
 CONDITION_ICLOUD_YES = ICLOUD
 SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(CONDITION_ICLOUD_$(ENABLE_ICLOUD))

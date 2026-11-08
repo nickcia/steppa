@@ -20,13 +20,16 @@ nonisolated struct IntervalsEvent: Codable, Hashable, Sendable {
     var name: String
     /// The workout in Intervals.icu's workout-builder text format.
     var description: String
-    /// "steppa-<workout id>-<content hash>": marks events this app owns, and changes whenever the workout does.
+    /// "trackstar-<workout id>-<content hash>": marks events this app owns, and changes whenever the workout does.
     var external_id: String
 }
 
 /// Converts plan workouts into Intervals.icu events. Pure, so it's unit-tested.
 enum IntervalsWorkoutBuilder {
-    nonisolated static let externalIDPrefix = "steppa-"
+    nonisolated static let externalIDPrefix = "trackstar-"
+    /// Every prefix this app has used (it was called Steppa before), so events it sent under the old name are still
+    /// recognised as its own and replaced, never left behind.
+    nonisolated static let ownedPrefixes = [externalIDPrefix, "steppa-"]
 
     static func event(for workout: Workout, format: DisplayFormat) -> IntervalsEvent {
         let name = "\(workout.kind.name) · \(WorkoutDescriber(format: format).summary(workout))"
@@ -478,7 +481,9 @@ nonisolated struct IntervalsClient: Sendable {
 
     /// What to add and what to remove (by event ID). Only events with this app's prefix are ever removed.
     static func diff(wanted: [IntervalsEvent], existing: [ExistingEvent]) -> (add: [IntervalsEvent], remove: [Int]) {
-        let ours = existing.filter { $0.external_id?.hasPrefix(IntervalsWorkoutBuilder.externalIDPrefix) == true }
+        let ours = existing.filter { event in
+            IntervalsWorkoutBuilder.ownedPrefixes.contains { event.external_id?.hasPrefix($0) == true }
+        }
         let present = Set(ours.compactMap(\.external_id))
         let wantedIDs = Set(wanted.map(\.external_id))
         var seen: Set<String> = []

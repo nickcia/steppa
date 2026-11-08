@@ -41,7 +41,7 @@ These go against the project's core promises: free, private, and cheap to mainta
 
 - Requires Xcode 26 or later. The app supports iOS 17 and later.
 - Engine tests: `cd Packages/PlanEngine && swift test`
-- App tests: `xcodebuild test -project Steppa.xcodeproj -scheme Steppa -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
+- App tests: `xcodebuild test -project TrackStar.xcodeproj -scheme TrackStar -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
 - Launch with `-demo` in debug builds for sample data.
 - Swift 6 with strict concurrency. App code is main-actor by default. Keep the engine free of UI and
   Apple-framework code (Foundation only).

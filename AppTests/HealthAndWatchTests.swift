@@ -3,7 +3,7 @@ import HealthKit
 import Testing
 import WorkoutKit
 import PlanEngine
-@testable import Steppa
+@testable import TrackStar
 
 /// Stands in for Apple Health.
 final class FakeRunSource: RunSource {

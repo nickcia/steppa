@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import Testing
 import PlanEngine
-@testable import Steppa
+@testable import TrackStar
 
 /// Integration tests for the app layer: storage, edits, adaptation and export/import,
 /// each against a fresh in-memory store with a pinned "today".

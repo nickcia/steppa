@@ -5,7 +5,6 @@ to the running you actually do, with structured workouts sent straight to Apple 
 
 No accounts. No servers. No ads. No tracking. Your data stays on your phone and in your own iCloud.
 
-> The Xcode project and code still use the earlier working name, Steppa; the app is called TrackStar.
 
 <p>
   <img src="docs/screenshots/today.png" width="200" alt="Today: a threshold session with warm-up, repeats and cool-down">
@@ -97,7 +96,7 @@ training programme. Stop and get advice if you feel pain, dizziness or chest dis
 Requirements: Xcode 26 or later, iOS 17 or later (a device is needed for Apple Watch and real Health data).
 
 ```bash
-open Steppa.xcodeproj
+open TrackStar.xcodeproj
 ```
 
 Run the plan engine's tests (they run on a Mac, no simulator needed):
@@ -109,7 +108,7 @@ cd Packages/PlanEngine && swift test
 Run the app's tests:
 
 ```bash
-xcodebuild test -project Steppa.xcodeproj -scheme Steppa -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+xcodebuild test -project TrackStar.xcodeproj -scheme TrackStar -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 In debug builds, launch with the `-demo` argument to start with a sample plan part-way through (stored in

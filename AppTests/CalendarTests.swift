@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import PlanEngine
-@testable import Steppa
+@testable import TrackStar
 
 @MainActor
 struct CalendarEventTests {
@@ -62,5 +62,13 @@ struct CalendarEventTests {
         #expect(diff.add.map(\.key) == ["b-2"])
         // Event 3 has no key: someone added it by hand, so it stays.
         #expect(diff.remove.sorted() == ["2", "4"])
+    }
+}
+
+struct RenameCompatibilityTests {
+    @Test func calendarEventsFromBeforeTheRenameAreStillRecognised() {
+        #expect(CalendarEventContent.key(from: URL(string: "trackstar-workout:abc-1")) == "abc-1")
+        #expect(CalendarEventContent.key(from: URL(string: "steppa-workout:abc-1")) == "abc-1")
+        #expect(CalendarEventContent.key(from: URL(string: "https://example.com")) == nil)
     }
 }

@@ -22,5 +22,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build for the iOS Simulator
         run: |
-          xcodebuild build -project Steppa.xcodeproj -scheme Steppa \
+          xcodebuild build -project TrackStar.xcodeproj -scheme TrackStar \
             -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO

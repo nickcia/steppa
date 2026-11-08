@@ -16,14 +16,14 @@
 			containerPortal = 5E7A00000000000000000009 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 5E7A00000000000000000006;
-			remoteInfo = Steppa;
+			remoteInfo = TrackStar;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		5E7A00000000000000000001 /* Steppa.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Steppa.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E7A00000000000000000001 /* TrackStar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrackStar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E7A0000000000000000000D /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
-		5E7A00000000000000000040 /* SteppaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SteppaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E7A00000000000000000040 /* TrackStarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrackStarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,8 +79,8 @@
 		5E7A00000000000000000005 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				5E7A00000000000000000001 /* Steppa.app */,
-				5E7A00000000000000000040 /* SteppaTests.xctest */,
+				5E7A00000000000000000001 /* TrackStar.app */,
+				5E7A00000000000000000040 /* TrackStarTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -88,9 +88,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		5E7A00000000000000000006 /* Steppa */ = {
+		5E7A00000000000000000006 /* TrackStar */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5E7A0000000000000000000F /* Build configuration list for PBXNativeTarget "Steppa" */;
+			buildConfigurationList = 5E7A0000000000000000000F /* Build configuration list for PBXNativeTarget "TrackStar" */;
 			buildPhases = (
 				5E7A00000000000000000007 /* Sources */,
 				5E7A00000000000000000003 /* Frameworks */,
@@ -103,17 +103,17 @@
 			fileSystemSynchronizedGroups = (
 				5E7A00000000000000000002 /* App */,
 			);
-			name = Steppa;
+			name = TrackStar;
 			packageProductDependencies = (
 				5E7A0000000000000000000B /* PlanEngine */,
 			);
-			productName = Steppa;
-			productReference = 5E7A00000000000000000001 /* Steppa.app */;
+			productName = TrackStar;
+			productReference = 5E7A00000000000000000001 /* TrackStar.app */;
 			productType = "com.apple.product-type.application";
 		};
-		5E7A00000000000000000045 /* SteppaTests */ = {
+		5E7A00000000000000000045 /* TrackStarTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5E7A00000000000000000048 /* Build configuration list for PBXNativeTarget "SteppaTests" */;
+			buildConfigurationList = 5E7A00000000000000000048 /* Build configuration list for PBXNativeTarget "TrackStarTests" */;
 			buildPhases = (
 				5E7A00000000000000000042 /* Sources */,
 				5E7A00000000000000000043 /* Frameworks */,
@@ -127,9 +127,9 @@
 			fileSystemSynchronizedGroups = (
 				5E7A00000000000000000041 /* AppTests */,
 			);
-			name = SteppaTests;
-			productName = SteppaTests;
-			productReference = 5E7A00000000000000000040 /* SteppaTests.xctest */;
+			name = TrackStarTests;
+			productName = TrackStarTests;
+			productReference = 5E7A00000000000000000040 /* TrackStarTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -151,7 +151,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 5E7A00000000000000000012 /* Build configuration list for PBXProject "Steppa" */;
+			buildConfigurationList = 5E7A00000000000000000012 /* Build configuration list for PBXProject "TrackStar" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -168,8 +168,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				5E7A00000000000000000006 /* Steppa */,
-				5E7A00000000000000000045 /* SteppaTests */,
+				5E7A00000000000000000006 /* TrackStar */,
+				5E7A00000000000000000045 /* TrackStarTests */,
 			);
 		};
 /* End PBXProject section */
@@ -211,7 +211,7 @@
 /* Begin PBXTargetDependency section */
 		5E7A00000000000000000047 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 5E7A00000000000000000006 /* Steppa */;
+			target = 5E7A00000000000000000006 /* TrackStar */;
 			targetProxy = 5E7A00000000000000000046 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -339,7 +339,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Steppa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Steppa";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrackStar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrackStar";
 			};
 			name = Debug;
 		};
@@ -357,14 +357,14 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Steppa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Steppa";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrackStar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrackStar";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		5E7A0000000000000000000F /* Build configuration list for PBXNativeTarget "Steppa" */ = {
+		5E7A0000000000000000000F /* Build configuration list for PBXNativeTarget "TrackStar" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5E7A00000000000000000010 /* Debug */,
@@ -373,7 +373,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5E7A00000000000000000012 /* Build configuration list for PBXProject "Steppa" */ = {
+		5E7A00000000000000000012 /* Build configuration list for PBXProject "TrackStar" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5E7A00000000000000000013 /* Debug */,
@@ -382,7 +382,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5E7A00000000000000000048 /* Build configuration list for PBXNativeTarget "SteppaTests" */ = {
+		5E7A00000000000000000048 /* Build configuration list for PBXNativeTarget "TrackStarTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5E7A00000000000000000049 /* Debug */,

@@ -3,7 +3,7 @@ import SwiftUI
 import PlanEngine
 
 @main
-struct SteppaApp: App {
+struct TrackStarApp: App {
     private let container: ModelContainer
     @State private var model: AppModel
     @State private var crashes = CrashReporter()

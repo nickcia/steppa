@@ -7,7 +7,7 @@ import PlanEngine
 enum Theme {
     // A light, calm look: soft grey page, near-white cards and near-black type, with accents from the logo:
     // dark glass for the hero card, tab bar and main buttons, and its iridescent sheen for progress and
-    // highlights. Red → amber → green still marks effort and how a week went. Always light mode (see SteppaApp).
+    // highlights. Red → amber → green still marks effort and how a week went. Always light mode (see TrackStarApp).
     /// Selected states and main actions are near-black pills.
     static let accent = Color(hex: 0x141414)
     /// Text and icons on an accent fill.

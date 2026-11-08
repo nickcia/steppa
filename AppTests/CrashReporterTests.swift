@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Steppa
+@testable import TrackStar
 
 @MainActor
 struct CrashReporterTests {

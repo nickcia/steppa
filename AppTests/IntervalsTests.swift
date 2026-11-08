@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import PlanEngine
-@testable import Steppa
+@testable import TrackStar
 
 /// A pretend Intervals.icu: keeps a calendar and athlete settings in memory and answers the app's requests.
 nonisolated final class FakeIntervals: HTTPTransport, @unchecked Sendable {
@@ -134,7 +134,7 @@ struct IntervalsWorkoutTextTests {
         let workout = try #require(plan.workouts.first)
         let format = DisplayFormat(units: .metric)
         let original = IntervalsWorkoutBuilder.event(for: workout, format: format)
-        #expect(original.external_id.hasPrefix("steppa-\(workout.id)-"))
+        #expect(original.external_id.hasPrefix("trackstar-\(workout.id)-"))
         #expect(IntervalsWorkoutBuilder.event(for: workout, format: format) == original)
 
         var moved = workout
@@ -151,7 +151,7 @@ struct IntervalsSyncTests {
     static let oauth = IntervalsOAuth(clientID: "client-1", redirectURI: "io.github.nickcia.runcoach://intervals-oauth")
 
     func model(_ fake: FakeIntervals) throws -> AppModel {
-        let keychain = IntervalsKeychain(service: "steppa-tests-\(UUID().uuidString)")
+        let keychain = IntervalsKeychain(service: "trackstar-tests-\(UUID().uuidString)")
         let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { Self.today },
                              intervals: IntervalsClient(transport: fake), intervalsOAuth: Self.oauth,
                              intervalsKeychain: keychain)
@@ -196,17 +196,17 @@ struct IntervalsSyncTests {
     }
 
     @Test func diffOnlyTouchesThisAppsEvents() {
-        let wanted = [IntervalsEvent(start_date_local: "2026-01-01T00:00:00", name: "A", description: "- 10m", external_id: "steppa-a-1"),
-                      IntervalsEvent(start_date_local: "2026-01-02T00:00:00", name: "B", description: "- 10m", external_id: "steppa-b-2")]
+        let wanted = [IntervalsEvent(start_date_local: "2026-01-01T00:00:00", name: "A", description: "- 10m", external_id: "trackstar-a-1"),
+                      IntervalsEvent(start_date_local: "2026-01-02T00:00:00", name: "B", description: "- 10m", external_id: "trackstar-b-2")]
         let existing: [IntervalsClient.ExistingEvent] = [
-            .init(id: 1, external_id: "steppa-a-1"),   // unchanged: keep
-            .init(id: 2, external_id: "steppa-b-1"),   // old version of B: remove
+            .init(id: 1, external_id: "trackstar-a-1"),   // unchanged: keep
+            .init(id: 2, external_id: "steppa-b-1"),   // old version of B, sent under the old name: remove
             .init(id: 3, external_id: nil),            // the athlete's own: keep
             .init(id: 4, external_id: "other-app-1"),  // another app's: keep
-            .init(id: 5, external_id: "steppa-a-1"),   // duplicate: remove
+            .init(id: 5, external_id: "trackstar-a-1"),   // duplicate: remove
         ]
         let diff = IntervalsClient.diff(wanted: wanted, existing: existing)
-        #expect(diff.add.map(\.external_id) == ["steppa-b-2"])
+        #expect(diff.add.map(\.external_id) == ["trackstar-b-2"])
         #expect(diff.remove.sorted() == [2, 5])
     }
 
@@ -265,7 +265,7 @@ struct IntervalsSyncTests {
 
     @Test func reopeningTheAppDoesNotOverrideSettings() async throws {
         let fake = FakeIntervals()
-        let keychain = IntervalsKeychain(service: "steppa-tests-\(UUID().uuidString)")
+        let keychain = IntervalsKeychain(service: "trackstar-tests-\(UUID().uuidString)")
         defer { keychain.delete() }
         let container = Persistence.makeContainer(inMemory: true)
         let first = AppModel(container: container, clock: { Self.today }, intervals: IntervalsClient(transport: fake),
@@ -332,7 +332,7 @@ struct IntervalsActivityTests {
     }
 
     func model(_ fake: FakeIntervals, health: [CompletedRun] = []) async throws -> (AppModel, FakeRunSource) {
-        let keychain = IntervalsKeychain(service: "steppa-tests-\(UUID().uuidString)")
+        let keychain = IntervalsKeychain(service: "trackstar-tests-\(UUID().uuidString)")
         let source = FakeRunSource(runs: health)
         let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { Self.today },
                              runSource: source, intervals: IntervalsClient(transport: fake),

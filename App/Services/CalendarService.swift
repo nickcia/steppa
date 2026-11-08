@@ -15,13 +15,15 @@ struct CalendarEventContent: Equatable {
     var key: String
 
     /// Events this app creates carry this URL scheme, followed by the key.
-    static let urlScheme = "steppa-workout"
+    static let urlScheme = "trackstar-workout"
+    /// Schemes used before the app was renamed: events carrying them are still this app's.
+    static let legacyURLSchemes = ["steppa-workout"]
 
     var url: URL? { URL(string: "\(Self.urlScheme):\(key)") }
 
     static func key(from url: URL?) -> String? {
-        guard let url, url.scheme == urlScheme else { return nil }
-        return String(url.absoluteString.dropFirst(urlScheme.count + 1))
+        guard let url, let scheme = url.scheme, ([urlScheme] + legacyURLSchemes).contains(scheme) else { return nil }
+        return String(url.absoluteString.dropFirst(scheme.count + 1))
     }
 
     /// The workout on its day at `minutes` after midnight (the reminder time), lasting its estimated duration.
