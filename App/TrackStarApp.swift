@@ -19,6 +19,9 @@ struct TrackStarApp: App {
                              intervals: DemoData.usesMemoryStore ? nil : IntervalsClient(),
                              intervalsOAuth: .configured)
         DemoData.seedIfRequested(model)
+        #if DEBUG
+        if DemoData.fakesIntervals { model.debugFakeIntervalsConnection() }
+        #endif
         _model = State(initialValue: model)
     }
 
@@ -219,6 +222,14 @@ enum DemoData {
     static var usesMemoryStore: Bool {
         #if DEBUG
         isRequested || ProcessInfo.processInfo.arguments.contains("-newRunner")
+        #else
+        false
+        #endif
+    }
+
+    static var fakesIntervals: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-intervalsConnected")
         #else
         false
         #endif

@@ -635,7 +635,21 @@ final class AppModel {
 
     // MARK: Intervals.icu (Garmin, Coros and others)
 
-    var intervalsAvailable: Bool { intervals != nil }
+    var intervalsAvailable: Bool {
+        #if DEBUG
+        if DemoData.fakesIntervals { return true }
+        #endif
+        return intervals != nil
+    }
+
+    #if DEBUG
+    /// `-intervalsConnected`: pretend to be connected with a Garmin receiving workouts, to check the Settings layout.
+    func debugFakeIntervalsConnection() {
+        intervalsAccount = IntervalsCredentials(kind: .apiKey, token: "debug", athleteID: "0", athleteName: "")
+        intervalsAthlete = IntervalsAthlete(id: "0", name: nil, icu_garmin_training: true, icu_garmin_upload_workouts: true)
+        intervalsLastSync = Date().addingTimeInterval(-600)
+    }
+    #endif
 
     /// Swaps the sign-in redirect for an access token, then connects.
     func finishIntervalsSignIn(callback: URL, attempt: IntervalsOAuth.Attempt) async throws {
