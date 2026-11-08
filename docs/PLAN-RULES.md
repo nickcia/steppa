@@ -154,6 +154,19 @@ weeks) get a warning.
 Every workout is a warm-up, repeated blocks and a cool-down. This maps directly onto Apple Watch
 structured workouts.
 
+### Heart-rate and treadmill targets
+
+Any workout can be shown by heart rate instead of pace. Easy and long running is zone 2, marathon pace zone 3,
+threshold zone 4 and interval and repetition pace zone 5 (Seiler; Daniels). Hill repeats aim for zones 4–5 by the
+top of each climb, because heart rate lags on short efforts; strides and race pace stay by feel and by the clock.
+Zones come from the athlete's watch platform where possible (Garmin and others sync them to Intervals.icu; five-zone
+systems are used as they are, and Intervals.icu's seven keep their first four limits and the top), from limits the
+athlete sets, or otherwise from maximum heart rate (60, 70, 80 and 90% of it). The same zones are used for time in
+zones on completed runs.
+
+On a treadmill, each pace range is shown as a speed range in km/h or mph (3,600 ÷ seconds per km), and hill
+repeats become a 6–8% incline.
+
 ### Strength (optional)
 
 Turned on in Settings: short bodyweight routines that lower injury risk (Lauersen et al. 2014) and improve

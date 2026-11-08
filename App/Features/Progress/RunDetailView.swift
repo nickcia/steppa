@@ -136,7 +136,7 @@ struct RunDetailView: View {
             }
 
             if let zones = analysis.heartRateZoneSeconds, zones.reduce(0, +) > 60 {
-                ZonesCard(zones: zones, maxHeartRate: model.estimatedMaxHeartRate ?? 0, isSet: model.maxHeartRateIsSet)
+                ZonesCard(zones: zones, heartRateZones: model.heartRateZones, maxIsSet: model.maxHeartRateIsSet)
             }
 
 
@@ -335,8 +335,8 @@ private struct SplitsCard: View {
 
 private struct ZonesCard: View {
     let zones: [Double]
-    let maxHeartRate: Double
-    let isSet: Bool
+    let heartRateZones: HeartRateZones?
+    let maxIsSet: Bool
 
     private static let colors: [Color] = [Color(hex: 0xA9C6FF), Theme.green, Theme.amber, Color(hex: 0xF5894A), Theme.red]
 
@@ -347,7 +347,9 @@ private struct ZonesCard: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Heart-rate zones").font(.headline).foregroundStyle(Theme.ink)
                     Spacer()
-                    Text("max ~\(Int(maxHeartRate.rounded())) bpm").font(.caption).foregroundStyle(Theme.secondaryInk)
+                    if let heartRateZones {
+                        Text("max \(Int(heartRateZones.maxHeartRate)) bpm").font(.caption).foregroundStyle(Theme.secondaryInk)
+                    }
                 }
                 GeometryReader { geometry in
                     HStack(spacing: 2) {
@@ -362,15 +364,27 @@ private struct ZonesCard: View {
                     HStack {
                         Circle().fill(Self.colors[i]).frame(width: 8, height: 8)
                         Text(name(i)).font(.subheadline).foregroundStyle(Theme.ink)
+                        if let range = heartRateZones?.range(ofZone: i) {
+                            Text("\(Int(range.lowerBound))–\(Int(range.upperBound))")
+                                .font(.caption).monospacedDigit().foregroundStyle(Theme.secondaryInk)
+                        }
                         Spacer()
                         Text(DisplayFormat.duration(zones[i]))
                             .font(.subheadline).monospacedDigit().foregroundStyle(Theme.secondaryInk)
                     }
                 }
-                Text(isSet ? "Based on the maximum heart rate you set in Settings."
-                           : "Based on an estimated maximum from your age and recent runs. You can set your own in Settings.")
+                Text(sourceNote)
                     .font(.caption).foregroundStyle(Theme.secondaryInk)
             }
+        }
+    }
+
+    private var sourceNote: String {
+        switch heartRateZones?.source {
+        case .imported?: String(localized: "Using the zones from your watch, through Intervals.icu.")
+        case .custom?: String(localized: "Using the zones you set in Settings.")
+        default: maxIsSet ? String(localized: "Based on the maximum heart rate you set in Settings.")
+                          : String(localized: "Based on an estimated maximum from your age and recent runs. You can import your watch's zones or set your own in Settings.")
         }
     }
 

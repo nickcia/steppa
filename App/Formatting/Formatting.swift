@@ -13,6 +13,8 @@ enum UnitSystem: String, Codable, CaseIterable, Identifiable {
 
     var distanceUnit: String { self == .metric ? String(localized: "km") : String(localized: "mi") }
     var metersPerUnit: Double { self == .metric ? 1000 : 1609.344 }
+    /// Treadmill speed unit.
+    var speedUnit: String { self == .metric ? "km/h" : "mph" }
     var name: String { self == .metric ? String(localized: "Kilometres") : String(localized: "Miles") }
 }
 

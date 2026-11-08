@@ -49,6 +49,12 @@ final class AppModel {
     private(set) var strengthEnabled = false
     private(set) var strengthPerWeek = 2
     private(set) var coachEnabled = true
+    /// Zones imported from the athlete's watch platform or typed in; nil means worked out from maximum heart rate.
+    private(set) var storedHeartRateZones: HeartRateZones?
+    /// How workout targets are shown: pace, heart rate or treadmill speed.
+    private(set) var targetDisplay: WorkoutTargetDisplay = .pace
+    /// km/h or mph on the treadmill, separate from distance units.
+    private(set) var treadmillUnits: UnitSystem = .metric
     /// Workouts currently scheduled on the watch (by WorkoutKit plan ID).
     private(set) var watchScheduledIDs: Set<UUID> = []
     /// The Intervals.icu connection (from the Keychain); nil when not connected.
@@ -111,6 +117,9 @@ final class AppModel {
         strengthEnabled = profile?.strengthEnabled ?? false
         strengthPerWeek = profile?.strengthPerWeek ?? 2
         coachEnabled = profile?.coachEnabled ?? true
+        storedHeartRateZones = profile?.heartRateZonesData.flatMap { try? JSONDecoder().decode(HeartRateZones.self, from: $0) }
+        targetDisplay = profile?.targetDisplayRaw.flatMap(WorkoutTargetDisplay.init(rawValue:)) ?? .pace
+        treadmillUnits = profile?.treadmillUnitsRaw.flatMap(UnitSystem.init(rawValue:)) ?? units
 
         // If two devices both created a plan before syncing, the most recently updated one wins.
         let record = activePlanRecord()
@@ -481,7 +490,36 @@ final class AppModel {
     func analysis(for run: CompletedRun) -> RunAnalysis {
         RunAnalyzer.analyze(runSeries[run.id] ?? RunSeries(), distanceMeters: run.distanceMeters,
                             durationSeconds: run.durationSeconds, splitMeters: units.metersPerUnit,
-                            maxHeartRate: estimatedMaxHeartRate)
+                            maxHeartRate: estimatedMaxHeartRate, zones: storedHeartRateZones)
+    }
+
+    // MARK: Heart-rate zones and how targets are shown
+
+    /// The athlete's zones: imported or typed in, otherwise worked out from maximum heart rate. nil only when
+    /// there's no maximum to work from (no age in Health and no recorded runs).
+    var heartRateZones: HeartRateZones? {
+        storedHeartRateZones ?? estimatedMaxHeartRate.map { HeartRateZones.fromMax($0) }
+    }
+
+    /// nil goes back to zones worked out from maximum heart rate.
+    func setHeartRateZones(_ zones: HeartRateZones?) {
+        profile().heartRateZonesData = zones.flatMap { try? JSONEncoder().encode($0) }
+        save()
+    }
+
+    /// Describes workouts with targets in the athlete's chosen display (pace, heart rate or treadmill speed).
+    var targetDescriber: WorkoutDescriber {
+        WorkoutDescriber(format: format, display: targetDisplay, zones: heartRateZones, treadmillUnits: treadmillUnits)
+    }
+
+    func setTargetDisplay(_ display: WorkoutTargetDisplay) {
+        profile().targetDisplayRaw = display.rawValue
+        save()
+    }
+
+    func setTreadmillUnits(_ units: UnitSystem) {
+        profile().treadmillUnitsRaw = units.rawValue
+        save()
     }
 
     /// The planned workout a run ticked off, if any.
@@ -614,8 +652,33 @@ final class AppModel {
                 athlete = try await intervals.athlete(account)
             }
             intervalsAthlete = athlete
+            adoptImportedZones(from: athlete)
         } catch {
             lastError = error.localizedDescription
+        }
+    }
+
+    /// Keeps imported zones in step with the athlete's watch platform. Zones the athlete typed in are left alone.
+    private func adoptImportedZones(from athlete: IntervalsAthlete) {
+        guard let imported = athlete.runningHeartRateZones, storedHeartRateZones?.source != .custom,
+              storedHeartRateZones != imported else { return }
+        setHeartRateZones(imported)
+    }
+
+    /// Fetches the athlete's zones from Intervals.icu (where Garmin and others sync them) and uses them.
+    /// Returns false if there are none to import.
+    @discardableResult
+    func importHeartRateZones() async -> Bool {
+        guard let intervals, let account = intervalsAccount else { return false }
+        do {
+            let athlete = try await intervals.athlete(account)
+            intervalsAthlete = athlete
+            guard let imported = athlete.runningHeartRateZones else { return false }
+            setHeartRateZones(imported)
+            return true
+        } catch {
+            lastError = error.localizedDescription
+            return false
         }
     }
 

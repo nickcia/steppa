@@ -18,7 +18,8 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
 - **A plan built for you.** Pick a race (5K, 10K, half or full marathon), a date, your current fitness
   and the days you can run. The app builds a periodised plan: base, build, peak and taper.
 - **Today's workout, step by step.** Warm-up, intervals or tempo blocks, recoveries and cool-down, each
-  with a target pace range.
+  with a target you can show as pace, heart rate (bpm and zone) or treadmill speed (km/h or mph). Heart-rate
+  zones come from your Garmin or other watch through Intervals.icu, or you can set your own.
 - **Send to Apple Watch.** Workouts appear in the Workout app with every step and pace alerts.
 - **Send to Garmin, COROS, Suunto and Wahoo.** Sign in to Intervals.icu (free) and link your watch there
   once; your upcoming workouts are kept in step with your plan and reach your watch a few days ahead.

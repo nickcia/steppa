@@ -205,7 +205,10 @@ struct WorkoutDetailView: View {
                 Card {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                         Text("Structure").font(.headline).foregroundStyle(Theme.ink)
+                        TargetDisplayPicker()
                         WorkoutStepsView(workout: workout)
+                            .animation(.snappy, value: model.targetDisplay)
+                            .contentTransition(.numericText())
                     }
                 }
                 WorkoutStatusButtons(workout: workout)
@@ -235,5 +238,47 @@ struct WorkoutDetailView: View {
         }
         .screenBackground()
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+
+/// Switches workout targets between pace, heart rate and treadmill speed, with km/h or mph for the treadmill.
+struct TargetDisplayPicker: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            Picker("Show targets as", selection: Binding(get: { model.targetDisplay }, set: { model.setTargetDisplay($0) })) {
+                ForEach(WorkoutTargetDisplay.allCases) { Text($0.name).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            switch model.targetDisplay {
+            case .pace:
+                EmptyView()
+            case .heartRate:
+                Text(zonesNote).font(.caption).foregroundStyle(Theme.secondaryInk)
+            case .treadmill:
+                HStack {
+                    Text("Many runners set a 1% incline to match running outside.")
+                        .font(.caption).foregroundStyle(Theme.secondaryInk)
+                    Spacer()
+                    Picker("Treadmill speed", selection: Binding(get: { model.treadmillUnits }, set: { model.setTreadmillUnits($0) })) {
+                        Text("km/h").tag(UnitSystem.metric)
+                        Text("mph").tag(UnitSystem.imperial)
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                }
+            }
+        }
+    }
+
+    private var zonesNote: String {
+        switch model.heartRateZones?.source {
+        case .imported?: String(localized: "Zones from your watch, through Intervals.icu. Heart rate takes a minute to settle, so go by feel at the start of each step.")
+        case .custom?: String(localized: "Zones you set in Settings. Heart rate takes a minute to settle, so go by feel at the start of each step.")
+        case .estimated?: String(localized: "Zones estimated from your maximum heart rate. Import your watch's zones or set your own in Settings.")
+        case nil: String(localized: "Add your age in Apple Health, or set your zones in Settings, to see heart-rate targets.")
+        }
     }
 }

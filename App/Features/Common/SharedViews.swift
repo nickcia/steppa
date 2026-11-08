@@ -103,10 +103,10 @@ struct PhaseLegend: View {
 /// Warm-up, blocks and cool-down, with pace ranges.
 struct WorkoutStepsView: View {
     let workout: Workout
-    @Environment(\.unitSystem) private var units
+    @Environment(AppModel.self) private var model
 
     var body: some View {
-        let describer = WorkoutDescriber(format: DisplayFormat(units: units))
+        let describer = model.targetDescriber
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             ForEach(describer.sections(workout)) { section in
                 switch section {

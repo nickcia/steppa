@@ -265,6 +265,23 @@ nonisolated struct IntervalsAthlete: Decodable, Hashable, Sendable {
     var suunto_upload_workouts: Bool?
     var wahoo_user_id: String?
     var wahoo_upload_workouts: Bool?
+    /// Per-sport settings, including heart-rate zones (synced from Garmin and other platforms, or set on
+    /// Intervals.icu).
+    var sportSettings: [SportSettings]?
+
+    struct SportSettings: Decodable, Hashable, Sendable {
+        var types: [String]?
+        /// Upper limit of each zone in bpm; the last is usually the maximum.
+        var hr_zones: [Double]?
+        var max_hr: Double?
+    }
+
+    /// The running heart-rate zones, if the athlete has any on Intervals.icu.
+    var runningHeartRateZones: HeartRateZones? {
+        let run = sportSettings?.first { $0.types?.contains("Run") == true } ?? sportSettings?.first
+        guard let run, let limits = run.hr_zones else { return nil }
+        return HeartRateZones.imported(upperLimits: limits, maxHeartRate: run.max_hr)
+    }
 
     struct Link: Hashable, Sendable, Identifiable {
         enum Service: String, Sendable, CaseIterable { case garmin, coros, suunto, wahoo }

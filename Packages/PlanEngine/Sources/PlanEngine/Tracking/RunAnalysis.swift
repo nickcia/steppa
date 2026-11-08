@@ -77,14 +77,17 @@ public struct RunAnalysis: Codable, Hashable, Sendable {
 }
 
 public enum RunAnalyzer {
-    /// Zone upper bounds as a share of maximum heart rate: Z1 < 60%, Z2 60–70%, Z3 70–80%, Z4 80–90%, Z5 ≥ 90%.
-    public static let zoneBounds: [Double] = [0.60, 0.70, 0.80, 0.90]
+    /// Zone upper bounds as a share of maximum heart rate, when no zones are set (see `HeartRateZones.fromMax`).
+    public static let zoneBounds: [Double] = HeartRateZones.maxShares
 
     /// - Parameters:
     ///   - splitMeters: 1000 for kilometre splits, 1609.344 for miles.
-    ///   - maxHeartRate: the athlete's maximum, for zones. Without it, zones are left out.
+    ///   - maxHeartRate: the athlete's maximum, for zones when `zones` isn't given. Without either, zones are left out.
+    ///   - zones: the athlete's heart-rate zones (imported or set), which take precedence over `maxHeartRate`.
     public static func analyze(_ series: RunSeries, distanceMeters: Double, durationSeconds: Double,
-                               splitMeters: Double = 1000, maxHeartRate: Double? = nil) -> RunAnalysis {
+                               splitMeters: Double = 1000, maxHeartRate: Double? = nil,
+                               zones: HeartRateZones? = nil) -> RunAnalysis {
+        let zones = zones ?? maxHeartRate.map { HeartRateZones.fromMax($0) }
         let heart = series.heartRate.filter { (30...230).contains($0.v) }
         return RunAnalysis(
             distanceMeters: distanceMeters,
@@ -95,7 +98,7 @@ public enum RunAnalyzer {
             averageCadence: timeWeightedAverage(series.cadence.filter { $0.v > 100 }),
             elevationGainMeters: elevationGain(series.altitude),
             splits: splits(series.distance, heartRate: heart, every: splitMeters),
-            heartRateZoneSeconds: maxHeartRate.flatMap { zones(heart, maxHeartRate: $0) },
+            heartRateZoneSeconds: zones.flatMap { timeInZones(heart, zones: $0) },
             heartRateDrift: drift(series.distance, heart),
             paceVariability: variability(splits(series.distance, heartRate: [], every: splitMeters)))
     }
@@ -142,14 +145,12 @@ public enum RunAnalyzer {
         return weight > 0 ? total / weight : points.map(\.v).reduce(0, +) / Double(points.count)
     }
 
-    static func zones(_ heart: [RunSeries.Point], maxHeartRate: Double) -> [Double]? {
-        guard heart.count > 1, maxHeartRate > 0 else { return nil }
-        var seconds = [Double](repeating: 0, count: zoneBounds.count + 1)
+    static func timeInZones(_ heart: [RunSeries.Point], zones: HeartRateZones) -> [Double]? {
+        guard heart.count > 1, zones.maxHeartRate > 0 else { return nil }
+        var seconds = [Double](repeating: 0, count: zones.upperLimits.count + 1)
         for (a, b) in zip(heart, heart.dropFirst()) {
             let dt = min(max(b.t - a.t, 0), 30)
-            let share = a.v / maxHeartRate
-            let zone = zoneBounds.firstIndex(where: { share < $0 }) ?? zoneBounds.count
-            seconds[zone] += dt
+            seconds[zones.zone(for: a.v)] += dt
         }
         return seconds
     }

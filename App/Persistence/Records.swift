@@ -83,6 +83,13 @@ final class ProfileRecord {
     var strengthPerWeek: Int = 2
     /// Show the on-device coach (where Apple Intelligence is available).
     var coachEnabled: Bool = true
+    /// Heart-rate zones imported from the athlete's watch platform or typed in (JSON of HeartRateZones). nil means
+    /// zones are worked out from maximum heart rate.
+    var heartRateZonesData: Data?
+    /// How workout targets are shown: pace, heart rate or treadmill speed (WorkoutTargetDisplay).
+    var targetDisplayRaw: String?
+    /// km/h or mph for treadmill speeds, chosen separately from distance units.
+    var treadmillUnitsRaw: String?
 
     init(units: UnitSystem) {
         unitsRaw = units.rawValue

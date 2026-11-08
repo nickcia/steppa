@@ -354,8 +354,8 @@ private struct HeroCard: View {
                     heroMetric(model.format.distance(workout.totalMeters), String(localized: "distance"))
                     heroMetric("~" + DisplayFormat.duration(workout.totalSeconds), String(localized: "time"))
                     if let target = workout.blocks.flatMap(\.steps).first(where: { $0.purpose == .work })?.step.target {
-                        heroMetric(DisplayFormat.clock(model.format.paceSeconds(target.range.mid)),
-                                   String(localized: "\(target.zone.name) /\(model.units.distanceUnit)"))
+                        let headline = model.targetDescriber.headline(target)
+                        heroMetric(headline.value, headline.label)
                     }
                 }
             }
@@ -663,9 +663,9 @@ struct WorkoutMetrics: View {
         HStack(spacing: Theme.Spacing.l) {
             Metric(value: format.distance(workout.totalMeters), label: String(localized: "distance"))
             Metric(value: "~" + DisplayFormat.duration(workout.totalSeconds), label: String(localized: "time"))
-            if let range = mainTarget {
-                Metric(value: DisplayFormat.clock(format.paceSeconds(range.range.mid)),
-                       label: String(localized: "\(range.zone.name) /\(model.units.distanceUnit)"))
+            if let target = mainTarget {
+                let headline = model.targetDescriber.headline(target)
+                Metric(value: headline.value, label: headline.label)
             }
         }
     }

@@ -23,6 +23,11 @@ public enum StepGoal: Codable, Hashable, Sendable {
 public struct PaceTarget: Codable, Hashable, Sendable {
     public var zone: PaceZone
     public var range: PaceRange
+
+    public init(zone: PaceZone, range: PaceRange) {
+        self.zone = zone
+        self.range = range
+    }
 }
 
 /// One step of a structured workout. Mirrors WorkoutKit's `WorkoutStep`

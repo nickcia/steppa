@@ -70,6 +70,25 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        HeartRateZonesView()
+                    } label: {
+                        LabeledContent("Heart-rate zones", value: zonesSourceName)
+                    }
+                    Picker("Show targets as", selection: Binding(get: { model.targetDisplay }, set: { model.setTargetDisplay($0) })) {
+                        ForEach(WorkoutTargetDisplay.allCases) { Text($0.name).tag($0) }
+                    }
+                    Picker("Treadmill speed", selection: Binding(get: { model.treadmillUnits }, set: { model.setTreadmillUnits($0) })) {
+                        Text("km/h").tag(UnitSystem.metric)
+                        Text("mph").tag(UnitSystem.imperial)
+                    }
+                } header: {
+                    Text("Heart rate and treadmill")
+                } footer: {
+                    Text("Workouts can show pace, heart rate or treadmill speed. You can also switch on any workout.")
+                }
+
+                Section {
                     if model.healthConnected {
                         LabeledContent("Apple Health", value: String(localized: "\(model.healthRuns.count) runs found"))
                         MaxHeartRateRow()
@@ -225,6 +244,131 @@ nonisolated struct ExportFile: Transferable {
 }
 
 /// Maximum heart rate for zones: estimated by default, or the athlete's own (e.g. from a lab or field test).
+extension SettingsView {
+    fileprivate var zonesSourceName: String {
+        switch model.heartRateZones?.source {
+        case .imported?: String(localized: "From your watch")
+        case .custom?: String(localized: "Your own")
+        case .estimated?: String(localized: "Estimated")
+        case nil: String(localized: "Not set")
+        }
+    }
+}
+
+/// The athlete's five heart-rate zones: imported from their watch platform (through Intervals.icu), typed in, or
+/// estimated from maximum heart rate.
+private struct HeartRateZonesView: View {
+    @Environment(AppModel.self) private var model
+    @State private var importing = false
+    @State private var importMessage: String?
+
+    private static let colors: [Color] = [Color(hex: 0xA9C6FF), Theme.green, Theme.amber, Color(hex: 0xF5894A), Theme.red]
+    private static let names = [String(localized: "Recovery"), String(localized: "Easy"), String(localized: "Steady"),
+                                String(localized: "Threshold"), String(localized: "Hard")]
+
+    var body: some View {
+        Form {
+            if let zones = model.heartRateZones {
+                Section {
+                    ForEach(0..<5, id: \.self) { zone in
+                        let range = zones.range(ofZone: zone)
+                        HStack {
+                            Circle().fill(Self.colors[zone]).frame(width: 10, height: 10)
+                            Text("Zone \(zone + 1) · \(Self.names[zone])")
+                            Spacer()
+                            Text("\(Int(range.lowerBound))–\(Int(range.upperBound)) bpm")
+                                .monospacedDigit().foregroundStyle(Theme.secondaryInk)
+                        }
+                    }
+                } header: {
+                    Text(sourceText(zones.source))
+                }
+
+                Section {
+                    ForEach(0..<4, id: \.self) { index in
+                        Stepper(value: limitBinding(index, zones), in: 60...230) {
+                            LabeledContent("Top of zone \(index + 1)", value: "\(Int(zones.upperLimits[index])) bpm")
+                        }
+                    }
+                    Stepper(value: maxBinding(zones), in: 120...240) {
+                        LabeledContent("Maximum", value: "\(Int(zones.maxHeartRate)) bpm")
+                    }
+                } header: {
+                    Text("Set your own")
+                } footer: {
+                    Text("Changing a limit makes these your own zones, which an import never overwrites.")
+                }
+            } else {
+                Section {
+                    Text("Zones need your maximum heart rate. Add your date of birth in Apple Health, record a run with heart rate, or set your maximum under Apple Health in Settings.")
+                        .font(.subheadline)
+                }
+            }
+
+            Section {
+                if model.intervalsAccount != nil {
+                    Button {
+                        importing = true
+                        Task {
+                            let found = await model.importHeartRateZones()
+                            importMessage = found ? String(localized: "Imported your zones.")
+                                                  : String(localized: "No running zones on Intervals.icu yet. Set them on your watch or on Garmin Connect, let them sync, then try again.")
+                            importing = false
+                        }
+                    } label: {
+                        HStack {
+                            Label("Import from your watch", systemImage: "arrow.down.circle")
+                            Spacer()
+                            if importing { ProgressView() }
+                        }
+                    }
+                    .disabled(importing)
+                } else {
+                    Text("Connect Intervals.icu in Settings to bring in the zones from your Garmin, COROS, Polar or Suunto watch. They stay up to date on their own after that.")
+                        .font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                }
+                if model.storedHeartRateZones != nil {
+                    Button("Use estimated zones instead") { model.setHeartRateZones(nil) }
+                }
+            } footer: {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let importMessage { Text(importMessage) }
+                    Text("Apple Watch doesn't share its zones with other apps, so with Apple Watch, zones are estimated from your maximum heart rate unless you set your own.")
+                }
+            }
+        }
+        .navigationTitle("Heart-rate zones")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func sourceText(_ source: HeartRateZones.Source) -> String {
+        switch source {
+        case .imported: String(localized: "From your watch, through Intervals.icu")
+        case .custom: String(localized: "Your own zones")
+        case .estimated: String(localized: "Estimated from your maximum heart rate")
+        }
+    }
+
+    /// Edits a limit, keeping the zones in order; the result is the athlete's own.
+    private func limitBinding(_ index: Int, _ zones: HeartRateZones) -> Binding<Double> {
+        Binding(get: { zones.upperLimits[index] }, set: { value in
+            var edited = zones
+            edited.upperLimits[index] = value.rounded()
+            edited.source = .custom
+            if edited.isValid { model.setHeartRateZones(edited) }
+        })
+    }
+
+    private func maxBinding(_ zones: HeartRateZones) -> Binding<Double> {
+        Binding(get: { zones.maxHeartRate }, set: { value in
+            var edited = zones
+            edited.maxHeartRate = value.rounded()
+            edited.source = .custom
+            if edited.isValid { model.setHeartRateZones(edited) }
+        })
+    }
+}
+
 private struct MaxHeartRateRow: View {
     @Environment(AppModel.self) private var model
 
