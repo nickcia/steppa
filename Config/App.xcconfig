@@ -30,7 +30,9 @@ INFOPLIST_FILE = $(INFOPLIST_ICLOUD_$(ENABLE_ICLOUD))
 // "Sign in with Intervals.icu" (sends workouts on to Garmin, COROS, Suunto and Wahoo). Register an OAuth app at
 // intervals.icu/oauth/apply, mark it as a public client, and add the redirect URI
 // <your bundle ID in lower case>://intervals-oauth. Leave blank to connect with a personal API key instead.
-INTERVALS_CLIENT_ID =
+// 1716 is TrackStar's own client, registered for io.github.nickcia.runcoach. Forks with their own bundle ID should
+// set their own (or a blank one) in Local.xcconfig, since Intervals.icu only returns to the registered redirect.
+INTERVALS_CLIENT_ID = 1716
 
 // Shown when turning on "Show my plan in Calendar". Adding a single workout uses iOS's own sheet and needs no access.
 INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = Your training plan is added to its own calendar and kept up to date as it changes. Only that calendar is ever changed.
