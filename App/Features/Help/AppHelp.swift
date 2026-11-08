@@ -24,7 +24,7 @@ nonisolated enum AppHelp {
         HelpArticle(id: "phone", title: "Run with just your phone (spoken cues)",
                     keywords: ["phone", "no watch", "without a watch", "audio", "voice", "spoken", "cues", "guided", "start", "lock screen", "dynamic island", "countdown"],
                     body: """
-                    On today's card, tap Start (or Start on this phone on a workout). The phone talks you through each step over your music, shows a big countdown and your distance, and keeps the current step on the lock screen and in the Dynamic Island with Pause and Skip. Allow location when asked: it measures distance and keeps the cues going with the screen locked, and it's only used during the run. When you finish, tap Mark as done. To silence the voice, tap the speaker button.
+                    On today's card, tap Start (or Start on this phone on a workout). The phone talks you through each step over your music, tells you if you're a bit quick or slow for the target, reads out each kilometre (or mile), and shows a big countdown, distance and pace. The current step stays on the lock screen and in the Dynamic Island with Pause and Skip. Allow location when asked (it measures distance and keeps the cues going with the screen locked), and allow saving workouts to Apple Health so the run is kept with its route and ticks off your plan. If your phone closes the app mid-run, open it again and it carries on. To silence the voice, tap the speaker button.
                     """),
         HelpArticle(id: "applewatch", title: "Send workouts to Apple Watch",
                     keywords: ["apple watch", "watch", "workout app", "send", "pace alerts"],

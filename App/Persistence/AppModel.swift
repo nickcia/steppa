@@ -421,6 +421,37 @@ final class AppModel {
         }
     }
 
+    /// Starts a guided run on the phone. The first time, asks to save phone runs to Apple Health (and to read runs,
+    /// if Health isn't connected yet), so the run is kept and ticks the workout off by itself.
+    func startGuidedRun(_ workout: Workout) async {
+        if let runSource, runSource.isAvailable {
+            do {
+                try await runSource.requestWriteAccess()
+                if !healthConnected {
+                    profile().healthRequestedAt = .now
+                    save()
+                    healthConnected = true
+                }
+            } catch {
+                // Without Health the run still works; it just isn't saved there.
+            }
+        }
+        GuidedRunController.shared.start(workout, describer: targetDescriber)
+    }
+
+    /// Saves a finished guided run to Apple Health, then re-reads runs so it ticks off its workout. False if it
+    /// couldn't be saved (no Health, or saving not allowed).
+    func saveGuidedRun(_ recording: GuidedRunRecording) async -> Bool {
+        guard let runSource else { return false }
+        do {
+            guard try await runSource.save(recording) != nil else { return false }
+        } catch {
+            return false
+        }
+        await refreshHealth()
+        return true
+    }
+
     /// Re-reads runs from Health (since a little before the plan started), then reviews the plan.
     /// Runs from Apple Health in the weeks before a new plan starts, to check the onboarding answers against.
     /// nil when Health isn't connected or can't be read.

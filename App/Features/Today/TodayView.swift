@@ -431,7 +431,7 @@ private struct HeroCard: View {
             HStack(spacing: 8) {
                 if workout.date == model.today, workout.kind != .race {
                     // Phone-only runners: run it here with a countdown and spoken cues.
-                    Button { GuidedRunController.shared.start(workout, describer: model.targetDescriber) } label: {
+                    Button { Task { await model.startGuidedRun(workout) } } label: {
                         Label("Start", systemImage: "play.fill").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(HeroButtonStyle(filled: true))

@@ -247,7 +247,7 @@ struct WorkoutDetailView: View {
                     }
                 }
                 if workout.date == model.today, workout.kind != .race, model.status(of: workout) == nil {
-                    Button { GuidedRunController.shared.start(workout, describer: model.targetDescriber) } label: {
+                    Button { Task { await model.startGuidedRun(workout) } } label: {
                         Label("Start on this phone", systemImage: "play.fill")
                     }
                     .buttonStyle(.primary)

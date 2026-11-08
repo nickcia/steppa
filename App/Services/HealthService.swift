@@ -11,9 +11,19 @@ protocol RunSource {
     func series(forRun id: String) async throws -> RunSeries?
     /// The athlete's age from Health, for estimating maximum heart rate. nil if not shared.
     func age() -> Int?
+    /// Asks to save runs recorded on the phone (guided runs) as workouts.
+    func requestWriteAccess() async throws
+    /// Saves a guided run as a running workout with its distance and route. Returns the workout's ID.
+    func save(_ recording: GuidedRunRecording) async throws -> String?
 }
 
-/// Reads running workouts from Apple Health. Read-only: nothing is ever written.
+extension RunSource {
+    func requestWriteAccess() async throws {}
+    func save(_ recording: GuidedRunRecording) async throws -> String? { nil }
+}
+
+/// Reads running workouts from Apple Health, and saves runs recorded on the phone during a guided run (nothing else
+/// is ever written).
 ///
 /// Runs recorded by Apple Watch, and by Garmin, Coros, Strava and others that sync into Health,
 /// all arrive here the same way.
@@ -84,6 +94,44 @@ final class HealthKitRunSource: RunSource {
         }
         let series = RunSeries(distance: distance, heartRate: heartRate, power: power, cadence: cadence)
         return series.isEmpty ? nil : series
+    }
+
+    /// Only what a guided run records: the workout, its distance and its route.
+    private var shareTypes: Set<HKSampleType> {
+        [HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning), HKSeriesType.workoutRoute()]
+    }
+
+    func requestWriteAccess() async throws {
+        try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
+    }
+
+    func save(_ recording: GuidedRunRecording) async throws -> String? {
+        guard store.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized else { return nil }
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .running
+        configuration.locationType = recording.route.isEmpty ? .unknown : .outdoor
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
+        try await builder.beginCollection(at: recording.start)
+        let distanceType = HKQuantityType(.distanceWalkingRunning)
+        let samples = recording.segments.map {
+            HKQuantitySample(type: distanceType, quantity: HKQuantity(unit: .meter(), doubleValue: $0.meters),
+                             start: $0.start, end: max($0.end, $0.start.addingTimeInterval(1)))
+        }
+        if !samples.isEmpty { try await builder.addSamples(samples) }
+        let events = recording.pauses.flatMap { pause in
+            [HKWorkoutEvent(type: .pause, dateInterval: DateInterval(start: pause.start, duration: 0), metadata: nil),
+             HKWorkoutEvent(type: .resume, dateInterval: DateInterval(start: pause.end, duration: 0), metadata: nil)]
+        }
+        if !events.isEmpty { try await builder.addWorkoutEvents(events) }
+        try await builder.addMetadata([HKMetadataKeyIndoorWorkout: false, "TrackStarWorkoutID": recording.workoutID])
+        try await builder.endCollection(at: recording.end)
+        guard let workout = try await builder.finishWorkout() else { return nil }
+        if recording.route.count >= 2 {
+            let route = HKWorkoutRouteBuilder(healthStore: store, device: .local())
+            try await route.insertRouteData(recording.route)
+            try await route.finishRoute(with: workout, metadata: nil)
+        }
+        return workout.uuid.uuidString
     }
 
     func age() -> Int? {

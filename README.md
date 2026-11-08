@@ -21,8 +21,9 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
   with a target you can show as pace, heart rate (bpm and zone) or treadmill speed (km/h or mph). Heart-rate
   zones come from your Garmin or other watch through Intervals.icu, or you can set your own.
 - **Run with just your phone.** Tap Start and the phone talks you through each step ("Run for 1 minute", "Walk",
-  "Ten seconds, then run") over your music, with a big countdown, GPS distance, and the current step on the lock
-  screen and in the Dynamic Island, with Pause and Skip.
+  "Ten seconds, then run") over your music, tells you when you're off pace and reads out your splits, with a big
+  countdown, GPS distance and pace, and the current step on the lock screen and in the Dynamic Island, with Pause
+  and Skip. The run is saved to Apple Health with its route and ticks off the workout.
 - **Send to Apple Watch.** Workouts appear in the Workout app with every step and pace alerts.
 - **Send to Garmin, COROS, Suunto and Wahoo.** Sign in to Intervals.icu (free) and link your watch there
   once; your upcoming workouts are kept in step with your plan and reach your watch a few days ahead.
@@ -89,7 +90,7 @@ where TrackStar falls short, and includes a review kit for a qualified coach.
 - **No servers, no accounts, no analytics or tracking SDKs.** The app doesn't send data anywhere unless you
   connect Intervals.icu, in which case your upcoming workouts (and nothing else) go to your own Intervals.icu
   calendar. The sign-in is stored in the iPhone's Keychain.
-- **Apple Health is read-only.** The app reads running workouts and distance, and never writes to Health.
+- **Apple Health: read, plus your own runs.** The app reads running workouts and distance. The only thing it writes is a run you record on your iPhone with a guided run, saved as a running workout with its route.
 - **iCloud sync** (when enabled) uses your private iCloud database, which only you can read.
 - **Crash reports** stay on the phone: after a crash the app offers to email the report, and only sends it if
   you do. Apple's own crash sharing applies too, if you've opted in on your device.

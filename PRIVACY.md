@@ -22,8 +22,9 @@ export all of it as a file and delete it at any time by deleting the app.
 
 With your permission, the app reads from Apple Health: running workouts and distance (to tick off workouts and
 adapt your plan), heart rate, running power and step counts during runs (for run analysis: splits, heart-rate
-zones, cadence), and your date of birth (only to estimate your maximum heart rate). It never writes to Health,
-and Health data never leaves your iPhone. You can change access in the Health app under Sharing › Apps.
+zones, cadence), and your date of birth (only to estimate your maximum heart rate). The only thing it writes is a
+run you record on your iPhone with a guided run (Start): it's saved as a running workout with its distance and
+route, so it counts in Health and ticks off your plan. Health data never leaves your iPhone. You can change access in the Health app under Sharing › Apps.
 
 ## Apple Watch and reminders
 
@@ -32,8 +33,9 @@ Workouts you send to Apple Watch and workout reminders are handled by iOS on you
 ## Location, during guided runs only (optional)
 
 When you start a workout on your phone (**Start**), the app asks for your location. It's used only while that run
-is in progress: to measure distance and to keep the countdown and spoken cues going with the screen locked. It
-isn't stored, isn't sent anywhere, and stops when the run ends. If you don't allow it, guided runs still work while
+is in progress: to measure distance and pace, and to keep the countdown and spoken cues going with the screen
+locked. The route is kept on your iPhone until the run is saved to Apple Health as part of the workout (if you
+allow that), and is never sent anywhere else. Tracking stops when the run ends. If you don't allow it, guided runs still work while
 the app is open. You can change this in Settings › TrackStar › Location.
 
 ## Calendar (optional)

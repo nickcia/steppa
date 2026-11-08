@@ -18,6 +18,8 @@ struct GuidedStep: Hashable, Sendable {
     var rep: (index: Int, count: Int)?
     /// Hex colour for the step.
     var tint: UInt32
+    /// Pace range for pace cues: set on work steps with a pace target (not hills or strides, which are by effort).
+    var target: PaceRange? = nil
 
     static func == (a: GuidedStep, b: GuidedStep) -> Bool {
         a.role == b.role && a.title == b.title && a.detail == b.detail && a.seconds == b.seconds && a.meters == b.meters
@@ -67,9 +69,11 @@ enum GuidedTimeline {
                                   seconds: seconds, meters: meters, rep: rep, tint: walkTint)
             case .work:
                 let zone = step.target?.zone
+                let paced = step.target.flatMap { $0.zone.isEffortBased || $0.zone == .stride ? nil : $0.range }
                 return GuidedStep(role: .work, title: zone.map { $0.name.capitalized } ?? String(localized: "Run"),
                                   detail: step.target.map { describer.detail($0) } ?? String(localized: "Steady"),
-                                  seconds: seconds, meters: meters, rep: rep, tint: tint(for: workout.kind, zone: zone))
+                                  seconds: seconds, meters: meters, rep: rep, tint: tint(for: workout.kind, zone: zone),
+                                  target: paced)
             }
         }
 
@@ -139,6 +143,35 @@ enum GuidedTimeline {
     }
 
     static let finishCue = String(localized: "That's it, workout complete. Great job.")
+
+    enum PaceVerdict: Equatable { case fast, slow, onPace }
+
+    /// Compared with a 3% margin either side: GPS pace is noisy and a target is a range, not a number.
+    static func paceVerdict(current: Double, target: PaceRange) -> PaceVerdict {
+        if current < target.fast * 0.97 { return .fast }
+        if current > target.slow * 1.03 { return .slow }
+        return .onPace
+    }
+
+    /// "A bit quick. Ease off to about 5:15 per kilometre."
+    static func paceCue(_ verdict: PaceVerdict, target: PaceRange, units: UnitSystem) -> String {
+        let format = DisplayFormat(units: units)
+        let aim = DisplayFormat.clock(format.paceSeconds(target.mid))
+        let per = units == .metric ? String(localized: "per kilometre") : String(localized: "per mile")
+        return switch verdict {
+        case .fast: String(localized: "A bit quick. Ease off to about \(aim) \(per).")
+        case .slow: String(localized: "A bit slow. Pick it up to about \(aim) \(per).")
+        case .onPace: String(localized: "Right on pace.")
+        }
+    }
+
+    /// "2 kilometres. That one took 5 minutes, 48 seconds."
+    static func splitCue(number: Int, seconds: Double, units: UnitSystem) -> String {
+        let distance = units == .metric
+            ? Measurement(value: Double(number), unit: UnitLength.kilometers).formatted(.measurement(width: .wide))
+            : Measurement(value: Double(number), unit: UnitLength.miles).formatted(.measurement(width: .wide))
+        return String(localized: "\(distance). That one took \(spokenDuration(seconds)).")
+    }
 
     static func spokenDuration(_ seconds: Double) -> String {
         let formatter = DateComponentsFormatter()

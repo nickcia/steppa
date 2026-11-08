@@ -13,16 +13,20 @@ struct GuidedRunView: View {
             Color(white: 0.07).ignoresSafeArea()
             if let session = run.session {
                 if session.isFinished {
-                    summary(session)
+                    GuidedRunSummary(session: session)
                 } else {
                     live(session)
                 }
             }
         }
         .preferredColorScheme(.dark)
-        .confirmationDialog("End this run?", isPresented: $confirmingEnd, titleVisibility: .visible) {
+        // An alert rather than a confirmation dialog: the popover kind can lose its anchor on a screen that redraws
+        // several times a second.
+        .alert("End this run?", isPresented: $confirmingEnd) {
             Button("End run", role: .destructive) { run.end() }
             Button("Keep going", role: .cancel) {}
+        } message: {
+            Text("What you've run so far is kept and saved to Apple Health.")
         }
     }
 
@@ -116,6 +120,8 @@ struct GuidedRunView: View {
                 HStack {
                     stat(DisplayFormat.clock(run.elapsedTotal(at: context.date)), String(localized: "time"))
                     stat(run.meters > 0 ? session.format.distance(run.meters) : "–", String(localized: "distance"))
+                    stat(run.currentPace(at: context.date).map { DisplayFormat.clock(session.format.paceSeconds($0)) } ?? "–",
+                         String(localized: "pace /\(session.format.units.distanceUnit)"))
                 }
             }
             .padding(.horizontal, Theme.Spacing.l)
@@ -166,54 +172,6 @@ struct GuidedRunView: View {
     }
 
     // MARK: Summary
-
-    private func summary(_ session: GuidedRunController.Session) -> some View {
-        let completed = session.index + 1 >= session.steps.count
-        let status = model.status(of: session.workout)
-        return VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            Spacer()
-            Image(systemName: completed ? "checkmark" : "flag.checkered")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(.black)
-                .frame(width: 64, height: 64)
-                .background(Theme.sheen, in: Circle())
-            VStack(alignment: .leading, spacing: 6) {
-                Text(completed ? String(localized: "Workout complete") : String(localized: "Run ended"))
-                    .font(.largeTitle.weight(.bold)).foregroundStyle(.white)
-                Text(completed ? String(localized: "Every step done. Nice work.")
-                               : String(localized: "\(session.index) of \(session.steps.count) steps done."))
-                    .foregroundStyle(.white.opacity(0.65))
-            }
-            HStack {
-                stat(DisplayFormat.clock(run.elapsedTotal()), String(localized: "time"))
-                stat(run.meters > 0 ? session.format.distance(run.meters) : "–", String(localized: "distance"))
-            }
-            .padding(.vertical, Theme.Spacing.m)
-            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-            Spacer()
-            if status == nil {
-                Button {
-                    model.setStatus(.done, for: session.workout)
-                    run.close()
-                } label: {
-                    Text("Mark as done").frame(maxWidth: .infinity)
-                }
-                .font(.headline)
-                .foregroundStyle(.black)
-                .frame(height: 56)
-                .background(.white, in: Capsule())
-            }
-            Button { run.close() } label: {
-                Text(status == nil ? String(localized: "Close without marking") : String(localized: "Close")).frame(maxWidth: .infinity)
-            }
-            .font(.headline)
-            .foregroundStyle(.white)
-            .frame(height: 56)
-            .background(.white.opacity(0.12), in: Capsule())
-        }
-        .padding(Theme.Spacing.l)
-        .sensoryFeedback(.success, trigger: session.isFinished)
-    }
 }
 
 /// One segment per step, filled as the run goes; the current one fills live.
@@ -256,5 +214,106 @@ private struct StepSegments: View {
             }
             .clipShape(Capsule())
             .frame(width: width)
+    }
+}
+
+/// After the run: time, distance and pace, saved to Apple Health automatically (which ticks the workout off), or
+/// Mark as done when it can't be saved.
+private struct GuidedRunSummary: View {
+    let session: GuidedRunController.Session
+    @Environment(GuidedRunController.self) private var run
+    @Environment(AppModel.self) private var model
+
+    enum SaveState { case saving, saved, notSaved, tooShort }
+    @State private var saveState: SaveState = .saving
+
+    var body: some View {
+        let status = model.status(of: session.workout)
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            Spacer()
+            Image(systemName: session.finishedNormally ? "checkmark" : "flag.checkered")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(.black)
+                .frame(width: 64, height: 64)
+                .background(Theme.sheen, in: Circle())
+            VStack(alignment: .leading, spacing: 6) {
+                Text(session.finishedNormally ? String(localized: "Workout complete") : String(localized: "Run ended"))
+                    .font(.largeTitle.weight(.bold)).foregroundStyle(.white)
+                Text(session.finishedNormally ? String(localized: "Every step done. Nice work.")
+                                              : String(localized: "\(session.index) of \(session.steps.count) steps done."))
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+            HStack {
+                stat(DisplayFormat.clock(run.elapsedTotal()), String(localized: "time"))
+                stat(run.meters > 0 ? session.format.distance(run.meters) : "–", String(localized: "distance"))
+                stat(run.averagePace().map { DisplayFormat.clock(session.format.paceSeconds($0)) } ?? "–",
+                     String(localized: "avg pace /\(session.format.units.distanceUnit)"))
+            }
+            .padding(.vertical, Theme.Spacing.m)
+            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            healthLine
+            Spacer()
+            if status == nil, saveState != .saving {
+                Button {
+                    model.setStatus(.done, for: session.workout)
+                    run.close()
+                } label: {
+                    Text("Mark as done").frame(maxWidth: .infinity)
+                }
+                .font(.headline)
+                .foregroundStyle(.black)
+                .frame(height: 56)
+                .background(.white, in: Capsule())
+            }
+            Button { run.close() } label: {
+                Text(status == nil && saveState != .saving ? String(localized: "Close without marking") : String(localized: "Close"))
+                    .frame(maxWidth: .infinity)
+            }
+            .font(.headline)
+            .foregroundStyle(.white)
+            .frame(height: 56)
+            .background(.white.opacity(0.12), in: Capsule())
+        }
+        .padding(Theme.Spacing.l)
+        .sensoryFeedback(.success, trigger: session.isFinished)
+        .task { await save() }
+    }
+
+    @ViewBuilder private var healthLine: some View {
+        let status = model.status(of: session.workout)
+        switch saveState {
+        case .saving:
+            Label("Saving to Apple Health…", systemImage: "heart.text.square").foregroundStyle(.white.opacity(0.7))
+        case .saved:
+            Label(status == .done ? String(localized: "Saved to Apple Health and ticked off your plan.")
+                                  : String(localized: "Saved to Apple Health."),
+                  systemImage: "checkmark.circle.fill")
+                .foregroundStyle(Theme.green)
+        case .notSaved:
+            Label("Not saved to Apple Health. Allow TrackStar to save workouts in the Health app (Sharing › Apps › TrackStar).",
+                  systemImage: "heart.slash")
+                .foregroundStyle(.white.opacity(0.7))
+        case .tooShort:
+            Label("Too short to save to Apple Health.", systemImage: "clock").foregroundStyle(.white.opacity(0.7))
+        }
+    }
+
+    private func save() async {
+        guard saveState == .saving else { return }
+        guard let recording = run.recording else {
+            saveState = .tooShort
+            return
+        }
+        let saved = await model.saveGuidedRun(recording)
+        if saved { run.forgetSavedRun() }
+        saveState = saved ? .saved : .notSaved
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.title2.weight(.semibold)).monospacedDigit().foregroundStyle(.white)
+            Text(label).font(.caption).foregroundStyle(.white.opacity(0.5))
+        }
+        .frame(maxWidth: .infinity)
     }
 }

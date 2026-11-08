@@ -77,6 +77,8 @@ struct RootView: View {
                 .interactiveDismissDisabled()
         }
         .task {
+            // If iOS closed the app during a guided run, carry on with it.
+            if model.plan != nil { guidedRun.restoreIfNeeded(describer: model.targetDescriber) }
             crashes.start()
             #if DEBUG
             // `-crashReport`: show the after-a-crash prompt with a made-up report.
@@ -92,7 +94,7 @@ struct RootView: View {
             guard ProcessInfo.processInfo.arguments.contains("-guidedRun"), guidedRun.session == nil,
                   let workout = model.plan?.workouts.first(where: { $0.date >= model.today && $0.kind != .race }) else { return }
             try? await Task.sleep(for: .seconds(1))
-            guidedRun.start(workout, describer: model.targetDescriber)
+            await model.startGuidedRun(workout)
         }
         #endif
         .onChange(of: scenePhase) { _, phase in

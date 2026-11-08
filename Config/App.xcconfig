@@ -37,7 +37,8 @@ INTERVALS_CLIENT_ID = 1716
 // Shown when turning on "Show my plan in Calendar". Adding a single workout uses iOS's own sheet and needs no access.
 INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = Your training plan is added to its own calendar and kept up to date as it changes. Only that calendar is ever changed.
 
-// Shown when asking for Apple Health access. Read-only: the app never writes to Health.
+// Shown when asking for Apple Health access. The app reads runs, and saves only runs recorded on the phone (guided runs).
+INFOPLIST_KEY_NSHealthUpdateUsageDescription = Runs you record on your iPhone with a guided run are saved to Apple Health as running workouts, with their distance and route, so they count everywhere and tick off your plan.
 INFOPLIST_KEY_NSHealthShareUsageDescription = Your runs are read from Apple Health (including runs from Apple Watch, Garmin, Coros and other apps that sync to Health) to tick off planned workouts and adapt your plan. Nothing leaves your device.
 
 // Shown when starting a guided run on the phone. Location keeps the spoken cues going with the screen locked, and measures

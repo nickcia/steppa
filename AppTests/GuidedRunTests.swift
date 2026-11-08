@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import Testing
 import PlanEngine
@@ -67,4 +68,57 @@ private func sampleInputs() -> PlanInputs {
     PlanInputs(goal: .halfMarathon, raceDate: LocalDate.today.adding(days: 14 * 7 + 2), startDate: .today,
                currentWeeklyMeters: 30_000, fitness: .recentRace(.init(.tenK, timeSeconds: 50 * 60)),
                runDays: [.tuesday, .thursday, .saturday, .sunday], longRunDay: .sunday, experience: .intermediate)
+}
+
+@MainActor
+struct GuidedRunCueTests {
+    let target = PaceRange(fast: 300, slow: 320)
+
+    @Test func paceVerdictAllowsGPSNoise() {
+        #expect(GuidedTimeline.paceVerdict(current: 285, target: target) == .fast)
+        #expect(GuidedTimeline.paceVerdict(current: 295, target: target) == .onPace) // within 3% of 5:00
+        #expect(GuidedTimeline.paceVerdict(current: 325, target: target) == .onPace)
+        #expect(GuidedTimeline.paceVerdict(current: 340, target: target) == .slow)
+    }
+
+    @Test func paceCuesNameTheTargetInTheAthletesUnits() {
+        let metric = GuidedTimeline.paceCue(.fast, target: target, units: .metric)
+        #expect(metric.contains("Ease off") && metric.contains("5:10") && metric.contains("kilometre"))
+        let imperial = GuidedTimeline.paceCue(.slow, target: target, units: .imperial)
+        #expect(imperial.contains("Pick it up") && imperial.contains("mile"))
+    }
+
+    @Test func splitCueGivesTheDistanceAndTime() {
+        let cue = GuidedTimeline.splitCue(number: 2, seconds: 348, units: .metric)
+        #expect(cue.contains("2") && cue.contains("5 minutes") && cue.contains("48 seconds"))
+    }
+
+    @Test func onlyPacedWorkStepsGetPaceCues() throws {
+        let plan = try PlanBuilder.build(PlanInputs(goal: .halfMarathon, raceDate: LocalDate.today.adding(days: 100), startDate: .today,
+                                                    currentWeeklyMeters: 30_000, fitness: .recentRace(.init(.tenK, timeSeconds: 50 * 60)),
+                                                    runDays: [.tuesday, .thursday, .saturday, .sunday], longRunDay: .sunday,
+                                                    experience: .intermediate))
+        let describer = WorkoutDescriber(format: DisplayFormat(units: .metric))
+        let tempo = try #require(plan.workouts.first { $0.kind == .tempo })
+        let steps = GuidedTimeline.steps(for: tempo, describer: describer)
+        #expect(steps.first { $0.role == .work }?.target != nil)
+        #expect(steps.filter { $0.role != .work }.allSatisfy { $0.target == nil })
+        if let hills = plan.workouts.first(where: { $0.kind == .hills }) {
+            #expect(GuidedTimeline.steps(for: hills, describer: describer).filter { $0.role == .work }.allSatisfy { $0.target == nil })
+        }
+    }
+
+    @Test func livePaceComesFromTheLastHalfMinute() {
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        // 4 m/s (4:10/km) along a line, one point a second.
+        let route = (0...40).map { i in
+            CLLocation(coordinate: .init(latitude: 51.5 + Double(i) * 4 / 111_320, longitude: -0.12), altitude: 0,
+                       horizontalAccuracy: 5, verticalAccuracy: 5, course: 0, speed: 4,
+                       timestamp: start.addingTimeInterval(Double(i)))
+        }
+        let pace = RunRecorder.pace(of: route, window: 30, at: start.addingTimeInterval(40))
+        #expect(pace.map { abs($0 - 250) < 5 } == true)
+        // Not enough running yet.
+        #expect(RunRecorder.pace(of: Array(route.prefix(3)), window: 30, at: start.addingTimeInterval(3)) == nil)
+    }
 }
