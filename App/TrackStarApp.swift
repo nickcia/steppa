@@ -43,6 +43,10 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(CrashReporter.self) private var crashes
     @Environment(GuidedRunController.self) private var guidedRun
+    #if DEBUG
+    /// `-watchSetup`: open the watch setup sheet at launch.
+    @State private var debugWatchSetup = ProcessInfo.processInfo.arguments.contains("-watchSetup")
+    #endif
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -79,6 +83,9 @@ struct RootView: View {
             if ProcessInfo.processInfo.arguments.contains("-crashReport") { crashes.accept([.sample]) }
             #endif
         }
+        #if DEBUG
+        .sheet(isPresented: $debugWatchSetup) { WatchSetupView().environment(model) }
+        #endif
         #if DEBUG
         // `-guidedRun`: start today's (or the next) workout as a guided run, once there's a plan.
         .task(id: model.planID) {

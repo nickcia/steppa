@@ -20,6 +20,7 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     header.revealed(0, revealStep)
                     PlanChangeBanner()
+                    WatchSetupNudge()
                     WeekCard(selected: $selected).revealed(1, revealStep)
                     HeroCard(date: selected).revealed(2, revealStep)
                     if let strength = model.strengthSession(on: selected) {

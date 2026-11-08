@@ -17,8 +17,8 @@ nonisolated enum AppHelp {
                     body: """
                     TrackStar sends workouts to these watches through Intervals.icu, a free training site, because Garmin doesn't let small apps connect directly.
                     1. In TrackStar, go to Settings › Other watches and tap Connect Garmin, COROS and others. Sign in to Intervals.icu (or create a free account).
-                    2. On intervals.icu, open Settings › Connections and connect your Garmin (or COROS, Suunto, Wahoo). Allow it to upload planned workouts and download activities.
-                    3. Back in TrackStar, Settings › Other watches shows your watch as Receiving. Your upcoming workouts appear in Garmin Connect's calendar and on your watch, and finished runs come back to TrackStar automatically.
+                    2. TrackStar then walks you through linking your watch on Intervals.icu: tap Open Intervals.icu, find Garmin (or COROS, Suunto, Wahoo) under Connections, tap Connect, tick Upload planned workouts, and sign in. If you stop part-way, Today shows Finish connecting your watch.
+                    3. Back in TrackStar, it notices the link by itself, and Settings › Other watches shows your watch as Receiving workouts. Your upcoming workouts appear in Garmin Connect's calendar and on your watch, and finished runs come back to TrackStar automatically.
                     Your watch's heart-rate zones come across too (Settings › Heart-rate zones).
                     """),
         HelpArticle(id: "phone", title: "Run with just your phone (spoken cues)",

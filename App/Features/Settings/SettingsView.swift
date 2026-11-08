@@ -411,6 +411,7 @@ private struct IntervalsSection: View {
     @State private var signingIn = false
     @State private var confirmDisconnect = false
     @State private var signInError: String?
+    @State private var settingUpWatch = false
 
     var body: some View {
         Section {
@@ -454,6 +455,7 @@ private struct IntervalsSection: View {
             }
         }
         .sheet(isPresented: $enteringKey) { IntervalsAPIKeyView() }
+        .sheet(isPresented: $settingUpWatch) { WatchSetupView() }
         .confirmationDialog("Disconnect Intervals.icu?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
             Button("Disconnect", role: .destructive) { Task { await model.disconnectIntervals() } }
         } message: {
@@ -489,11 +491,11 @@ private struct IntervalsSection: View {
             }
             if !athlete.links.contains(where: { $0.service == .garmin }) {
                 Button {
-                    openURL(AppModel.intervalsConnectionsURL)
+                    settingUpWatch = true
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Label(athlete.links.isEmpty ? "Link your watch" : "Link Garmin", systemImage: "link")
-                        Text("Opens Intervals.icu. Under Connections, find your watch brand, tick Upload planned workouts, tap Connect and sign in, then come back here.")
+                        Text("A one-time step on Intervals.icu, about a minute. We'll walk you through it.")
                             .font(.footnote)
                             .foregroundStyle(Theme.secondaryInk)
                     }
@@ -512,6 +514,8 @@ private struct IntervalsSection: View {
                 let callback = try await webAuthenticationSession.authenticate(
                     using: attempt.url, callbackURLScheme: oauth.callbackScheme, preferredBrowserSession: .shared)
                 try await model.finishIntervalsSignIn(callback: callback, attempt: attempt)
+                // Signed in: straight on to linking the watch (or confirming it's already linked).
+                settingUpWatch = true
             } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
                 // The athlete closed the sign-in sheet.
             } catch {

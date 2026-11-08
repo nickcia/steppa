@@ -642,11 +642,20 @@ final class AppModel {
         return intervals != nil
     }
 
+    /// Intervals.icu is connected but no watch receives workouts yet (Garmin and the rest are linked on Intervals.icu).
+    var intervalsNeedsWatch: Bool {
+        guard intervalsAccount != nil, let athlete = intervalsAthlete else { return false }
+        return !athlete.links.contains { $0.uploading }
+    }
+
     #if DEBUG
     /// `-intervalsConnected`: pretend to be connected with a Garmin receiving workouts, to check the Settings layout.
     func debugFakeIntervalsConnection() {
         intervalsAccount = IntervalsCredentials(kind: .apiKey, token: "debug", athleteID: "0", athleteName: "")
-        intervalsAthlete = IntervalsAthlete(id: "0", name: nil, icu_garmin_training: true, icu_garmin_upload_workouts: true)
+        // `-intervalsNoWatch` too: signed in, but no watch linked yet (the setup sheet and the Today nudge).
+        intervalsAthlete = ProcessInfo.processInfo.arguments.contains("-intervalsNoWatch")
+            ? IntervalsAthlete(id: "0", name: nil)
+            : IntervalsAthlete(id: "0", name: nil, icu_garmin_training: true, icu_garmin_upload_workouts: true)
         intervalsLastSync = Date().addingTimeInterval(-600)
     }
     #endif
