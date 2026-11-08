@@ -40,14 +40,15 @@ enum WorkoutFactory {
     }
 
     /// An easy run finishing with strides: `reps` × 20 s quick-but-relaxed, each followed by a 60 s easy jog or
-    /// walk. The whole run is still `meters`. Returns a plain easy run if the easy part would get too short.
+    /// walk. The whole run is still `meters`. Returns a plain easy run if the easy part would be shorter than a
+    /// warm-up (`PlanRules.strideWarmUpMeters`, about ten minutes).
     static func easyWithStrides(_ date: LocalDate, meters: Double, reps: Int, paces: PaceTable) -> Workout {
         let stride = step(seconds: PlanRules.strideSeconds, zone: .stride, paces: paces)
         let recovery = step(seconds: PlanRules.strideRecoverySeconds, zone: nil, paces: paces)
         let stridesMeters = Double(reps) * (stride.estimatedMeters + recovery.estimatedMeters)
         // Down to 100 m, so the whole run is never longer than `meters` (which may be at the 10% spike cap).
         let easyMeters = ((meters - stridesMeters) / 100).rounded(.down) * 100
-        guard reps > 0, easyMeters >= PlanRules.minimumRunMeters else { return easy(date, meters: meters, paces: paces) }
+        guard reps > 0, easyMeters >= PlanRules.strideWarmUpMeters else { return easy(date, meters: meters, paces: paces) }
         return Workout(date: date, kind: .easy, blocks: [
             single(step(meters: easyMeters, zone: .easy, paces: paces)),
             IntervalBlock(iterations: reps, steps: [IntervalStep(purpose: .work, step: stride),

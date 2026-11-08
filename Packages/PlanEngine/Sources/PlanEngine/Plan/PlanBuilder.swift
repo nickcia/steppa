@@ -3,7 +3,7 @@
 /// Pure and deterministic: the same inputs always produce the same plan.
 public enum PlanBuilder {
     /// Bump when plan output changes, so stored plans can record which rules made them.
-    public static let engineVersion = 3
+    public static let engineVersion = 4
 
     public static func build(_ inputs: PlanInputs) throws(PlanError) -> TrainingPlan {
         guard inputs.raceDate > inputs.startDate else { throw .raceNotAfterStart }
@@ -25,6 +25,10 @@ public enum PlanBuilder {
         let recommendedVolume = PlanRules.recommendedCurrentMeters(inputs.goal)
         if inputs.currentWeeklyMeters < recommendedVolume {
             warnings.append(.lowStartingVolume(recommendedMeters: recommendedVolume))
+        }
+        let recommendedDays = PlanRules.recommendedRunDays(inputs.goal, goalTimeSeconds: inputs.goalTimeSeconds)
+        if inputs.runDays.count < recommendedDays {
+            warnings.append(.fewRunDays(recommended: recommendedDays))
         }
         if limited { warnings.append(.volumeLimitedByAvailability) }
         let predicted = FitnessModel.raceTimeSeconds(distanceMeters: inputs.goal.meters, score: fitness.score)

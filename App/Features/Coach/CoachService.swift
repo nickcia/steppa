@@ -57,6 +57,8 @@ struct CoachMessage: Identifiable, Equatable {
 final class CoachConversation {
     private(set) var messages: [CoachMessage] = []
     private(set) var isResponding = false
+    /// What the coach is doing before its answer starts: "Thinking", or the lookup it's making.
+    private(set) var status = String(localized: "Thinking")
     private var snapshot: CoachSnapshot?
     private let suggestions = CoachSuggestionBox()
     #if canImport(FoundationModels)
@@ -68,7 +70,8 @@ final class CoachConversation {
     the app's rules; you explain it, answer questions about their runs, and give practical tips.
 
     Rules:
-    - Look things up with the tools before answering questions about the plan or runs. Never invent workouts, \
+    - The plan overview, today and recent runs are below. Use the tools for other weeks and for a run's details \
+    before answering questions about them. Never invent workouts, \
     paces, dates or numbers. If a tool has no data, say so.
     - Keep answers short: two to five sentences, or a few bullets. Use the athlete's units as the tools give them. \
     Write dates the way people say them ("Tuesday 17 November"), never as 2026-11-17.
@@ -87,6 +90,14 @@ final class CoachConversation {
         snapshot = CoachSnapshot.make(model)
     }
 
+    /// Loads the model ahead of the first question, which makes the first answer start sooner.
+    func warmUp(_ model: AppModel) {
+        prepare(model)
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *), CoachAvailability.current == .available { session().prewarm() }
+        #endif
+    }
+
     /// Starts over with a clean conversation.
     func reset() {
         messages = []
@@ -101,6 +112,7 @@ final class CoachConversation {
         prepare(model)
         messages.append(CoachMessage(role: .athlete, text: text))
         messages.append(CoachMessage(role: .coach, text: ""))
+        status = String(localized: "Thinking")
         isResponding = true
         defer { isResponding = false }
         #if canImport(FoundationModels)
@@ -123,11 +135,16 @@ final class CoachConversation {
     private func session() -> LanguageModelSession {
         if let existing = sessionStorage as? LanguageModelSession { return existing }
         let snapshot = snapshot ?? CoachSnapshot(overview: "", weeks: [:], recentRuns: "", runDetails: [:], today: "")
+        // Tools run off the main actor; they report what they're looking up for the thinking indicator.
+        let report: @Sendable (String) -> Void = { [weak self] text in
+            Task { @MainActor in self?.status = text }
+        }
         let session = LanguageModelSession(
-            tools: [PlanOverviewTool(snapshot: snapshot), WeekTool(snapshot: snapshot),
-                    RecentRunsTool(snapshot: snapshot), RunDetailsTool(snapshot: snapshot),
-                    SuggestChangeTool(box: suggestions)],
-            instructions: Self.instructions + "\n\n" + snapshot.today)
+            tools: [PlanOverviewTool(snapshot: snapshot, report: report), WeekTool(snapshot: snapshot, report: report),
+                    RecentRunsTool(snapshot: snapshot, report: report), RunDetailsTool(snapshot: snapshot, report: report),
+                    SuggestChangeTool(box: suggestions, report: report)],
+            instructions: Self.instructions + "\n\nPlan overview:\n" + snapshot.overview + "\n\n" + snapshot.today
+                + "\n\nRecent runs:\n" + snapshot.recentRuns)
         sessionStorage = session
         return session
     }
@@ -165,17 +182,22 @@ final class CoachConversation {
 @available(iOS 26.0, *)
 nonisolated struct PlanOverviewTool: Tool {
     let snapshot: CoachSnapshot
+    let report: @Sendable (String) -> Void
     let name = "getPlanOverview"
     let description = "The athlete's goal race, plan length, current week and phase, run days, training paces and predicted race time."
 
     @Generable struct Arguments {}
 
-    func call(arguments: Arguments) async throws -> String { snapshot.overview }
+    func call(arguments: Arguments) async throws -> String {
+        report(String(localized: "Checking your plan"))
+        return snapshot.overview
+    }
 }
 
 @available(iOS 26.0, *)
 nonisolated struct WeekTool: Tool {
     let snapshot: CoachSnapshot
+    let report: @Sendable (String) -> Void
     let name = "getWeek"
     let description = "The planned workouts for a week, with what was done or skipped. 0 is this week, -1 last week, 1 next week."
 
@@ -185,24 +207,36 @@ nonisolated struct WeekTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        snapshot.weeks[arguments.offset] ?? "No plan for that week."
+        let status = switch arguments.offset {
+        case 0: String(localized: "Looking at this week")
+        case 1: String(localized: "Looking at next week")
+        case -1: String(localized: "Looking at last week")
+        default: String(localized: "Looking through your plan")
+        }
+        report(status)
+        return snapshot.weeks[arguments.offset] ?? "No plan for that week."
     }
 }
 
 @available(iOS 26.0, *)
 nonisolated struct RecentRunsTool: Tool {
     let snapshot: CoachSnapshot
+    let report: @Sendable (String) -> Void
     let name = "getRecentRuns"
     let description = "The athlete's recorded runs from the last 8 weeks, newest first, with date, distance, time, pace and heart rate."
 
     @Generable struct Arguments {}
 
-    func call(arguments: Arguments) async throws -> String { snapshot.recentRuns }
+    func call(arguments: Arguments) async throws -> String {
+        report(String(localized: "Going through your runs"))
+        return snapshot.recentRuns
+    }
 }
 
 @available(iOS 26.0, *)
 nonisolated struct RunDetailsTool: Tool {
     let snapshot: CoachSnapshot
+    let report: @Sendable (String) -> Void
     let name = "getRunDetails"
     let description = "Full analysis of one recorded run: planned vs actual, splits, heart rate, zones, drift, power and cadence. Use a date from getRecentRuns."
 
@@ -212,13 +246,15 @@ nonisolated struct RunDetailsTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        snapshot.runDetails[arguments.date] ?? "No recorded run on \(arguments.date). Check getRecentRuns for dates."
+        report(String(localized: "Reading your run"))
+        return snapshot.runDetails[arguments.date] ?? "No recorded run on \(arguments.date). Check getRecentRuns for dates."
     }
 }
 
 @available(iOS 26.0, *)
 nonisolated struct SuggestChangeTool: Tool {
     let box: CoachSuggestionBox
+    let report: @Sendable (String) -> Void
     let name = "suggestPlanChange"
     let description = "Suggest moving or skipping one planned workout. The athlete sees a button and decides; nothing changes until they tap it."
 
@@ -239,8 +275,99 @@ nonisolated struct SuggestChangeTool: Tool {
         }
         let newDate = LocalDate(iso: arguments.newDate)
         if action == .move && newDate == nil { return "Not suggested: a move needs a new date." }
+        report(String(localized: "Preparing a suggestion"))
         box.add(CoachSuggestion(action: action, date: date, newDate: newDate, reason: arguments.reason))
         return "Suggestion shown to the athlete as a button. Tell them briefly what you suggested and why; they decide."
     }
 }
+
+// MARK: - Run recap
+
+/// A recap of one run, generated as structured fields so the screen can lay it out as it streams in.
+@available(iOS 26.0, *)
+@Generable
+struct RunRecap {
+    @Guide(description: "A short, specific title for the run, at most 6 words, no date")
+    var headline: String
+    @Guide(description: "Two sentences: how the run went overall, against the plan if there was one")
+    var summary: String
+    @Guide(description: "Things that went well, each one short sentence with a number from the data", .count(2...3))
+    var wentWell: [String]
+    @Guide(description: "Things to watch or improve, each one short sentence. Empty if nothing stands out", .maximumCount(2))
+    var toWatch: [String]
+    @Guide(description: "One or two sentences comparing this run with the earlier similar runs: pace, heart rate, distance. If there are none, say this run sets the baseline")
+    var progress: String
+    @Guide(description: "One practical tip for the next run like this")
+    var nextTime: String
+}
 #endif
+
+/// The recap as plain values the screen shows while it streams; fields fill in as they arrive.
+struct RunRecapContent: Equatable {
+    var headline = ""
+    var summary = ""
+    var wentWell: [String] = []
+    var toWatch: [String] = []
+    var progress = ""
+    var nextTime = ""
+    var isEmpty: Bool { headline.isEmpty && summary.isEmpty }
+}
+
+/// Writes a recap of one run with the on-device model. All the data goes in the prompt, so there are no tool
+/// calls and the recap starts quickly.
+@Observable
+final class RunRecapWriter {
+    private(set) var content = RunRecapContent()
+    private(set) var isWriting = false
+    private(set) var failure: String?
+
+    /// Recaps already written this session, so reopening a run doesn't wait again.
+    private static var cache: [String: RunRecapContent] = [:]
+
+    static let instructions = """
+    You are a friendly, knowledgeable running coach. Write a short recap of one run for the athlete, like a \
+    progress report: how it went, what went well, what to watch, how it compares with earlier similar runs, and \
+    a tip for next time.
+
+    Rules:
+    - Use only the numbers in the data. Never invent paces, heart rates, dates or distances. Use the units given.
+    - Easy and long runs are meant to be slow: running them at or below the target pace is good, not a weakness.
+    - Rising heart-rate drift, lots of time in zones 4–5 on an easy run, or fading splits are worth mentioning.
+    - Faster pace at the same or lower heart rate than earlier runs is a sign of improving fitness.
+    - You're not a doctor. If something looks off (a very high heart rate), suggest it may be the watch reading.
+    - Be encouraging and honest. Write dates the way people say them. No emojis.
+    """
+
+    func write(_ run: CompletedRun, model: AppModel, again: Bool = false) async {
+        if !again, let cached = Self.cache[run.id] {
+            content = cached
+            return
+        }
+        guard !isWriting else { return }
+        let context = CoachSnapshot.recapContext(run, model: model)
+        content = RunRecapContent()
+        failure = nil
+        isWriting = true
+        defer { isWriting = false }
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            do {
+                let session = LanguageModelSession(instructions: Self.instructions)
+                let stream = session.streamResponse(to: "Write the recap of this run.\n\n" + context, generating: RunRecap.self)
+                for try await snapshot in stream {
+                    let partial = snapshot.content
+                    content = RunRecapContent(headline: partial.headline ?? "", summary: partial.summary ?? "",
+                                              wentWell: partial.wentWell ?? [], toWatch: partial.toWatch ?? [],
+                                              progress: partial.progress ?? "", nextTime: partial.nextTime ?? "")
+                }
+                Self.cache[run.id] = content
+            } catch {
+                print("Recap error: \(error)")
+                failure = String(localized: "The coach couldn't write a recap just now. Try again in a moment.")
+            }
+            return
+        }
+        #endif
+        failure = CoachAvailability.unsupported.message
+    }
+}

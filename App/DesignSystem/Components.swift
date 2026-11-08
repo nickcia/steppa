@@ -149,12 +149,14 @@ extension View {
     /// Covers the status bar area so scrolled content doesn't run under the clock (screens without a nav bar).
     func statusBarBackdrop() -> some View {
         overlay(alignment: .top) {
-            LinearGradient(colors: [Theme.background, Theme.background.opacity(0)], startPoint: .top, endPoint: .bottom)
-                .frame(height: 12)
-                .offset(y: 12)
-                .background(Theme.background.ignoresSafeArea(edges: .top))
-                .frame(height: 0, alignment: .top)
-                .allowsHitTesting(false)
+            // Solid behind the status bar only, then a short fade, so content scrolling up softens out without
+            // covering the top of the page when it's at rest.
+            VStack(spacing: 0) {
+                Theme.background.frame(height: 0).ignoresSafeArea(edges: .top)
+                LinearGradient(colors: [Theme.background, Theme.background.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 10)
+            }
+            .allowsHitTesting(false)
         }
     }
 }

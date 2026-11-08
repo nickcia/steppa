@@ -48,6 +48,37 @@ struct CoachTests {
         #expect(details.contains("Planned:"))
     }
 
+    @Test func recapComparesWithEarlierRunsOfTheSameKind() async throws {
+        let plan = try PlanBuilder.build(AppModelTests.inputs())
+        let easies = plan.workouts.filter { $0.kind == .easy && $0.date <= Self.today }
+        let first = try #require(easies.first), last = try #require(easies.last)
+        try #require(first.date != last.date)
+        let source = FakeRunSource(runs: [HealthIntegrationTests.run(for: first, id: "a"),
+                                          HealthIntegrationTests.run(for: last, id: "b")])
+        let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { Self.today }, runSource: source)
+        model.acceptDisclaimer()
+        model.start(plan)
+        await model.connectHealth()
+
+        let run = try #require(model.healthRuns.first { $0.id == "b" })
+        let context = CoachSnapshot.recapContext(run, model: model)
+        #expect(context.contains("Planned: \(WorkoutKind.easy.name)"))
+        #expect(context.contains("Earlier similar runs (newest first)"))
+        #expect(context.contains(first.date.formatted(.dateTime.day().month(.abbreviated))))
+        #expect(context.contains("This run was in week"))
+
+        let earliest = try #require(model.healthRuns.first { $0.id == "a" })
+        #expect(CoachSnapshot.recapContext(earliest, model: model).contains("nothing to compare yet"))
+    }
+
+    @Test func zonesAreNamedAndEmptyOnesLeftOut() {
+        let line = CoachSnapshot.zoneLine([0, 600, 1800, 600, 0])
+        #expect(line.contains("20% in zone 2 (easy)"))
+        #expect(line.contains("60% in zone 3 (moderate)"))
+        #expect(!line.contains("zone 1"))
+        #expect(!line.contains("zone 5"))
+    }
+
     @Test func suggestionsGoThroughTheAppsRules() throws {
         let model = try model()
         let plan = try #require(model.plan)

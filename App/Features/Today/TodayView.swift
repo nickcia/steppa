@@ -8,6 +8,9 @@ struct TodayView: View {
     @State private var selected: LocalDate = .today
     @State private var path = NavigationPath()
     @State private var coaching = false
+    #if DEBUG
+    @State private var debugRecap: CompletedRun?
+    #endif
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -43,6 +46,15 @@ struct TodayView: View {
             path = NavigationPath()
             withAnimation(.snappy) { selected = model.today }
         }
+        #if DEBUG
+        // `-recap`: open the coach's recap of the latest run (for checking it on a simulator).
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("-recap") else { return }
+            try? await Task.sleep(for: .seconds(1))
+            debugRecap = model.healthRuns.max { $0.date < $1.date }
+        }
+        .sheet(item: $debugRecap) { RunRecapView(run: $0) }
+        #endif
     }
 
     private var header: some View {
@@ -68,7 +80,7 @@ struct TodayView: View {
                 .sheet(isPresented: $coaching) { CoachView() }
             }
         }
-        .padding(.top, Theme.Spacing.s)
+        .padding(.top, Theme.Spacing.m)
     }
 
     @ViewBuilder private var upNext: some View {
@@ -271,6 +283,30 @@ private struct HeroCard: View {
     var body: some View {
         let workout = model.workout(on: date)
         VStack(alignment: .leading, spacing: 16) {
+            if let workout {
+                // The whole top of the card opens the workout; the buttons below keep their own actions.
+                NavigationLink(value: workout) { summary(workout) }
+                    .buttonStyle(HeroPressStyle())
+                    .accessibilityHint("Opens the workout")
+            } else {
+                summary(nil)
+            }
+            if let workout {
+                actions(workout)
+            } else {
+                Text(isAfterRace ? "Congratulations on finishing your plan."
+                                 : "Recovery is training too. A walk or gentle mobility is fine.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+    }
+
+    private func summary(_ workout: Workout?) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(label)
@@ -298,17 +334,10 @@ private struct HeroCard: View {
                                    String(localized: "\(target.zone.name) /\(model.units.distanceUnit)"))
                     }
                 }
-                actions(workout)
-            } else {
-                Text(isAfterRace ? "Congratulations on finishing your plan."
-                                 : "Recovery is training too. A walk or gentle mobility is fine.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.7))
             }
         }
-        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .contentShape(Rectangle())
     }
 
     private var label: String {
@@ -394,6 +423,15 @@ private struct HeroCard: View {
             }
             .accessibilityLabel("Workout details")
         }
+    }
+}
+
+/// The tappable top of the hero card: dims slightly while pressed.
+private struct HeroPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 

@@ -74,5 +74,12 @@ The app is not directed at children under 13.
 
 ## Changes and contact
 
-Changes to this policy are published here, with the date at the top. Questions: open an issue on the
-project's GitHub page.
+Changes to this policy are published here, with the date at the top. Questions: email
+nickseeya@gmail.com or open an issue on the project's GitHub page.
+
+## Bug reports
+
+"Report a bug" in Settings opens your own email app with a message ready to send: the app version, your
+iPhone model and iOS version, and (if you leave it on) a one-line summary of your plan, such as "Half
+marathon, 12 weeks, runs on Tue, Thu, Sat, Sun". No health data or runs are included. Nothing is sent
+unless you send the email yourself.

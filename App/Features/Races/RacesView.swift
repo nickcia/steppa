@@ -98,6 +98,8 @@ private struct RaceDateSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var date = Date()
 
+    @State private var updating: PlanChangeRequest?
+
     var body: some View {
         NavigationStack {
             Form {
@@ -116,13 +118,18 @@ private struct RaceDateSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Update plan") {
-                        model.changeRaceDate(LocalDate(date))
-                        dismiss()
+                        updating = .raceDate(LocalDate(date))
                     }
                     .disabled(LocalDate(date) == current)
                 }
             }
-            .onAppear { date = current.date() }
+            .onAppear { if updating == nil { date = current.date() } }
+            .fullScreenCover(item: $updating) { request in
+                PlanUpdateView(request: request) {
+                    updating = nil
+                    dismiss()
+                }
+            }
         }
     }
 }
@@ -210,6 +217,8 @@ private struct RaceEditor: View {
 
     private var isPast: Bool { LocalDate(date) <= model.today }
 
+    @State private var updating: PlanChangeRequest?
+
     var body: some View {
         NavigationStack {
             Form {
@@ -250,10 +259,15 @@ private struct RaceEditor: View {
                 if !hasGoal { goalSeconds = OnboardingDraft.typicalTime(new) }
                 if !hasResult { resultSeconds = OnboardingDraft.typicalTime(new) }
             }
+            .fullScreenCover(item: $updating) { request in
+                PlanUpdateView(request: request) {
+                    updating = nil
+                    dismiss()
+                }
+            }
             .alert("Update your training paces?", isPresented: $offerPaceUpdate) {
                 Button("Update paces") {
-                    model.applyRaceResult(RacePerformance(distance, timeSeconds: resultSeconds, date: LocalDate(date)))
-                    dismiss()
+                    updating = .raceResult(RacePerformance(distance, timeSeconds: resultSeconds, date: LocalDate(date)))
                 }
                 Button("Not now", role: .cancel) { dismiss() }
             } message: {

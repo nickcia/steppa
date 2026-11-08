@@ -125,10 +125,18 @@ weeks) get a warning.
 - **Strides:** 1 easy run a week ends with strides (2 in the build and peak; beginners from week 3): 4–6 ×
   20 s quick but relaxed, each with 60 s of easy jogging or walking. They improve speed and form without
   tiring you, so they don't count towards the intensity cap (Daniels counts them as part of easy running).
+  Any easy run can take them, as long as at least 1.5 km (about ten minutes) of easy running comes first.
   Never in the last 3 days before the race.
 - **Hills:** from week 6, base weeks alternate a threshold session with hill repeats (Lydiard; Pfitzinger):
-  strength before the faster work of the build. Hills replace the session, so the week's hard work doesn't
-  grow. The first weeks stay threshold so the plan can learn your paces from them.
+  strength before the faster work of the build. For half and marathon plans, every third build week also
+  swaps its interval session for hills, so plans with a short base still get hill work. Hills replace a
+  session, so the week's hard work doesn't grow. Threshold sessions stay in the first weeks, and every build
+  week, so the plan can learn your paces from them.
+- **Run days for the goal:** faster goals need more run days, because the distance that supports them
+  doesn't fit safely into fewer runs. The plan warns, clearly, when you have fewer than: marathon 3 (4
+  for 4:15 or faster, 5 for 3:30, 6 for 3:00); half 3 (4 for 1:45, 5 for 1:24); 10K 3 (4 for 48 min, 5
+  for 38); 5K 2 (3 for 27 min, 4 for 22, 5 for 18). Rules of thumb from Pfitzinger, Hansons and
+  Daniels, on the generous side. The plan still builds, safely, but says the goal is unlikely.
 - **Marathon peak (non-beginners):** the long run finishes with up to 40% at marathon pace.
 - **Race week:** at most one short session, no later than 4 days before the race. The last 3 days hold
   only short easy runs (6 km, then 4 km the day before).

@@ -101,33 +101,7 @@ extension CoachSnapshot {
             return line
         }
         for run in runs {
-            let analysis = model.analysis(for: run)
-            let workout = model.workout(for: run)
-            var lines = ["Run on \(run.date): \(format.distance(run.distanceMeters)) in \(DisplayFormat.duration(run.durationSeconds)), average \(format.pace(analysis.secondsPerKm))."]
-            if let workout { lines.append("Planned: " + describe(workout)) }
-            if let workout, let comparison = PlannedComparison.compare(workout, analysis) {
-                lines.append("Pace against target: \(comparison.verdict.rawValue).")
-            }
-            if let hr = analysis.averageHeartRate {
-                lines.append("Heart rate: average \(Int(hr.rounded())), max \(Int((analysis.maxHeartRate ?? hr).rounded())).")
-            }
-            if let drift = analysis.heartRateDrift {
-                lines.append("Heart-rate drift (second half vs first, same pace): \(Int((drift * 100).rounded()))%.")
-            }
-            if let zones = analysis.heartRateZoneSeconds {
-                let total = max(zones.reduce(0, +), 1)
-                lines.append("Time in heart-rate zones 1–5: " + zones.map { "\(Int(($0 / total * 100).rounded()))%" }.joined(separator: ", ") + ".")
-            }
-            if !analysis.splits.isEmpty {
-                lines.append("Splits per \(unit): " + analysis.splits.prefix(30).map {
-                    DisplayFormat.clock(format.paceSeconds($0.secondsPerKm)) + ($0.averageHeartRate.map { " @\(Int($0.rounded()))" } ?? "")
-                }.joined(separator: ", ") + ".")
-            }
-            if let power = analysis.averagePower { lines.append("Average power \(Int(power.rounded())) W.") }
-            if let cadence = analysis.averageCadence { lines.append("Average cadence \(Int(cadence.rounded())) steps/min.") }
-            let notes = RunNotes.make(analysis: analysis, workout: workout, format: format)
-            if !notes.isEmpty { lines.append("App's own notes: " + notes.joined(separator: " ")) }
-            details[run.date.description] = lines.joined(separator: "\n")
+            details[run.date.description] = runDetail(run, model: model)
         }
 
         // Today.
@@ -148,6 +122,107 @@ extension CoachSnapshot {
         return CoachSnapshot(overview: overview, weeks: weeks,
                              recentRuns: recentLines.isEmpty ? "No recorded runs in the last 8 weeks." : recentLines.joined(separator: "\n"),
                              runDetails: details, today: todayLines.joined(separator: "\n"), upcoming: Array(upcoming))
+    }
+}
+
+extension CoachSnapshot {
+    /// Everything about one recorded run, as plain text.
+    @MainActor static func runDetail(_ run: CompletedRun, model: AppModel) -> String {
+        let format = model.format
+        let unit = model.units.distanceUnit
+        let describer = WorkoutDescriber(format: format)
+        let analysis = model.analysis(for: run)
+        let workout = model.workout(for: run)
+        var lines = ["Run on \(run.date.formatted(.dateTime.weekday(.wide).day().month(.wide))): \(format.distance(run.distanceMeters)) in \(DisplayFormat.duration(run.durationSeconds)), average \(format.pace(analysis.secondsPerKm))."]
+        if let workout {
+            var planned = "Planned: \(workout.kind.name), \(describer.summary(workout)), about \(format.distance(workout.totalMeters))"
+            if let target = workout.blocks.flatMap(\.steps).first(where: { $0.purpose == .work })?.step.target,
+               !target.zone.isEffortBased, target.zone != .stride {
+                planned += ", target \(format.paceRange(target.range))"
+            }
+            lines.append(planned + ". Purpose: " + workout.kind.purpose)
+            if let comparison = PlannedComparison.compare(workout, analysis) {
+                lines.append("Pace against target: \(comparison.verdict.rawValue).")
+            }
+        } else {
+            lines.append("Not a planned workout.")
+        }
+        if let hr = analysis.averageHeartRate {
+            lines.append("Heart rate: average \(Int(hr.rounded())), max \(Int((analysis.maxHeartRate ?? hr).rounded())).")
+        }
+        if let drift = analysis.heartRateDrift {
+            lines.append("Heart-rate drift (second half vs first, same pace): \(Int((drift * 100).rounded()))%.")
+        }
+        if let zones = analysis.heartRateZoneSeconds, zones.reduce(0, +) > 0 {
+            lines.append(zoneLine(zones))
+        }
+        if !analysis.splits.isEmpty {
+            lines.append("Splits per \(unit): " + analysis.splits.prefix(30).map {
+                DisplayFormat.clock(format.paceSeconds($0.secondsPerKm)) + ($0.averageHeartRate.map { " @\(Int($0.rounded()))" } ?? "")
+            }.joined(separator: ", ") + ".")
+        }
+        if let elevation = analysis.elevationGainMeters, elevation > 0 { lines.append("Climb: \(Int(elevation.rounded())) m.") }
+        if let power = analysis.averagePower { lines.append("Average power \(Int(power.rounded())) W.") }
+        if let cadence = analysis.averageCadence { lines.append("Average cadence \(Int(cadence.rounded())) steps/min.") }
+        let notes = RunNotes.make(analysis: analysis, workout: workout, format: format)
+        if !notes.isEmpty { lines.append("App's own notes: " + notes.joined(separator: " ")) }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Time in each heart-rate zone, named, leaving out empty ones (bare lists of percentages confuse the model).
+    nonisolated static func zoneLine(_ zones: [Double]) -> String {
+        let names = ["zone 1 (very easy)", "zone 2 (easy)", "zone 3 (moderate)", "zone 4 (hard)", "zone 5 (very hard)"]
+        let total = max(zones.reduce(0, +), 1)
+        let parts = zones.enumerated().compactMap { index, seconds -> String? in
+            let share = Int((seconds / total * 100).rounded())
+            return share > 0 && index < names.count ? "\(share)% in \(names[index])" : nil
+        }
+        return "Heart-rate zones: " + parts.joined(separator: ", ") + ". Easy and long runs should be mostly in zones 1–2."
+    }
+
+    /// What the run recap needs: the run itself, earlier runs like it, and where it sits in the plan.
+    @MainActor static func recapContext(_ run: CompletedRun, model: AppModel) -> String {
+        let format = model.format
+        var sections = [runDetail(run, model: model)]
+
+        // Earlier runs of the same kind (or, for an unplanned run, of a similar distance), up to 8 weeks back.
+        let kind = model.workout(for: run)?.kind
+        let earlier = model.healthRuns
+            .filter { $0.id != run.id && $0.date < run.date && $0.date.days(until: run.date) <= 56 }
+            .filter { other in
+                if let kind { return model.workout(for: other)?.kind == kind }
+                return abs(other.distanceMeters - run.distanceMeters) <= run.distanceMeters * 0.3
+            }
+            .sorted { $0.date > $1.date }
+            .prefix(6)
+        if earlier.isEmpty {
+            sections.append("Earlier similar runs: none in the last 8 weeks, so there's nothing to compare yet.")
+        } else {
+            sections.append("Earlier similar runs (newest first):\n" + earlier.map { other in
+                let analysis = model.analysis(for: other)
+                var line = "- \(other.date.formatted(.dateTime.day().month(.abbreviated))): \(format.distance(other.distanceMeters)) at \(format.pace(analysis.secondsPerKm))"
+                if let hr = analysis.averageHeartRate { line += ", avg HR \(Int(hr.rounded()))" }
+                if let drift = analysis.heartRateDrift { line += ", drift \(Int((drift * 100).rounded()))%" }
+                return line
+            }.joined(separator: "\n"))
+        }
+
+        // Volume over the last four weeks, and the plan around the run.
+        if let plan = model.plan, let week = model.week(containing: run.date) {
+            let weekStart = week.startDate
+            let done = model.healthRuns.filter { $0.date >= weekStart && $0.date < weekStart.adding(days: 7) }
+                .reduce(0) { $0 + $1.distanceMeters }
+            var context = "Plan: \(plan.inputs.goal.name) on \(plan.inputs.raceDate.formatted(.dateTime.day().month(.wide))). This run was in week \(week.index + 1) of \(plan.weeks.count), \(week.phase.name) phase\(week.isStepBack ? " (step-back week)" : ""). That week: \(format.distance(done)) run of \(format.distance(week.plannedMeters)) planned."
+            let totals = (1...4).map { back -> Double in
+                let start = weekStart.adding(days: -7 * back)
+                return model.healthRuns.filter { $0.date >= start && $0.date < start.adding(days: 7) }.reduce(0) { $0 + $1.distanceMeters }
+            }
+            if totals.contains(where: { $0 > 0 }) {
+                context += " The 4 weeks before (oldest first): " + totals.reversed().map { format.distance($0) }.joined(separator: ", ") + "."
+            }
+            sections.append(context)
+        }
+        return sections.joined(separator: "\n\n")
     }
 }
 

@@ -27,7 +27,7 @@ struct CoachView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         header(availability)
                         ForEach(conversation.messages) { message in
-                            bubble(message).id(message.id)
+                            bubble(message) { proxy.scrollTo("bottom", anchor: .bottom) }.id(message.id)
                         }
                         if conversation.messages.isEmpty, availability == .available {
                             VStack(alignment: .leading, spacing: 8) {
@@ -40,10 +40,14 @@ struct CoachView: View {
                     }
                     .padding(.horizontal, Theme.Spacing.m)
                     .padding(.bottom, Theme.Spacing.m)
+                    Color.clear.frame(height: 1).id("bottom")
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .onChange(of: conversation.messages.last?.text) {
-                    if let last = conversation.messages.last { proxy.scrollTo(last.id, anchor: .bottom) }
+                .onChange(of: conversation.messages.count) {
+                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                }
+                .onChange(of: conversation.messages.last?.suggestions.count) {
+                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -61,7 +65,7 @@ struct CoachView: View {
                 }
             }
             .task {
-                conversation.prepare(model)
+                conversation.warmUp(model)
                 if let initialPrompt, availability == .available { ask(initialPrompt) }
             }
         }
@@ -69,11 +73,7 @@ struct CoachView: View {
 
     private func header(_ availability: CoachAvailability) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(StrengthStyle.gradient, in: Circle())
+            CoachOrb(size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(availability == .available ? "Ask about your plan and runs" : "Coach unavailable")
                     .font(.headline).foregroundStyle(Theme.ink)
@@ -86,29 +86,35 @@ struct CoachView: View {
         .padding(.top, Theme.Spacing.s)
     }
 
-    @ViewBuilder private func bubble(_ message: CoachMessage) -> some View {
+    @ViewBuilder private func bubble(_ message: CoachMessage, onStep: @escaping () -> Void) -> some View {
         let isAthlete = message.role == .athlete
         VStack(alignment: isAthlete ? .trailing : .leading, spacing: 8) {
-            Group {
-                if message.text.isEmpty {
-                    ProgressView().padding(.vertical, 4)
-                } else {
-                    Text(LocalizedStringKey(message.text))
-                        .font(.body)
-                        .foregroundStyle(isAthlete ? Theme.onAccent : Theme.ink)
-                        .textSelection(.enabled)
-                }
+            if isAthlete {
+                Text(message.text)
+                    .font(.body)
+                    .foregroundStyle(Theme.onAccent)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            } else if message.text.isEmpty {
+                ThinkingIndicator(status: conversation.status)
+                    .transition(.opacity)
+            } else {
+                // The coach's answer sits on the page rather than in a bubble, and types out smoothly.
+                PacedText(message.text, onStep: onStep)
+                    .padding(.vertical, 4)
+                    .transition(.opacity)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(isAthlete ? Theme.accent : Theme.card,
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             ForEach(message.suggestions) { suggestion in
                 suggestionCard(suggestion)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .animation(.easeOut(duration: 0.25), value: message.text.isEmpty)
+        .animation(.easeOut(duration: 0.3), value: message.suggestions)
         .frame(maxWidth: .infinity, alignment: isAthlete ? .trailing : .leading)
-        .padding(isAthlete ? .leading : .trailing, 40)
+        .padding(isAthlete ? .leading : .trailing, isAthlete ? 40 : 8)
     }
 
     private func suggestionCard(_ suggestion: CoachSuggestion) -> some View {

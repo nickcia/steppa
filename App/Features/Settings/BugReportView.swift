@@ -1,12 +1,15 @@
+import MessageUI
 import SwiftUI
 import UIKit
 import PlanEngine
 
-/// A bug report as a pre-filled GitHub issue. Nothing is sent by the app: the report opens in the browser,
-/// where the athlete reads it, edits it and submits it themselves (with a free GitHub account).
+/// A bug report as a pre-filled email, or a GitHub issue for people who have an account. Nothing is sent by the
+/// app itself: the athlete reads the message, edits it and sends it from their own Mail app.
 struct BugReport: Equatable {
     /// Where issues go. Forks: change this to your own repository.
     static let repository = "nickcia/steppa"
+    /// Where emailed reports go. Forks: change this to your own address.
+    static let email = "nickseeya@gmail.com"
 
     var appVersion: String
     var device: String
@@ -21,6 +24,34 @@ struct BugReport: Equatable {
                      URLQueryItem(name: "device", value: device)]
         if let planDetails { items.append(URLQueryItem(name: "plan", value: planDetails)) }
         components.queryItems = items
+        return components.url!
+    }
+
+    var mailSubject: String { "Steppa bug report (\(appVersion))" }
+
+    /// Prompts for the description, then the details.
+    var mailBody: String {
+        """
+        What happened:
+
+
+        What you expected to happen:
+
+
+        Steps to get there (if you know them):
+
+
+        ---
+        \(text)
+        """
+    }
+
+    /// For phones without the Mail app set up: opens whichever email app handles mailto links.
+    var mailtoURL: URL {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = Self.email
+        components.queryItems = [URLQueryItem(name: "subject", value: mailSubject), URLQueryItem(name: "body", value: mailBody)]
         return components.url!
     }
 
@@ -54,6 +85,7 @@ struct BugReportView: View {
     @Environment(\.openURL) private var openURL
     @State private var includePlan = true
     @State private var copied = false
+    @State private var composing = false
 
     private var report: BugReport {
         BugReport(appVersion: Bundle.main.versionString, device: BugReport.currentDevice,
@@ -64,7 +96,7 @@ struct BugReportView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Reports go to the project's public page on GitHub, where you describe what happened and submit it. You'll need a free GitHub account. Nothing is sent from the app.")
+                    Text("Your email app opens with a message ready to go. Describe what happened, add a screenshot if it helps, and send. Nothing is sent from Steppa itself.")
                         .font(.subheadline)
                 }
                 Section {
@@ -79,21 +111,41 @@ struct BugReportView: View {
                 } header: {
                     Text("Added to the report")
                 } footer: {
-                    Text("Reports are public. No health data, runs or personal details are included, and you can edit everything before submitting.")
+                    Text("No health data, runs or personal details are included, and you can edit everything before sending.")
+                }
+                Section {
+                    Button {
+                        if MFMailComposeViewController.canSendMail() {
+                            composing = true
+                        } else {
+                            openURL(report.mailtoURL) { opened in
+                                if !opened {
+                                    UIPasteboard.general.string = "\(BugReport.email)\n\n\(report.text)"
+                                    copied = true
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Email the report", systemImage: "envelope")
+                    }
+                    Button {
+                        UIPasteboard.general.string = "\(BugReport.email)\n\n\(report.text)"
+                        copied = true
+                    } label: {
+                        Label(copied ? "Copied" : "Copy details instead", systemImage: copied ? "checkmark" : "doc.on.doc")
+                    }
+                } footer: {
+                    Text(copied ? "Copied the address and details. Paste them into any email to \(BugReport.email)." : "Reports go to \(BugReport.email).")
                 }
                 Section {
                     Button {
                         openURL(report.url)
                         dismiss()
                     } label: {
-                        Label("Continue to GitHub", systemImage: "arrow.up.right.square")
+                        Label("Report on GitHub instead", systemImage: "arrow.up.right.square")
                     }
-                    Button {
-                        UIPasteboard.general.string = report.text
-                        copied = true
-                    } label: {
-                        Label(copied ? "Copied" : "Copy details instead", systemImage: copied ? "checkmark" : "doc.on.doc")
-                    }
+                } footer: {
+                    Text("For people with a GitHub account. Reports there are public.")
                 }
             }
             .navigationTitle("Report a bug")
@@ -101,6 +153,43 @@ struct BugReportView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
+            .sheet(isPresented: $composing) {
+                MailComposer(report: report) { sent in
+                    composing = false
+                    if sent { dismiss() }
+                }
+                .ignoresSafeArea()
+            }
+        }
+    }
+}
+
+/// The system's mail sheet, filled in with the report.
+private struct MailComposer: UIViewControllerRepresentable {
+    let report: BugReport
+    let finished: (Bool) -> Void
+
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let controller = MFMailComposeViewController()
+        controller.setToRecipients([BugReport.email])
+        controller.setSubject(report.mailSubject)
+        controller.setMessageBody(report.mailBody, isHTML: false)
+        controller.mailComposeDelegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: MFMailComposeViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(finished: finished) }
+
+    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
+        let finished: (Bool) -> Void
+        init(finished: @escaping (Bool) -> Void) { self.finished = finished }
+
+        nonisolated func mailComposeController(_ controller: MFMailComposeViewController,
+                                               didFinishWith result: MFMailComposeResult, error: Error?) {
+            let sent = result == .sent
+            MainActor.assumeIsolated { finished(sent) }
         }
     }
 }

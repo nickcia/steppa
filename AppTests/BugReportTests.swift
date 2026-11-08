@@ -18,6 +18,19 @@ struct BugReportTests {
         #expect(report.url.absoluteString.contains("%26")) // "&" in a value stays inside it
     }
 
+    @Test func mailIsAddressedAndFilledIn() throws {
+        let report = BugReport(appVersion: "0.1.0 (1)", device: "iPhone17,3, iOS 26.1", planDetails: "Half & more")
+        #expect(report.mailSubject.contains("0.1.0 (1)"))
+        #expect(report.mailBody.contains("What happened:"))
+        #expect(report.mailBody.contains("Device: iPhone17,3, iOS 26.1"))
+        let components = try #require(URLComponents(url: report.mailtoURL, resolvingAgainstBaseURL: false))
+        #expect(components.scheme == "mailto")
+        #expect(components.path == BugReport.email)
+        let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        #expect(items["subject"] == report.mailSubject)
+        #expect(items["body"] == report.mailBody)
+    }
+
     @Test func planDetailsAreOptionalAndNeverPersonal() throws {
         let report = BugReport(appVersion: "1", device: "d", planDetails: nil)
         #expect(!report.url.absoluteString.contains("plan="))

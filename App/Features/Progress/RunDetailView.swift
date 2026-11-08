@@ -86,6 +86,27 @@ struct RunDetailView: View {
                 }
             }
 
+            if model.showsCoach {
+                Button { askingCoach = true } label: {
+                    HStack(spacing: 12) {
+                        CoachOrb(size: 34)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Analyse this run").font(.headline).foregroundStyle(.white)
+                            Text("A recap and progress report from your coach")
+                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding(16)
+                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $askingCoach) {
+                    RunRecapView(run: run)
+                }
+            }
+
             if let workout {
                 PlanComparisonCard(workout: workout, analysis: analysis)
             }
@@ -118,15 +139,6 @@ struct RunDetailView: View {
                 ZonesCard(zones: zones, maxHeartRate: model.estimatedMaxHeartRate ?? 0, isSet: model.maxHeartRateIsSet)
             }
 
-            if model.showsCoach {
-                Button { askingCoach = true } label: {
-                    Label("Ask the coach about this run", systemImage: "sparkles")
-                }
-                .buttonStyle(.secondary)
-                .sheet(isPresented: $askingCoach) {
-                    CoachView(initialPrompt: String(localized: "How did my run on \(run.date) go? Any tips?"))
-                }
-            }
 
             if series == nil {
                 Card(padding: 18) {

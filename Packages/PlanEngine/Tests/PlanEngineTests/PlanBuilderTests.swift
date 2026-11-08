@@ -137,4 +137,24 @@ func sampleInputs(
         let dayBefore = plan.workouts.first { $0.date == inputs.raceDate.adding(days: -1) }
         #expect(dayBefore.map { $0.kind == .easy && $0.totalMeters <= 4_000 } ?? true)
     }
+
+    @Test func flagsTooFewRunDaysForTheGoal() throws {
+        #expect(PlanRules.recommendedRunDays(.marathon, goalTimeSeconds: 3 * 3600) == 6)
+        #expect(PlanRules.recommendedRunDays(.marathon, goalTimeSeconds: 3 * 3600 + 60) == 5)
+        #expect(PlanRules.recommendedRunDays(.marathon, goalTimeSeconds: nil) == 3)
+        #expect(PlanRules.recommendedRunDays(.halfMarathon, goalTimeSeconds: 2 * 3600) == 3)
+        #expect(PlanRules.recommendedRunDays(.fiveK, goalTimeSeconds: 25 * 60) == 3)
+
+        var inputs = sampleInputs(weeks: 16)
+        inputs.goal = .marathon
+        inputs.goalTimeSeconds = 3 * 3600 - 60
+        inputs.runDays = [.wednesday, .sunday]
+        inputs.longRunDay = .sunday
+        let plan = try PlanBuilder.build(inputs)
+        #expect(plan.warnings.contains(.fewRunDays(recommended: 6)))
+
+        inputs.goalTimeSeconds = nil
+        inputs.runDays = [.tuesday, .thursday, .sunday]
+        #expect(!(try PlanBuilder.build(inputs)).warnings.contains { if case .fewRunDays = $0 { true } else { false } })
+    }
 }

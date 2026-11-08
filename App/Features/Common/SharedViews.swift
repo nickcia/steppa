@@ -166,6 +166,8 @@ extension PlanWarning {
             String(localized: "Your available days limit how much the plan can build. Adding a run day would allow more volume.")
         case .ambitiousGoal(let predicted):
             String(localized: "Your goal is faster than your current fitness suggests (around \(DisplayFormat.clock(predicted))). Paces start from where you are now and adjust as you get fitter.")
+        case .fewRunDays(let recommended):
+            String(localized: "This goal usually needs at least \(recommended) runs a week. With fewer, it's unlikely to be realistic: the plan keeps you safe, but it can't build enough distance. Add run days or choose a gentler goal.")
         case .estimatedFitness:
             String(localized: "Without a recent race, your paces are an estimate. They'll adjust as you complete runs.")
         }

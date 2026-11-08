@@ -164,11 +164,30 @@ public enum PlanRules {
         return min(base + Double(max(0, 4 - runDays)) * 0.04, cap)
     }
 
+    // MARK: Run days
+
+    /// Run days a week this goal usually needs. Faster goals need more days, because the weekly distance that
+    /// supports them doesn't fit safely into fewer runs (the long run would be too big a share of the week).
+    /// Coaching rules of thumb (Pfitzinger, Hansons, Daniels), deliberately on the generous side.
+    public static func recommendedRunDays(_ goal: RaceDistance, goalTimeSeconds: Double?) -> Int {
+        // (time faster than which, days needed), fastest first; otherwise the base.
+        let (base, tiers): (Int, [(Double, Int)]) = switch goal {
+        case .marathon: (3, [(3 * 3600, 6), (3.5 * 3600, 5), (4.25 * 3600, 4)])
+        case .halfMarathon: (3, [(1.4 * 3600, 5), (1.75 * 3600, 4)])
+        case .tenK: (3, [(38 * 60, 5), (48 * 60, 4)])
+        case .fiveK: (2, [(18 * 60, 5), (22 * 60, 4), (27 * 60, 3)])
+        }
+        guard let goal = goalTimeSeconds, goal > 0 else { return base }
+        return tiers.first { goal <= $0.0 }?.1 ?? base
+    }
+
     // MARK: Strides
 
     /// Strides: short accelerations after an easy run, for speed and form without fatigue (Daniels; Pfitzinger).
     public static let strideSeconds = 20.0
     public static let strideRecoverySeconds = 60.0
+    /// Easy running before the strides, so they're done warm.
+    public static let strideWarmUpMeters = 1_500.0
 
     public static func strideReps(_ experience: Experience) -> Int {
         switch experience {

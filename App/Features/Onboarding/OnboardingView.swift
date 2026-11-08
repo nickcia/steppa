@@ -34,6 +34,15 @@ struct OnboardingView: View {
                 draft.acceptedDisclaimer = true
                 go(to: .review)
             }
+            // `-availability`: jump to the run-days step with a 3-hour marathon goal (shows the warning at 2 days).
+            if ProcessInfo.processInfo.arguments.contains("-availability") {
+                draft.acceptedDisclaimer = true
+                draft.goal = .marathon
+                draft.hasGoalTime = true
+                draft.goalTimeSeconds = 3 * 3600
+                draft.daysPerWeek = 2
+                draft.step = .availability
+            }
             #endif
         }
     }
@@ -124,6 +133,7 @@ struct OnboardingView: View {
         model.setUnits(draft.units)
         model.acceptDisclaimer()
         model.start(plan)
+        model.setStrength(enabled: draft.strengthEnabled, perWeek: draft.strengthPerWeek)
     }
 
     // MARK: Steps
@@ -444,21 +454,109 @@ private struct AvailabilityStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            StepHeader(title: String(localized: "Which days can you run?"),
-                       subtitle: String(localized: "Pick at least 2. Four or more lets the plan include more variety."))
-            WeekdayChips(selection: $draft.runDays)
-                .onChange(of: draft.runDays) { _, days in
-                    if !days.contains(draft.longRunDay), let fallback = days.sorted().last { draft.longRunDay = fallback }
+            StepHeader(title: String(localized: "How many days a week can you run?"),
+                       subtitle: String(localized: "Be realistic about a normal week. Four or more lets the plan include more variety."))
+            HStack(spacing: 6) {
+                ForEach(2...7, id: \.self) { count in
+                    let on = draft.daysPerWeek == count
+                    Button {
+                        withAnimation(.snappy) { draft.daysPerWeek = count }
+                    } label: {
+                        Text("\(count)")
+                            .font(.title3.weight(.bold))
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .foregroundStyle(on ? .white : Theme.ink)
+                            .background(on ? Theme.accent : Theme.card,
+                                        in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(count) days")
+                    .accessibilityAddTraits(on ? .isSelected : [])
                 }
+            }
+            .sensoryFeedback(.selection, trigger: draft.daysPerWeek)
+
+            if draft.daysPerWeek < draft.recommendedRunDays {
+                FewDaysWarning(draft: draft)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                Text("Which days?").font(.headline).foregroundStyle(Theme.ink)
+                Text(dayCountHint).font(.subheadline)
+                    .foregroundStyle(draft.runDays.count == draft.daysPerWeek ? Theme.secondaryInk : Theme.amber)
+                WeekdayChips(selection: $draft.runDays, limit: draft.daysPerWeek)
+                    .onChange(of: draft.runDays) { _, days in
+                        if !days.contains(draft.longRunDay), let fallback = days.sorted().last { draft.longRunDay = fallback }
+                    }
+            }
+
             VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                 Text("Long run day").font(.headline).foregroundStyle(Theme.ink)
                 Text("Usually the day you have the most time.").font(.subheadline).foregroundStyle(Theme.secondaryInk)
                 Picker("Long run day", selection: $draft.longRunDay) {
-                    ForEach(draft.runDays.sorted(), id: \.self) { Text($0.fullName).tag($0) }
+                    ForEach(draft.runDays.sorted(), id: \.self) { Text($0.mediumName).tag($0) }
                 }
                 .pickerStyle(.segmented)
             }
+
+            Card {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    Toggle(isOn: $draft.strengthEnabled.animation()) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Strength training").font(.headline).foregroundStyle(Theme.ink)
+                            Text("Short bodyweight sessions on easy days. They help prevent injury and make you faster.")
+                                .font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                        }
+                    }
+                    .tint(Theme.accent)
+                    if draft.strengthEnabled {
+                        Picker("Sessions a week", selection: $draft.strengthPerWeek) {
+                            Text("1 a week").tag(1)
+                            Text("2 a week").tag(2)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+            }
         }
+        .animation(.snappy, value: draft.daysPerWeek < draft.recommendedRunDays)
+    }
+
+    private var dayCountHint: String {
+        let chosen = draft.runDays.count, wanted = draft.daysPerWeek
+        if chosen == wanted { return String(localized: "Tap a day to swap it.") }
+        return chosen < wanted ? String(localized: "Pick \(wanted - chosen) more.")
+                               : String(localized: "Untick \(chosen - wanted) to keep it to \(wanted).")
+    }
+}
+
+/// Shown when the goal usually needs more run days than the athlete has, e.g. a 3-hour marathon on two days.
+private struct FewDaysWarning: View {
+    let draft: OnboardingDraft
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title3)
+                .foregroundStyle(Theme.amber)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("That's not enough for this goal").font(.headline).foregroundStyle(Theme.ink)
+                Text(message).font(.subheadline).foregroundStyle(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.amber.opacity(0.14), in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var message: String {
+        let goal = draft.hasGoalTime
+            ? String(localized: "A \(DisplayFormat.clock(draft.goalTimeSeconds)) \(draft.goal.name.lowercased())")
+            : String(localized: "A \(draft.goal.name.lowercased())")
+        return String(localized: "\(goal) usually needs at least \(draft.recommendedRunDays) runs a week. On \(draft.daysPerWeek), it's unrealistic: the plan can't safely build the distance it takes. Add days, or go back and pick a gentler goal time.")
     }
 }
 
@@ -487,13 +585,26 @@ private struct HealthStep: View {
 
 struct WeekdayChips: View {
     @Binding var selection: Set<Weekday>
+    /// At most this many days; when full, tapping another day swaps it for the most recently added one.
+    var limit: Int? = nil
+    @State private var order: [Weekday] = []
 
     var body: some View {
         HStack(spacing: 6) {
             ForEach(Weekday.allCases, id: \.self) { day in
                 let on = selection.contains(day)
                 Button {
-                    if on { selection.remove(day) } else { selection.insert(day) }
+                    if on {
+                        selection.remove(day)
+                        order.removeAll { $0 == day }
+                    } else {
+                        if let limit, selection.count >= limit {
+                            let last = order.last(where: selection.contains) ?? selection.sorted().last
+                            if let last { selection.remove(last); order.removeAll { $0 == last } }
+                        }
+                        selection.insert(day)
+                        order.append(day)
+                    }
                 } label: {
                     Text(day.shortName)
                         .font(.subheadline.weight(.bold))

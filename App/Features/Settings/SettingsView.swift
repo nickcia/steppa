@@ -419,6 +419,7 @@ private struct AvailabilityEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var runDays: Set<Weekday> = []
     @State private var longRunDay: Weekday = .sunday
+    @State private var updating: PlanChangeRequest?
 
     var body: some View {
         Form {
@@ -431,7 +432,13 @@ private struct AvailabilityEditor: View {
             } header: {
                 Text("Run days")
             } footer: {
-                Text("Pick at least 2. Workouts from today onwards are re-planned onto these days.")
+                let recommended = PlanRules.recommendedRunDays(plan.inputs.goal, goalTimeSeconds: plan.inputs.goalTimeSeconds)
+                if runDays.count >= 2 && runDays.count < recommended {
+                    Text("Your goal usually needs at least \(recommended) runs a week. With \(runDays.count), it's unlikely to be realistic.")
+                        .foregroundStyle(Theme.amber)
+                } else {
+                    Text("Pick at least 2. Workouts from today onwards are re-planned onto these days.")
+                }
             }
             Section("Long run day") {
                 Picker("Long run day", selection: $longRunDay) {
@@ -445,16 +452,22 @@ private struct AvailabilityEditor: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Update plan") {
-                    model.changeAvailability(runDays: runDays, longRunDay: longRunDay)
-                    dismiss()
+                    updating = .availability(runDays: runDays, longRunDay: longRunDay)
                 }
                 .disabled(runDays.count < 2 || !runDays.contains(longRunDay)
                           || (runDays == plan.inputs.runDays && longRunDay == plan.inputs.longRunDay))
             }
         }
         .onAppear {
+            guard updating == nil else { return }
             runDays = plan.inputs.runDays
             longRunDay = plan.inputs.longRunDay
+        }
+        .fullScreenCover(item: $updating) { request in
+            PlanUpdateView(request: request) {
+                updating = nil
+                dismiss()
+            }
         }
     }
 }

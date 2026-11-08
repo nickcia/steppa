@@ -140,7 +140,10 @@ enum WeekLayout {
         // early on (hill efforts are run by feel, so their pace says nothing about fitness).
         case .base: weekIndex >= 5 && !weekIndex.isMultiple(of: 2) ? [.hills] : [.tempo]
         case .build where count == 1: weekIndex.isMultiple(of: 2) ? [.intervals] : [.tempo]
-        case .build, .peak: shortRace ? [.intervals, .tempo] : [.tempo, .intervals]
+        // Half and marathon builds swap intervals for hill repeats every third week, so plans with a short base
+        // still get hill work. Threshold stays every week (it's what the adaptive engine learns paces from).
+        case .build: shortRace ? [.intervals, .tempo] : (weekIndex.isMultiple(of: 3) ? [.tempo, .hills] : [.tempo, .intervals])
+        case .peak: shortRace ? [.intervals, .tempo] : [.tempo, .intervals]
         case .taper: shortRace ? [.intervals] : [.tempo]
         }
         return Array(order.prefix(count))
@@ -249,11 +252,12 @@ enum WeekLayout {
 
         var workouts = sessions
         let quietStart = inputs.raceDate.adding(days: -PlanRules.raceTaperQuietDays)
-        // Strides go on the first easy runs long enough for them, never in the quiet days before the race.
+        // Strides go on the first easy runs (any easy run is long enough: they take about five minutes), never in
+        // the quiet days before the race.
         var stridesLeft = PlanRules.stridesPerWeek(phase: c.phase, experience: inputs.experience, weekIndex: c.weekIndex)
         workouts += chosenEasy.sorted().map { date in
             let meters = min(runMeters(perEasy), quietDayCap(date, raceDate: inputs.raceDate))
-            if stridesLeft > 0, date < quietStart, meters >= PlanRules.minimumRunMeters + 1_500 {
+            if stridesLeft > 0, date < quietStart, meters >= PlanRules.minimumRunMeters {
                 stridesLeft -= 1
                 return WorkoutFactory.easyWithStrides(date, meters: meters,
                                                       reps: PlanRules.strideReps(inputs.experience), paces: paces)

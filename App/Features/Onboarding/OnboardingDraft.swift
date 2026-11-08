@@ -51,8 +51,39 @@ final class OnboardingDraft {
     /// In the selected display unit.
     var weeklyDistance: Double = 20
 
+    /// How many days a week they can run; `runDays` then picks which.
+    var daysPerWeek = 4 {
+        didSet { if daysPerWeek != oldValue { runDays = Self.defaultDays(daysPerWeek, longRunDay: longRunDay) } }
+    }
     var runDays: Set<Weekday> = [.tuesday, .thursday, .saturday, .sunday]
     var longRunDay: Weekday = .sunday
+    var strengthEnabled = true
+    var strengthPerWeek = 2
+
+    /// Run days this goal usually needs; fewer gets a clear warning.
+    var recommendedRunDays: Int {
+        PlanRules.recommendedRunDays(goal, goalTimeSeconds: hasGoalTime ? goalTimeSeconds : nil)
+    }
+
+    /// A sensible spread for a number of days, with rest between runs where possible and the long run kept.
+    static func defaultDays(_ count: Int, longRunDay: Weekday) -> Set<Weekday> {
+        let spreads: [Int: [Weekday]] = [
+            1: [.sunday],
+            2: [.wednesday, .sunday],
+            3: [.tuesday, .thursday, .sunday],
+            4: [.tuesday, .thursday, .saturday, .sunday],
+            5: [.monday, .tuesday, .thursday, .saturday, .sunday],
+            6: [.monday, .tuesday, .wednesday, .thursday, .saturday, .sunday],
+            7: Weekday.allCases,
+        ]
+        var days = Set(spreads[min(max(count, 1), 7)] ?? [])
+        // Keep the chosen long-run day: swap it in for Sunday.
+        if !days.contains(longRunDay), days.contains(.sunday) {
+            days.remove(.sunday)
+            days.insert(longRunDay)
+        }
+        return days
+    }
 
     var today: LocalDate { .today }
     var race: LocalDate { LocalDate(raceDate) }
@@ -62,7 +93,7 @@ final class OnboardingDraft {
         switch step {
         case .welcome: acceptedDisclaimer
         case .date: race > today.adding(days: 6)
-        case .availability: runDays.count >= 2 && runDays.contains(longRunDay)
+        case .availability: runDays.count == daysPerWeek && runDays.count >= 2 && runDays.contains(longRunDay)
         case .fitness: !hasRecentRace || recentTimeSeconds > 0
         default: true
         }

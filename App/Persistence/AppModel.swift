@@ -270,13 +270,16 @@ final class AppModel {
         }
     }
 
-    func changeRaceDate(_ date: LocalDate) { adapt(.raceDateChanged(date)) }
+    @discardableResult
+    func changeRaceDate(_ date: LocalDate) -> Bool { adapt(.raceDateChanged(date)) }
 
-    func changeAvailability(runDays: Set<Weekday>, longRunDay: Weekday) {
+    @discardableResult
+    func changeAvailability(runDays: Set<Weekday>, longRunDay: Weekday) -> Bool {
         adapt(.availabilityChanged(runDays: runDays, longRunDay: longRunDay))
     }
 
-    func applyRaceResult(_ performance: RacePerformance) { adapt(.newRaceResult(performance)) }
+    @discardableResult
+    func applyRaceResult(_ performance: RacePerformance) -> Bool { adapt(.newRaceResult(performance)) }
 
     func setGoalTime(_ seconds: Double?) {
         guard var updated = plan else { return }

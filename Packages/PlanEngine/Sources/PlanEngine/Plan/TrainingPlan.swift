@@ -37,6 +37,8 @@ public enum PlanWarning: Codable, Hashable, Sendable {
     case volumeLimitedByAvailability
     /// The goal time needs noticeably more fitness than the athlete currently shows.
     case ambitiousGoal(predictedSeconds: Double)
+    /// Fewer run days than this goal usually needs (e.g. a 3-hour marathon on two days a week).
+    case fewRunDays(recommended: Int)
     /// No race result was given, so paces are an estimate until real runs come in.
     case estimatedFitness
 }
