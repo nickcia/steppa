@@ -398,8 +398,12 @@ nonisolated struct IntervalsClient: Sendable {
     /// Swaps the authorization code for an access token (PKCE: the verifier stands in for a client secret).
     func signIn(code: String, attempt: IntervalsOAuth.Attempt, oauth: IntervalsOAuth) async throws -> IntervalsCredentials {
         var form = URLComponents()
-        form.queryItems = [URLQueryItem(name: "client_id", value: oauth.clientID),
+        // The redirect URI must be sent again, matching the one used to authorize (OAuth 2.0, RFC 6749 §4.1.3);
+        // without it Intervals.icu answers "invalid redirect_uri".
+        form.queryItems = [URLQueryItem(name: "grant_type", value: "authorization_code"),
+                           URLQueryItem(name: "client_id", value: oauth.clientID),
                            URLQueryItem(name: "code", value: code),
+                           URLQueryItem(name: "redirect_uri", value: oauth.redirectURI),
                            URLQueryItem(name: "code_verifier", value: attempt.verifier)]
         var request = URLRequest(url: baseURL.appending(path: "api/oauth/token"), timeoutInterval: 30)
         request.httpMethod = "POST"

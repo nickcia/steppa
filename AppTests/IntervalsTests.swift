@@ -48,8 +48,10 @@ nonisolated final class FakeIntervals: HTTPTransport, @unchecked Sendable {
         if method == "POST", url.path == "/api/oauth/token" {
             let form = URLComponents(string: "?" + String(decoding: request.httpBody ?? Data(), as: UTF8.self))?.queryItems ?? []
             func field(_ name: String) -> String? { form.first { $0.name == name }?.value }
-            guard field("client_id") == "client-1", field("code") == Self.code, (field("code_verifier")?.count ?? 0) >= 43,
-                  field("client_secret") == nil else { return reply(400, Data()) }
+            // Like Intervals.icu: the redirect URI must match the one used to authorize.
+            guard field("grant_type") == "authorization_code", field("client_id") == "client-1", field("code") == Self.code,
+                  field("redirect_uri") == "io.github.nickcia.runcoach://intervals-oauth",
+                  (field("code_verifier")?.count ?? 0) >= 43, field("client_secret") == nil else { return reply(400, Data()) }
             return reply(200, Data(#"{"token_type":"Bearer","access_token":"good-token","scope":"CALENDAR:WRITE,SETTINGS:WRITE","athlete":{"id":"i123","name":"Test Runner"}}"#.utf8))
         }
 
