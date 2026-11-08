@@ -79,7 +79,7 @@ struct RunRecapView: View {
             }
             .task { await writer.write(run, model: model) }
             .sheet(isPresented: $askingCoach) {
-                CoachView(initialPrompt: String(localized: "About my run on \(run.date): what should I take from it for the coming week?"))
+                CoachView(initialPrompt: String(localized: "About my run on \(run.date.formatted(.dateTime.day().month(.wide))): what should I take from it for the coming week?"))
             }
         }
     }
