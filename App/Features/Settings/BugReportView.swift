@@ -7,7 +7,7 @@ import PlanEngine
 /// app itself: the athlete reads the message, edits it and sends it from their own Mail app.
 struct BugReport: Equatable {
     /// Where issues go. Forks: change this to your own repository.
-    static let repository = "nickcia/steppa"
+    static let repository = "nickcia/trackstar"
     /// Where emailed reports go. Forks: change this to your own address.
     static let email = "nickseeya@gmail.com"
 
