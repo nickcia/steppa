@@ -224,22 +224,37 @@ private struct StepSegments: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { context in
             GeometryReader { proxy in
-                let total = session.steps.reduce(0) { $0 + $1.seconds }
                 HStack(spacing: 3) {
                     ForEach(Array(session.steps.enumerated()), id: \.offset) { index, step in
-                        let fill = index < session.index ? 1 : index == session.index ? run.stepProgress(at: context.date) : 0
-                        Capsule()
-                            .fill(.white.opacity(0.12))
-                            .overlay(alignment: .leading) {
-                                Capsule().fill(Color(hex: step.tint)).scaleEffect(x: fill, anchor: .leading)
-                            }
-                            .clipShape(Capsule())
-                            .frame(width: max(4, (proxy.size.width - 3 * Double(session.steps.count - 1)) * step.seconds / max(total, 1)))
+                        segment(step, fill: fill(index, at: context.date), width: width(step, in: proxy.size.width))
                     }
                 }
             }
             .frame(height: 6)
         }
         .accessibilityHidden(true)
+    }
+
+    // Split out so the type checker stays quick (older compilers timed out on the one-expression version).
+    private func fill(_ index: Int, at date: Date) -> Double {
+        if index < session.index { return 1 }
+        if index > session.index { return 0 }
+        return run.stepProgress(at: date)
+    }
+
+    private func width(_ step: GuidedStep, in available: Double) -> Double {
+        let total = max(session.steps.reduce(0.0) { $0 + $1.seconds }, 1)
+        let gaps = 3.0 * Double(session.steps.count - 1)
+        return max(4, (available - gaps) * step.seconds / total)
+    }
+
+    private func segment(_ step: GuidedStep, fill: Double, width: Double) -> some View {
+        Capsule()
+            .fill(Color.white.opacity(0.12))
+            .overlay(alignment: .leading) {
+                Capsule().fill(Color(hex: step.tint)).scaleEffect(x: fill, anchor: .leading)
+            }
+            .clipShape(Capsule())
+            .frame(width: width)
     }
 }
