@@ -7,6 +7,7 @@ struct TrackStarApp: App {
     private let container: ModelContainer
     @State private var model: AppModel
     @State private var crashes = CrashReporter()
+    @State private var guidedRun = GuidedRunController.shared
 
     init() {
         let container = Persistence.makeContainer(inMemory: DemoData.usesMemoryStore)
@@ -26,6 +27,7 @@ struct TrackStarApp: App {
             RootView()
                 .environment(model)
                 .environment(crashes)
+                .environment(guidedRun)
                 .tint(Theme.accent)
                 // The look is designed for light surfaces only.
                 .preferredColorScheme(.light)
@@ -37,6 +39,7 @@ struct TrackStarApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(CrashReporter.self) private var crashes
+    @Environment(GuidedRunController.self) private var guidedRun
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -59,6 +62,13 @@ struct RootView: View {
                              set: { if $0 == nil { crashes.clear() } })) { crash in
             BugReportView(crash: crash)
         }
+        // A guided run takes over the screen until it's closed.
+        .fullScreenCover(isPresented: Binding(get: { guidedRun.session != nil }, set: { _ in })) {
+            GuidedRunView()
+                .environment(model)
+                .environment(guidedRun)
+                .interactiveDismissDisabled()
+        }
         .task {
             crashes.start()
             #if DEBUG
@@ -66,6 +76,15 @@ struct RootView: View {
             if ProcessInfo.processInfo.arguments.contains("-crashReport") { crashes.accept([.sample]) }
             #endif
         }
+        #if DEBUG
+        // `-guidedRun`: start today's (or the next) workout as a guided run, once there's a plan.
+        .task(id: model.planID) {
+            guard ProcessInfo.processInfo.arguments.contains("-guidedRun"), guidedRun.session == nil,
+                  let workout = model.plan?.workouts.first(where: { $0.date >= model.today && $0.kind != .race }) else { return }
+            try? await Task.sleep(for: .seconds(1))
+            guidedRun.start(workout, describer: model.targetDescriber)
+        }
+        #endif
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await model.becameActive() }

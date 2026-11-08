@@ -5,5 +5,13 @@
 	<!-- Merged into the generated Info.plist. Keep in step with Info-iCloud.plist. -->
 	<key>IntervalsClientID</key>
 	<string>$(INTERVALS_CLIENT_ID)</string>
+	<!-- Guided runs: spoken cues and tracking keep going with the screen locked, with a Live Activity on the lock screen. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>location</string>
+	</array>
 </dict>
 </plist>

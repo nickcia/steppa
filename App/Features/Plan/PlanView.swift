@@ -246,6 +246,12 @@ struct WorkoutDetailView: View {
                             .contentTransition(.numericText())
                     }
                 }
+                if workout.date == model.today, workout.kind != .race, model.status(of: workout) == nil {
+                    Button { GuidedRunController.shared.start(workout, describer: model.targetDescriber) } label: {
+                        Label("Start on this phone", systemImage: "play.fill")
+                    }
+                    .buttonStyle(.primary)
+                }
                 WorkoutStatusButtons(workout: workout)
                 if let run = model.healthRun(for: workout) {
                     NavigationLink(value: RunRoute(runID: run.id)) {

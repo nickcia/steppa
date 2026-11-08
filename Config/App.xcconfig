@@ -38,5 +38,9 @@ INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = Your training plan is adde
 // Shown when asking for Apple Health access. Read-only: the app never writes to Health.
 INFOPLIST_KEY_NSHealthShareUsageDescription = Your runs are read from Apple Health (including runs from Apple Watch, Garmin, Coros and other apps that sync to Health) to tick off planned workouts and adapt your plan. Nothing leaves your device.
 
+// Shown when starting a guided run on the phone. Location keeps the spoken cues going with the screen locked, and measures
+// distance. It's only used during a guided run, and never leaves the phone.
+INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = During a guided run, your location measures distance and keeps the spoken cues going with the screen locked. It's only used while a run is in progress and never leaves your phone.
+
 // Personal overrides (team ID, and a different prefix for forks). Optional and not committed.
 #include? "Local.xcconfig"

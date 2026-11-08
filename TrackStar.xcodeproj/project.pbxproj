@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5E7A0000000000000000000A /* PlanEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 5E7A0000000000000000000B /* PlanEngine */; };
+		5E7A00000000000000000057 /* TrackStarWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5E7A0000000000000000004D /* TrackStarWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -18,12 +19,34 @@
 			remoteGlobalIDString = 5E7A00000000000000000006;
 			remoteInfo = TrackStar;
 		};
+		5E7A00000000000000000055 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5E7A00000000000000000009 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5E7A0000000000000000004E;
+			remoteInfo = TrackStarWidgets;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5E7A00000000000000000058 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				5E7A00000000000000000057 /* TrackStarWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		5E7A00000000000000000001 /* TrackStar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrackStar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E7A0000000000000000000D /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 		5E7A00000000000000000040 /* TrackStarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrackStarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E7A0000000000000000004D /* TrackStarWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrackStarWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -35,6 +58,16 @@
 		5E7A00000000000000000041 /* AppTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AppTests;
+			sourceTree = "<group>";
+		};
+		5E7A0000000000000000004B /* Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		5E7A0000000000000000004C /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -55,6 +88,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5E7A00000000000000000050 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -63,6 +103,8 @@
 			children = (
 				5E7A00000000000000000002 /* App */,
 				5E7A00000000000000000041 /* AppTests */,
+				5E7A0000000000000000004C /* Shared */,
+				5E7A0000000000000000004B /* Widgets */,
 				5E7A0000000000000000000E /* Config */,
 				5E7A00000000000000000005 /* Products */,
 			);
@@ -81,6 +123,7 @@
 			children = (
 				5E7A00000000000000000001 /* TrackStar.app */,
 				5E7A00000000000000000040 /* TrackStarTests.xctest */,
+				5E7A0000000000000000004D /* TrackStarWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,13 +138,16 @@
 				5E7A00000000000000000007 /* Sources */,
 				5E7A00000000000000000003 /* Frameworks */,
 				5E7A00000000000000000008 /* Resources */,
+				5E7A00000000000000000058 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				5E7A00000000000000000056 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5E7A00000000000000000002 /* App */,
+				5E7A0000000000000000004C /* Shared */,
 			);
 			name = TrackStar;
 			packageProductDependencies = (
@@ -132,6 +178,27 @@
 			productReference = 5E7A00000000000000000040 /* TrackStarTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		5E7A0000000000000000004E /* TrackStarWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5E7A00000000000000000052 /* Build configuration list for PBXNativeTarget "TrackStarWidgets" */;
+			buildPhases = (
+				5E7A0000000000000000004F /* Sources */,
+				5E7A00000000000000000050 /* Frameworks */,
+				5E7A00000000000000000051 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5E7A0000000000000000004B /* Widgets */,
+				5E7A0000000000000000004C /* Shared */,
+			);
+			name = TrackStarWidgets;
+			productName = TrackStarWidgets;
+			productReference = 5E7A0000000000000000004D /* TrackStarWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -148,6 +215,9 @@
 					5E7A00000000000000000045 = {
 						CreatedOnToolsVersion = 26.1;
 						TestTargetID = 5E7A00000000000000000006;
+					};
+					5E7A0000000000000000004E = {
+						CreatedOnToolsVersion = 26.1;
 					};
 				};
 			};
@@ -170,6 +240,7 @@
 			targets = (
 				5E7A00000000000000000006 /* TrackStar */,
 				5E7A00000000000000000045 /* TrackStarTests */,
+				5E7A0000000000000000004E /* TrackStarWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -183,6 +254,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5E7A00000000000000000044 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5E7A00000000000000000051 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -206,6 +284,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5E7A0000000000000000004F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -213,6 +298,11 @@
 			isa = PBXTargetDependency;
 			target = 5E7A00000000000000000006 /* TrackStar */;
 			targetProxy = 5E7A00000000000000000046 /* PBXContainerItemProxy */;
+		};
+		5E7A00000000000000000056 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5E7A0000000000000000004E /* TrackStarWidgets */;
+			targetProxy = 5E7A00000000000000000055 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -361,6 +451,62 @@
 			};
 			name = Release;
 		};
+		5E7A00000000000000000053 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5E7A0000000000000000000D /* App.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Widgets-Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID_PREFIX).runcoach.widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5E7A00000000000000000054 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5E7A0000000000000000000D /* App.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Widgets-Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID_PREFIX).runcoach.widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -387,6 +533,15 @@
 			buildConfigurations = (
 				5E7A00000000000000000049 /* Debug */,
 				5E7A0000000000000000004A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5E7A00000000000000000052 /* Build configuration list for PBXNativeTarget "TrackStarWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5E7A00000000000000000053 /* Debug */,
+				5E7A00000000000000000054 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

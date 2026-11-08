@@ -29,6 +29,13 @@ and Health data never leaves your iPhone. You can change access in the Health ap
 
 Workouts you send to Apple Watch and workout reminders are handled by iOS on your devices.
 
+## Location, during guided runs only (optional)
+
+When you start a workout on your phone (**Start**), the app asks for your location. It's used only while that run
+is in progress: to measure distance and to keep the countdown and spoken cues going with the screen locked. It
+isn't stored, isn't sent anywhere, and stops when the run ends. If you don't allow it, guided runs still work while
+the app is open. You can change this in Settings › TrackStar › Location.
+
 ## Calendar (optional)
 
 **Add to Calendar** on a workout opens iOS's own "New Event" sheet, filled in. You choose whether to add it;

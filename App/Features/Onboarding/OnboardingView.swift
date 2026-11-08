@@ -27,6 +27,13 @@ struct OnboardingView: View {
         }
         .screenBackground()
         .environment(\.unitSystem, draft.units)
+        #if DEBUG
+        // `-newRunner -guidedRun`: start the new plan straight away, for trying a run/walk guided run.
+        .onChange(of: planOrNil == nil) { _, isNil in
+            let args = ProcessInfo.processInfo.arguments
+            if !isNil, args.contains("-newRunner"), args.contains("-guidedRun") { startPlan() }
+        }
+        #endif
         .onAppear {
             #if DEBUG
             // `-buildPlan`: skip the questions with their defaults and go straight to building the plan.

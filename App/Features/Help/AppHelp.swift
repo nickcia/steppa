@@ -21,6 +21,11 @@ nonisolated enum AppHelp {
                     3. Back in TrackStar, Settings › Other watches shows your watch as Receiving. Your upcoming workouts appear in Garmin Connect's calendar and on your watch, and finished runs come back to TrackStar automatically.
                     Your watch's heart-rate zones come across too (Settings › Heart-rate zones).
                     """),
+        HelpArticle(id: "phone", title: "Run with just your phone (spoken cues)",
+                    keywords: ["phone", "no watch", "without a watch", "audio", "voice", "spoken", "cues", "guided", "start", "lock screen", "dynamic island", "countdown"],
+                    body: """
+                    On today's card, tap Start (or Start on this phone on a workout). The phone talks you through each step over your music, shows a big countdown and your distance, and keeps the current step on the lock screen and in the Dynamic Island with Pause and Skip. Allow location when asked: it measures distance and keeps the cues going with the screen locked, and it's only used during the run. When you finish, tap Mark as done. To silence the voice, tap the speaker button.
+                    """),
         HelpArticle(id: "applewatch", title: "Send workouts to Apple Watch",
                     keywords: ["apple watch", "watch", "workout app", "send", "pace alerts"],
                     body: """

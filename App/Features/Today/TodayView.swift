@@ -428,10 +428,21 @@ private struct HeroCard: View {
         let status = model.status(of: workout)
         if workout.date <= model.today, status == nil {
             HStack(spacing: 8) {
-                Button { model.setStatus(.done, for: workout) } label: {
-                    Text("Mark as done").frame(maxWidth: .infinity)
+                if workout.date == model.today, workout.kind != .race {
+                    // Phone-only runners: run it here with a countdown and spoken cues.
+                    Button { GuidedRunController.shared.start(workout, describer: model.targetDescriber) } label: {
+                        Label("Start", systemImage: "play.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(HeroButtonStyle(filled: true))
+                    Button { model.setStatus(.done, for: workout) } label: { Text("Done") }
+                        .buttonStyle(HeroButtonStyle(filled: false))
+                        .accessibilityLabel("Mark as done")
+                } else {
+                    Button { model.setStatus(.done, for: workout) } label: {
+                        Text("Mark as done").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(HeroButtonStyle(filled: true))
                 }
-                .buttonStyle(HeroButtonStyle(filled: true))
                 Button { model.setStatus(.skipped, for: workout) } label: { Text("Skip") }
                     .buttonStyle(HeroButtonStyle(filled: false))
             }

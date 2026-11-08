@@ -10,5 +10,13 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- Guided runs: spoken cues and tracking keep going with the screen locked, with a Live Activity on the lock screen. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>location</string>
+	</array>
 </dict>
 </plist>
