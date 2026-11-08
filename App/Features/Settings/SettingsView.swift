@@ -15,6 +15,24 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let plan = model.plan {
+                    Section {
+                        NavigationLink(value: RacesRoute()) {
+                            HStack(spacing: 14) {
+                                KindIcon(kind: .race, size: 44)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Races").font(.headline).foregroundStyle(Theme.ink)
+                                    Text("\(plan.inputs.goal.name) · \(max(0, model.today.days(until: plan.inputs.raceDate))) days to go")
+                                        .font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } footer: {
+                        Text("Your goal race, its date and goal time, and tune-up races and results.")
+                    }
+                }
+
                 Section("Units") {
                     Picker("Distance", selection: Binding(get: { model.units }, set: { model.setUnits($0) })) {
                         ForEach(UnitSystem.allCases) { Text($0.name).tag($0) }
@@ -30,7 +48,6 @@ struct SettingsView: View {
                             LabeledContent("Run days", value: plan.inputs.runDays.sorted().map(\.mediumName).joined(separator: ", "))
                         }
                         LabeledContent("Long run", value: plan.inputs.longRunDay.fullName)
-                        LabeledContent("Goal race", value: "\(plan.inputs.goal.name), \(plan.inputs.raceDate.formatted(.dateTime.day().month()))")
                         Button("End this plan", role: .destructive) { confirmEnd = true }
                     }
 
@@ -161,6 +178,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .navigationDestination(for: RacesRoute.self) { _ in RacesScreen() }
             .sheet(isPresented: $reportingBug) { BugReportView() }
             .confirmationDialog("End this plan?", isPresented: $confirmEnd, titleVisibility: .visible) {
                 Button("End plan", role: .destructive) { model.endPlan() }

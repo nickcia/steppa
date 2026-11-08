@@ -2,13 +2,16 @@ import SwiftData
 import SwiftUI
 import PlanEngine
 
-struct RacesView: View {
+/// Opens the races screen (from Settings or the Race day tile).
+struct RacesRoute: Hashable {}
+
+/// The goal race and other races. Pushed from Settings rather than being a tab of its own.
+struct RacesScreen: View {
     @Environment(AppModel.self) private var model
     @State private var editing: RaceRecord?
     @State private var adding = false
 
     var body: some View {
-        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                     if let plan = model.plan { GoalRaceCard(plan: plan) }
@@ -41,7 +44,6 @@ struct RacesView: View {
             }
             .sheet(isPresented: $adding) { RaceEditor(race: nil) }
             .sheet(item: $editing) { RaceEditor(race: $0) }
-        }
     }
 }
 
@@ -62,7 +64,7 @@ private struct GoalRaceCard: View {
                         .font(.subheadline).foregroundStyle(.white.opacity(0.6))
                 }
                 Spacer()
-                KindIcon(kind: .race, size: 52)
+                KindIcon(kind: .race, size: 52, onDark: true)
             }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(days)")

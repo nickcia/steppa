@@ -43,6 +43,7 @@ struct TodayView: View {
             .navigationDestination(for: WeeklyDistanceRoute.self) { _ in WeeklyDistanceView() }
             .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
             .navigationDestination(for: StrengthSchedule.Session.self) { StrengthDetailView(session: $0) }
+            .navigationDestination(for: RacesRoute.self) { _ in RacesScreen() }
         }
         .onAppear {
             guard model.revealNewPlan else { return }
@@ -345,7 +346,7 @@ private struct HeroCard: View {
                     }
                 }
                 Spacer()
-                KindIcon(kind: workout?.kind, size: 52)
+                KindIcon(kind: workout?.kind, size: 52, onDark: true)
             }
 
             if let workout {
@@ -513,10 +514,13 @@ private struct DashboardTiles: View {
             }
             GridRow {
                 predictionTile
-                StatCard(title: String(localized: "Race day"), symbol: "flag.checkered", tint: WorkoutKind.race.color,
-                         value: "\(days)", badge: nil,
-                         note: String(localized: "days to \(plan.inputs.goal.name.lowercased())"),
-                         progress: elapsed / length)
+                NavigationLink(value: RacesRoute()) {
+                    StatCard(title: String(localized: "Race day"), symbol: "flag.checkered", tint: WorkoutKind.race.color,
+                             value: "\(days)", badge: nil,
+                             note: String(localized: "days to \(plan.inputs.goal.name.lowercased())"),
+                             progress: elapsed / length)
+                }
+                .buttonStyle(.plain)
             }
         }
     }

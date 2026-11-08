@@ -72,21 +72,48 @@ extension ButtonStyle where Self == SecondaryButtonStyle {
     static var secondary: SecondaryButtonStyle { SecondaryButtonStyle() }
 }
 
-/// Coloured circle with the workout kind's symbol.
+/// The workout kind's symbol on a small dark-glass tile (see ActivityIcon).
 struct KindIcon: View {
     let kind: WorkoutKind?
     var size: CGFloat = 44
+    /// On a dark card (today's workout, the goal race): a light glass tile instead.
+    var onDark = false
 
     var body: some View {
-        Image(systemName: kind?.symbol ?? "bed.double.fill")
+        ActivityIcon(symbol: kind?.symbol ?? "bed.double.fill", colors: kind?.gradientStops, size: size, onDark: onDark)
+    }
+}
+
+/// An activity's mark: a crisp rounded-square tile in dark glass, like the rest of the app's accents, with the
+/// symbol in the activity's colour. Without colours (a rest day) it's a quiet grey tile.
+struct ActivityIcon: View {
+    let symbol: String
+    /// Highlight, main and deep colour stops; the symbol uses the first two.
+    var colors: [Color]?
+    var size: CGFloat = 44
+    var onDark = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
+        Image(systemName: symbol)
             .font(.system(size: size * 0.42, weight: .semibold))
-            .foregroundStyle(kind.map { _ in Color.white } ?? Theme.secondaryInk)
+            .foregroundStyle(colors.map { LinearGradient(colors: [$0[0], $0[1]], startPoint: .top, endPoint: .bottom) }
+                             ?? LinearGradient(colors: [Theme.secondaryInk], startPoint: .top, endPoint: .bottom))
             .frame(width: size, height: size)
             .background {
-                if let kind {
-                    Circle().fill(kind.gradient)
+                if colors == nil {
+                    shape.fill(onDark ? Color.white.opacity(0.1) : Theme.subtle)
+                } else if onDark {
+                    shape.fill(Color.white.opacity(0.1))
                 } else {
-                    Circle().fill(Theme.subtle)
+                    shape.fill(LinearGradient(colors: [Color(hex: 0x2B2B31), Color(hex: 0x0B0B0D)],
+                                              startPoint: .top, endPoint: .bottom))
+                }
+            }
+            .overlay {
+                if colors != nil {
+                    shape.strokeBorder(LinearGradient(colors: [.white.opacity(onDark ? 0.25 : 0.18), .white.opacity(0.02)],
+                                                      startPoint: .top, endPoint: .bottom), lineWidth: 1)
                 }
             }
             .accessibilityHidden(true)

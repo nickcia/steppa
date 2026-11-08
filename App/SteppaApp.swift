@@ -81,13 +81,12 @@ struct RootView: View {
 }
 
 enum AppTab: Hashable, CaseIterable {
-    case today, plan, races, progress, settings
+    case today, plan, progress, settings
 
     var title: LocalizedStringKey {
         switch self {
         case .today: "Today"
         case .plan: "Plan"
-        case .races: "Races"
         case .progress: "Progress"
         case .settings: "Settings"
         }
@@ -97,7 +96,6 @@ enum AppTab: Hashable, CaseIterable {
         switch self {
         case .today: "sun.max"
         case .plan: "calendar"
-        case .races: "flag.checkered"
         case .progress: "chart.bar"
         case .settings: "gearshape"
         }
@@ -113,7 +111,6 @@ struct MainTabs: View {
         TabView(selection: $tab) {
             TodayView(resetSignal: todayReset).tabRoot(.today)
             PlanView().tabRoot(.plan)
-            RacesView().tabRoot(.races)
             TrainingProgressView().tabRoot(.progress)
             SettingsView().tabRoot(.settings)
         }

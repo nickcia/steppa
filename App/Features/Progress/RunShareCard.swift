@@ -21,11 +21,7 @@ struct RunShareCard: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.secondaryInk)
                 Spacer()
-                Image(systemName: kind.symbol)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 30, height: 30)
-                    .background(kind.gradient, in: Circle())
+                KindIcon(kind: kind, size: 30)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(workout?.kind.name ?? String(localized: "Run"))

@@ -178,11 +178,7 @@ struct StrengthCard: View {
         let routine = StrengthRoutine.for(session.level)
         NavigationLink(value: session) {
             HStack(spacing: 14) {
-                Image(systemName: StrengthStyle.symbol)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 48, height: 48)
-                    .background(StrengthStyle.gradient, in: Circle())
+                ActivityIcon(symbol: StrengthStyle.symbol, colors: StrengthStyle.stops, size: 48)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(routine.title).font(.headline).foregroundStyle(Theme.ink)
                     Text("~\(routine.minutes) min · \(routine.exercises.count) exercises · bodyweight")
@@ -210,11 +206,7 @@ struct StrengthRow: View {
     var body: some View {
         let routine = StrengthRoutine.for(session.level)
         HStack(spacing: 12) {
-            Image(systemName: StrengthStyle.symbol)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(StrengthStyle.gradient, in: Circle())
+            ActivityIcon(symbol: StrengthStyle.symbol, colors: StrengthStyle.stops, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(routine.title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                 Text("\(session.date.shortDayMonth) · ~\(routine.minutes) min · bodyweight")
@@ -236,4 +228,5 @@ enum StrengthStyle {
     static let gradient = LinearGradient(colors: [Color(hex: 0xC6B9FF), color, Color(hex: 0x5B47C9)],
                                          startPoint: .topLeading, endPoint: .bottomTrailing)
     static let symbol = "figure.strengthtraining.functional"
+    static let stops = [Color(hex: 0xC6B9FF), color, Color(hex: 0x5B47C9)]
 }
