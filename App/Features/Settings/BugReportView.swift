@@ -14,6 +14,8 @@ struct BugReport: Equatable {
     var appVersion: String
     var device: String
     var planDetails: String?
+    /// A crash from a previous run, sent along with the report (attached in full when Mail is set up).
+    var crash: CrashReport?
 
     /// The new-issue page with the bug template's fields filled in (field ids from
     /// .github/ISSUE_TEMPLATE/bug_report.yml).
@@ -27,11 +29,20 @@ struct BugReport: Equatable {
         return components.url!
     }
 
-    var mailSubject: String { "TrackStar bug report (\(appVersion))" }
+    var mailSubject: String { crash == nil ? "TrackStar bug report (\(appVersion))" : "TrackStar crash report (\(appVersion))" }
 
     /// Prompts for the description, then the details.
     var mailBody: String {
-        """
+        if crash != nil {
+            return """
+            What were you doing when it closed? (optional)
+
+
+            ---
+            \(text)
+            """
+        }
+        return """
         What happened:
 
 
@@ -59,6 +70,9 @@ struct BugReport: Equatable {
     var text: String {
         var lines = ["App version: \(appVersion)", "Device: \(device)"]
         if let planDetails { lines.append("Plan: \(planDetails)") }
+        if let crash {
+            lines.append("Crash: \(crash.summary), \(crash.date.formatted(date: .abbreviated, time: .shortened)), version \(crash.appVersion)")
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -80,6 +94,8 @@ struct BugReport: Equatable {
 }
 
 struct BugReportView: View {
+    /// Set when this is the "TrackStar closed unexpectedly" report after a crash.
+    var crash: CrashReport?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -89,19 +105,32 @@ struct BugReportView: View {
 
     private var report: BugReport {
         BugReport(appVersion: Bundle.main.versionString, device: BugReport.currentDevice,
-                  planDetails: includePlan ? model.plan.map { BugReport.planSummary($0, today: model.today) } : nil)
+                  planDetails: includePlan ? model.plan.map { BugReport.planSummary($0, today: model.today) } : nil,
+                  crash: crash)
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Your email app opens with a message ready to go. Describe what happened, add a screenshot if it helps, and send. Nothing is sent from TrackStar itself.")
-                        .font(.subheadline)
+                    if let crash {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("TrackStar closed unexpectedly").font(.headline)
+                            Text("Sorry about that. Sending the crash report helps fix it. Your email app opens with it ready to go; nothing is sent from TrackStar itself.")
+                                .font(.subheadline)
+                            Text(crash.summary).font(.footnote).foregroundStyle(Theme.secondaryInk)
+                        }
+                    } else {
+                        Text("Your email app opens with a message ready to go. Describe what happened, add a screenshot if it helps, and send. Nothing is sent from TrackStar itself.")
+                            .font(.subheadline)
+                    }
                 }
                 Section {
                     LabeledContent("App version", value: report.appVersion)
                     LabeledContent("Device", value: report.device)
+                    if crash != nil {
+                        LabeledContent("Crash report", value: String(localized: "Attached"))
+                    }
                     if model.plan != nil {
                         Toggle("Include plan details", isOn: $includePlan)
                         if let details = report.planDetails {
@@ -137,21 +166,23 @@ struct BugReportView: View {
                 } footer: {
                     Text(copied ? "Copied the address and details. Paste them into any email to \(BugReport.email)." : "Reports go to \(BugReport.email).")
                 }
-                Section {
-                    Button {
-                        openURL(report.url)
-                        dismiss()
-                    } label: {
-                        Label("Report on GitHub instead", systemImage: "arrow.up.right.square")
+                if crash == nil {
+                    Section {
+                        Button {
+                            openURL(report.url)
+                            dismiss()
+                        } label: {
+                            Label("Report on GitHub instead", systemImage: "arrow.up.right.square")
+                        }
+                    } footer: {
+                        Text("For people with a GitHub account. Reports there are public.")
                     }
-                } footer: {
-                    Text("For people with a GitHub account. Reports there are public.")
                 }
             }
-            .navigationTitle("Report a bug")
+            .navigationTitle(crash == nil ? "Report a bug" : "Crash report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(crash == nil ? "Close" : "Not now") { dismiss() } }
             }
             .sheet(isPresented: $composing) {
                 MailComposer(report: report) { sent in
@@ -174,6 +205,9 @@ private struct MailComposer: UIViewControllerRepresentable {
         controller.setToRecipients([BugReport.email])
         controller.setSubject(report.mailSubject)
         controller.setMessageBody(report.mailBody, isHTML: false)
+        if let crash = report.crash {
+            controller.addAttachmentData(Data(crash.details.utf8), mimeType: "application/json", fileName: "crash-report.json")
+        }
         controller.mailComposeDelegate = context.coordinator
         return controller
     }

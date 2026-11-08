@@ -65,8 +65,14 @@ Settings › Apps. What Intervals.icu does with your data is covered by Interval
 
 ## Crash reports
 
-The app has no crash reporting of its own. If you've opted in to sharing analytics with developers in iOS
-Settings, Apple may share anonymous crash reports with the developer.
+If TrackStar crashes, iOS gives the app a crash report the next time it opens, and the app asks whether
+you'd like to send it. If you say yes, your email app opens with the report attached; nothing is sent unless
+you send the email yourself, and if you say no it's deleted. A crash report holds the app and iOS versions,
+your iPhone model, and technical details of where in the code the crash happened. It contains no health data,
+runs or personal details.
+
+Separately, if you've opted in to sharing analytics with developers in iOS Settings, Apple may share anonymous
+crash reports with the developer.
 
 ## Children
 

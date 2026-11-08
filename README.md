@@ -82,7 +82,8 @@ where TrackStar falls short, and includes a review kit for a qualified coach.
   calendar. The sign-in is stored in the iPhone's Keychain.
 - **Apple Health is read-only.** The app reads running workouts and distance, and never writes to Health.
 - **iCloud sync** (when enabled) uses your private iCloud database, which only you can read.
-- **Crash reports** come only from Apple's built-in reporting, if you've opted in on your device.
+- **Crash reports** stay on the phone: after a crash the app offers to email the report, and only sends it if
+  you do. Apple's own crash sharing applies too, if you've opted in on your device.
 
 The full [privacy policy](PRIVACY.md) has the details.
 

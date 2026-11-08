@@ -6,6 +6,7 @@ import PlanEngine
 struct SteppaApp: App {
     private let container: ModelContainer
     @State private var model: AppModel
+    @State private var crashes = CrashReporter()
 
     init() {
         let container = Persistence.makeContainer(inMemory: DemoData.isRequested)
@@ -24,6 +25,7 @@ struct SteppaApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
+                .environment(crashes)
                 .tint(Theme.accent)
                 // The look is designed for light surfaces only.
                 .preferredColorScheme(.light)
@@ -34,6 +36,7 @@ struct SteppaApp: App {
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(CrashReporter.self) private var crashes
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -51,6 +54,18 @@ struct RootView: View {
         }
         .animation(.default, value: model.plan == nil)
         .environment(\.unitSystem, model.units)
+        // After a crash, iOS hands the report over on a later launch: offer to send it, once.
+        .sheet(item: Binding(get: { model.plan == nil ? nil : crashes.pending },
+                             set: { if $0 == nil { crashes.clear() } })) { crash in
+            BugReportView(crash: crash)
+        }
+        .task {
+            crashes.start()
+            #if DEBUG
+            // `-crashReport`: show the after-a-crash prompt with a made-up report.
+            if ProcessInfo.processInfo.arguments.contains("-crashReport") { crashes.accept([.sample]) }
+            #endif
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await model.becameActive() }
