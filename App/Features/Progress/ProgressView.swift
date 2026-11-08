@@ -84,8 +84,8 @@ struct WeekTotals {
     }
 }
 
-/// One column per week. Grey stripes show the planned distance; coloured stripes on top show what was run,
-/// red to green by how much of the week was done. The current week is marked.
+/// One solid bar per week. Weeks gone by show the distance run, coloured by how much of the plan it was (red under
+/// half, amber, green on target); weeks to come show the planned distance in grey.
 struct WeekBarsChart: View {
     let weeks: [WeekTotals.Week]
     var showsMarker = true
@@ -97,40 +97,29 @@ struct WeekBarsChart: View {
             let chartHeight = size.height - markerSpace
             let peak = max(weeks.map { max($0.planned, $0.completed) }.max() ?? 1, 1)
             let column = size.width / CGFloat(weeks.count)
-            let barWidth = max(column * 0.62, 3)
-            let stripe: CGFloat = 3
+            let barWidth = max(min(column * 0.62, 18), 3)
+            func barHeight(_ week: WeekTotals.Week) -> CGFloat {
+                let meters = week.isFuture ? week.planned : week.completed
+                return max(CGFloat(min(meters, peak) / peak) * chartHeight, 4)
+            }
             for (i, week) in weeks.enumerated() {
                 let left = CGFloat(i) * column + (column - barWidth) / 2
-                let plannedHeight = max(CGFloat(week.planned / peak) * chartHeight, 4)
-                let doneHeight = CGFloat(min(week.completed, peak) / peak) * chartHeight
-                let color = Theme.heat(week.ratio)
-                var x = left
-                while x <= left + barWidth {
-                    var planned = Path()
-                    planned.move(to: CGPoint(x: x, y: size.height))
-                    planned.addLine(to: CGPoint(x: x, y: size.height - plannedHeight))
-                    context.stroke(planned, with: .color(week.isFuture ? Theme.subtle.opacity(0.7) : Theme.subtle), lineWidth: 1.4)
-                    if doneHeight > 0 {
-                        var done = Path()
-                        done.move(to: CGPoint(x: x, y: size.height))
-                        done.addLine(to: CGPoint(x: x, y: size.height - doneHeight))
-                        context.stroke(done, with: .color(color), lineWidth: 1.4)
-                    }
-                    x += stripe
-                }
+                let height = barHeight(week)
+                let bar = CGRect(x: left, y: size.height - height, width: barWidth, height: height)
+                let color: Color = week.isFuture ? Theme.subtle
+                    : (week.completed > 0 ? Theme.heat(week.ratio) : Theme.subtle.opacity(0.6))
+                context.fill(Path(roundedRect: bar, cornerRadius: min(barWidth / 2, 5)), with: .color(color))
             }
 
-            // The "Now" marker goes on top of every bar.
+            // The "Now" marker sits above this week's bar, kept inside the chart at either end.
             for (i, week) in weeks.enumerated() where showsMarker && week.isCurrent {
-                let left = CGFloat(i) * column + (column - barWidth) / 2
-                let plannedHeight = max(CGFloat(week.planned / peak) * chartHeight, 4)
-                let doneHeight = CGFloat(min(week.completed, peak) / peak) * chartHeight
-                let center = left + barWidth / 2
-                let top = size.height - max(plannedHeight, doneHeight) - 6
+                let center = CGFloat(i) * column + column / 2
+                let top = size.height - barHeight(week) - 6
                 let label = context.resolve(Text("Now").font(.caption2.weight(.bold)).foregroundStyle(.white))
                 let labelSize = label.measure(in: size)
-                let pill = CGRect(x: center - labelSize.width / 2 - 6, y: top - labelSize.height - 4,
-                                  width: labelSize.width + 12, height: labelSize.height + 4)
+                let width = labelSize.width + 12
+                let x = min(max(center - width / 2, 0), size.width - width)
+                let pill = CGRect(x: x, y: max(top - labelSize.height - 4, 0), width: width, height: labelSize.height + 4)
                 context.fill(Path(roundedRect: pill, cornerRadius: pill.height / 2), with: .color(Theme.accent))
                 context.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
             }
@@ -199,7 +188,7 @@ struct WeeklyDistanceView: View {
 struct ChartLegend: View {
     var body: some View {
         HStack(spacing: 14) {
-            item(Theme.subtle, String(localized: "Planned"))
+            item(Theme.subtle, String(localized: "Coming up"))
             item(Theme.red, String(localized: "Under half"))
             item(Theme.amber, String(localized: "Most"))
             item(Theme.green, String(localized: "On target"))

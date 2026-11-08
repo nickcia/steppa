@@ -40,7 +40,7 @@ public enum StrengthSchedule {
             }
             let count = week.phase == .taper || week.isStepBack ? 1 : perWeek
             let days = (0..<7).map { week.startDate.adding(days: $0) }
-                .filter { $0 >= plan.inputs.startDate && $0 <= lastDay }
+                .filter { $0 >= plan.inputs.startDate && $0 <= lastDay && !plan.inputs.isUnavailable($0) }
                 // Not on a hard day, and not the day before one: key runs come first.
                 .filter { !hardDates.contains($0) && !hardDates.contains($0.adding(days: 1)) }
             var chosen: [LocalDate] = []

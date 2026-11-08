@@ -1,3 +1,4 @@
+import Foundation
 /// Generates a complete training plan from the athlete's inputs.
 ///
 /// Pure and deterministic: the same inputs always produce the same plan.
@@ -62,8 +63,11 @@ public enum PlanBuilder {
         let firstMonday = start.startOfWeek
         let weekCount = firstMonday.days(until: inputs.raceDate.startOfWeek) / 7 + 1
         let phases = Periodisation.phases(weekCount: weekCount, goal: inputs.goal)
-        let volumes = Periodisation.volumes(phases: phases, goal: inputs.goal, experience: inputs.experience,
+        var volumes = Periodisation.volumes(phases: phases, goal: inputs.goal, experience: inputs.experience,
                                             currentMeters: inputs.currentWeeklyMeters, resuming: resuming)
+        // The last loading week the athlete actually trained in, for restarting after a break.
+        var lastHeldLoading = resuming?.lastLoadingMeters
+        var breaksHandled: Set<UUID> = []
         var weeks: [PlanWeek] = []
         var limited = false
         // Share of the last full loading week's target that the available days could actually hold.
@@ -82,6 +86,23 @@ public enum PlanBuilder {
         }
         for index in 0..<weekCount {
             let monday = firstMonday.adding(days: 7 * index)
+            // Back from a week or more off: restart at a share of what was being run before (the same shares as
+            // an unplanned break) and build up again from there by the usual rules.
+            if phases[index] != .taper, let before = lastHeldLoading,
+               let back = inputs.timeOffPeriods.first(where: { off in
+                   guard off.mode == .noRunning, !breaksHandled.contains(off.id), let end = off.end,
+                         let length = off.length, length >= TimeOff.breakDaysForReset else { return false }
+                   return end >= monday.adding(days: -7) && end < monday.adding(days: 6)
+               }) {
+                breaksHandled.insert(back.id)
+                let restart = max(before * PlanAdapter.resumeShare(afterBreakOf: back.length ?? 0),
+                                  min(PlanRules.minimumStartingMeters, before))
+                // The first week back is the restart; the weeks after it grow from there by the usual rules.
+                let rest = Periodisation.volumes(phases: Array(phases[(index + 1)...]), goal: inputs.goal,
+                                                 experience: inputs.experience, currentMeters: inputs.currentWeeklyMeters,
+                                                 resuming: .init(lastLoadingMeters: restart, consecutiveLoadingWeeks: 1))
+                volumes.replaceSubrange(index..., with: [.init(meters: restart, isStepBack: false)] + rest)
+            }
             var volume = volumes[index]
             if volume.isStepBack || phases[index] == .taper { volume.meters *= heldShare }
             let result = WeekLayout.layout(.init(monday: monday, weekIndex: index, phase: phases[index],
@@ -96,6 +117,7 @@ public enum PlanBuilder {
             if !volume.isStepBack, phases[index] != .taper, monday >= start, index < weekCount - 1, volume.meters > 0, week.trainingMeters > 0 {
                 heldShare = min(1, week.trainingMeters / volume.meters)
             }
+            if !volume.isStepBack, phases[index] != .taper, week.trainingMeters > 0 { lastHeldLoading = volume.meters }
             weeks.append(week)
         }
         applyPreRaceQuietDays(&weeks, raceDate: inputs.raceDate, paces: paces, from: start)

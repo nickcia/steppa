@@ -27,6 +27,10 @@ nonisolated struct CoachSnapshot: Sendable, Equatable {
     /// otherwise for the next workout from today. Nothing changes until the athlete taps it.
     func fallbackSuggestion(for reply: String) -> CoachSuggestion? {
         let text = reply.lowercased()
+        if let reason = Self.timeOffReason(in: text), let today = upcoming.first?.date {
+            return CoachSuggestion(action: .timeOff, date: today, newDate: nil, reason: String(localized: "Suggested by the coach"),
+                                   timeOffReason: reason)
+        }
         guard text.contains("skip") else { return nil }
         let target = text.contains("long run") ? upcoming.first(where: \.isLongRun) : upcoming.first
         guard let target else { return nil }
@@ -36,6 +40,28 @@ nonisolated struct CoachSnapshot: Sendable, Equatable {
 }
 
 extension CoachSnapshot {
+    /// Whether the athlete said they're injured, sick or going away, so the coach can offer to mark time off.
+    nonisolated static func timeOffReason(in text: String) -> TimeOff.Reason? {
+        let text = text.lowercased()
+        func has(_ words: [String]) -> Bool { words.contains { text.contains($0) } }
+        if has(["injur", "hurt", "pulled my", "strain", "sprain", "shin splint", "stress fracture", "physio", "pain",
+                "sore", "my knee", "my ankle", "my calf", "my hamstring", "my achilles", "my hip", "my shin", "my foot"]) { return .injury }
+        if has(["i'm sick", "i am sick", "got sick", "have a cold", "have the flu", "have flu", "covid", "fever", "feel ill", "i'm ill"]) { return .illness }
+        if has(["vacation", "holiday", "going away", "on a trip", "travelling", "traveling"]) { return .vacation }
+        return nil
+    }
+
+    /// Whether the coach's reply offers to mark time off ("…mark this as an injury and pause the plan?"), so the
+    /// button appears even when the model forgot to call the tool. A passing mention ("to avoid injury") doesn't count.
+    nonisolated static func timeOffOffer(in reply: String) -> TimeOff.Reason? {
+        let text = reply.lowercased()
+        guard ["mark", "pause", "time off"].contains(where: text.contains) else { return nil }
+        if text.contains("injur") { return .injury }
+        if text.contains("sick") || text.contains("illness") || text.contains("ill ") { return .illness }
+        if text.contains("holiday") || text.contains("vacation") || text.contains("trip") { return .vacation }
+        return text.contains("time off") ? .other : nil
+    }
+
     @MainActor static func make(_ model: AppModel) -> CoachSnapshot {
         guard let plan = model.plan else {
             return CoachSnapshot(overview: "The athlete has no training plan yet.", weeks: [:],
@@ -71,6 +97,10 @@ extension CoachSnapshot {
         Predicted \(plan.inputs.goal.name) time now: \(DisplayFormat.clock(model.prediction?.seconds ?? plan.predictedRaceSeconds)).
         """
         if let goal = plan.inputs.goalTimeSeconds { overview += " Goal time: \(DisplayFormat.clock(goal))." }
+        let timeOff = plan.inputs.timeOffPeriods.filter { ($0.end ?? today) >= today }
+        if !timeOff.isEmpty {
+            overview += "\nTime off already marked (nothing planned then): " + timeOff.map { "\($0.reason.name.lowercased()) \($0.datesText)" }.joined(separator: "; ") + "."
+        }
         if let change = model.changes.first {
             overview += "\nLatest plan change (\(change.createdAt.formatted(date: .abbreviated, time: .omitted))): "
                 + change.reasons.map { $0.message(format) }.joined(separator: " ")
@@ -229,12 +259,14 @@ extension CoachSnapshot {
 /// A plan change the coach suggested. It's only a suggestion: the athlete taps to apply it, and the app's own
 /// rules decide whether it's allowed.
 nonisolated struct CoachSuggestion: Sendable, Hashable, Identifiable {
-    enum Action: String, Sendable { case move, skip }
+    enum Action: String, Sendable { case move, skip, timeOff }
     var action: Action
     var date: LocalDate
     var newDate: LocalDate?
     var reason: String
-    var id: String { "\(action)-\(date)-\(newDate?.description ?? "")" }
+    /// For `.timeOff`: why (injured, sick, holiday…). The button opens time off with this filled in.
+    var timeOffReason: TimeOff.Reason?
+    var id: String { "\(action)-\(date)-\(newDate?.description ?? "")-\(timeOffReason?.rawValue ?? "")" }
 }
 
 /// Collects suggestions from the coach's tool calls (which run off the main actor).

@@ -44,6 +44,7 @@ struct TodayView: View {
             .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
             .navigationDestination(for: StrengthSchedule.Session.self) { StrengthDetailView(session: $0) }
             .navigationDestination(for: RacesRoute.self) { _ in RacesScreen() }
+            .navigationDestination(for: TimeOffRoute.self) { _ in TimeOffView() }
         }
         .onAppear {
             guard model.revealNewPlan else { return }
@@ -303,11 +304,14 @@ private struct HeroCard: View {
     let date: LocalDate
     @Environment(AppModel.self) private var model
     @State private var addingToCalendar: Workout?
+    @State private var updating: PlanChangeRequest?
 
     var body: some View {
         let workout = model.workout(on: date)
         VStack(alignment: .leading, spacing: 16) {
-            if let workout {
+            if workout == nil, let off = model.plan?.inputs.timeOff(on: date) {
+                timeOffContent(off)
+            } else if let workout {
                 // The whole top of the card opens the workout; the buttons below keep their own actions.
                 NavigationLink(value: workout) { summary(workout) }
                     .buttonStyle(HeroPressStyle())
@@ -317,7 +321,7 @@ private struct HeroCard: View {
             }
             if let workout {
                 actions(workout)
-            } else {
+            } else if model.plan?.inputs.timeOff(on: date) == nil {
                 Text(isAfterRace ? "Congratulations on finishing your plan."
                                  : "Recovery is training too. A walk or gentle mobility is fine.")
                     .font(.subheadline)
@@ -327,6 +331,48 @@ private struct HeroCard: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .darkGlass(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .fullScreenCover(item: $updating) { request in
+            PlanUpdateView(request: request) { updating = nil }
+        }
+    }
+
+    /// A day off: why, until when, and a way to say you're back.
+    @ViewBuilder private func timeOffContent(_ off: TimeOff) -> some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(date == model.today ? String(localized: "Today") : date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                    .font(.subheadline).foregroundStyle(.white.opacity(0.6))
+                Text(off.reason.name).font(.system(size: 30, weight: .semibold)).foregroundStyle(.white)
+                Text(timeOffLine(off)).font(.subheadline).foregroundStyle(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            ActivityIcon(symbol: off.reason.symbol, colors: off.reason.colors, size: 52, onDark: true)
+        }
+        HStack(spacing: 8) {
+            if date == model.today {
+                Button {
+                    updating = .timeOff(model.timeOffEndingToday(off))
+                } label: {
+                    Text(off.reason == .injury || off.reason == .illness ? "I'm better" : "I'm back early").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(HeroButtonStyle(filled: true))
+            }
+            NavigationLink(value: TimeOffRoute()) { Text("Change") }
+                .buttonStyle(HeroButtonStyle(filled: false))
+        }
+    }
+
+    private func timeOffLine(_ off: TimeOff) -> String {
+        guard let end = off.end else {
+            return String(localized: "Your plan is paused until you're ready. Tap I'm better when you can run again; the first week back is easy.")
+        }
+        let back = end.adding(days: 1).formatted(.dateTime.weekday(.wide).day().month(.wide))
+        switch off.reason {
+        case .vacation: return String(localized: "Nothing planned. Enjoy the break; running starts again \(back).")
+        case .injury, .illness: return String(localized: "Nothing planned. Running starts again \(back), with an easy first week.")
+        case .busy, .other: return String(localized: "Nothing planned. Running starts again \(back).")
+        }
     }
 
     private func summary(_ workout: Workout?) -> some View {

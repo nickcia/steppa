@@ -7,6 +7,8 @@ public enum AdaptationTrigger: Codable, Hashable, Sendable {
     case availabilityChanged(runDays: Set<Weekday>, longRunDay: Weekday)
     /// The athlete entered a new race or time-trial result.
     case newRaceResult(RacePerformance)
+    /// Holidays, busy stretches, injuries or illness were added, changed or ended (the full new list).
+    case timeOffChanged([TimeOff])
 }
 
 /// A human-readable reason for a change, for the "your plan changed because…" message.
@@ -20,6 +22,7 @@ public enum AdaptationReason: Codable, Hashable, Sendable {
     case newRaceResult(score: Double)
     case raceDateChanged(LocalDate)
     case availabilityChanged
+    case timeOffChanged
 }
 
 public struct PlanRevision: Sendable {
@@ -102,6 +105,12 @@ public enum PlanAdapter {
             try PlanBuilder.validateSchedule(inputs)
             if runDays != plan.inputs.runDays || longRunDay != plan.inputs.longRunDay {
                 reasons.append(.availabilityChanged)
+            }
+        case .timeOffChanged(let periods):
+            let sorted = periods.sorted { $0.start < $1.start }
+            if sorted != plan.inputs.timeOffPeriods {
+                inputs.timeOff = sorted
+                reasons.append(.timeOffChanged)
             }
         case .newRaceResult(let performance):
             fitness = try FitnessEstimator.estimate(.recentRace(performance), experience: inputs.experience,

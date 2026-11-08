@@ -6,6 +6,7 @@ enum PlanChangeRequest: Hashable, Identifiable {
     case availability(runDays: Set<Weekday>, longRunDay: Weekday)
     case raceDate(LocalDate)
     case raceResult(RacePerformance)
+    case timeOff([TimeOff])
 
     var id: Self { self }
 }
@@ -110,6 +111,7 @@ struct PlanUpdateView: View {
         case .availability: String(localized: "Moving your training onto your new days")
         case .raceDate(let date): String(localized: "Re-planning for \(date.formatted(.dateTime.weekday(.wide).day().month(.wide)))")
         case .raceResult(let result): String(localized: "Using your \(model.format.distance(result.distanceMeters)) result")
+        case .timeOff: String(localized: "Planning around your time off")
         }
     }
 
@@ -138,6 +140,20 @@ struct PlanUpdateView: View {
                               detail: String(localized: "From your \(format.distance(result.distanceMeters)) in \(DisplayFormat.clock(result.timeSeconds))")))
             items.append(Item(title: String(localized: "Resetting your paces"),
                               detail: String(localized: "Easy about \(DisplayFormat.clock(format.paceSeconds(plan.paces.easy.mid))) · threshold \(format.pace(plan.paces.threshold.mid))")))
+        case .timeOff:
+            break
+        }
+        if case .timeOff(let periods) = request {
+            let days = periods.filter { $0.end.map { $0 >= model.today } ?? true }
+                .reduce(0) { $0 + ($1.length ?? 0) }
+            items.append(Item(title: String(localized: "Clearing your days off"),
+                              detail: periods.contains { $0.end == nil }
+                                  ? String(localized: "Nothing planned until you're back")
+                                  : String(localized: "\(days) days with nothing planned")))
+            let longBreak = periods.contains { ($0.length ?? 0) >= TimeOff.breakDaysForReset && ($0.end ?? model.today) >= model.today }
+            items.append(Item(title: String(localized: "Easing you back in"),
+                              detail: longBreak ? String(localized: "Restarting lower after a week or more off, then building back up")
+                                                : String(localized: "Short breaks just shrink those weeks a little")))
         }
         items.append(Item(title: String(localized: "Checking the safety rules"),
                           detail: String(localized: "Gradual build and easy days between hard ones, checked week by week")))
@@ -151,6 +167,7 @@ struct PlanUpdateView: View {
         case .availability(let days, let long): model.changeAvailability(runDays: days, longRunDay: long)
         case .raceDate(let date): model.changeRaceDate(date)
         case .raceResult(let result): model.applyRaceResult(result)
+        case .timeOff(let periods): model.changeTimeOff(periods)
         }
         applied = ok
         guard ok else { finish(); return }

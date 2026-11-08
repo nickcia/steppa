@@ -10,6 +10,14 @@ struct CoachView: View {
     @State private var conversation = CoachConversation()
     @State private var draft = ""
     @State private var applied: Set<String> = []
+    @State private var timeOffPrefill: TimeOffPrefill?
+    @State private var updating: PlanChangeRequest?
+
+    private struct TimeOffPrefill: Identifiable {
+        let suggestionID: String
+        let reason: TimeOff.Reason
+        var id: String { suggestionID }
+    }
     @FocusState private var typing: Bool
 
     private let starters = [
@@ -63,6 +71,15 @@ struct CoachView: View {
                         Button("New chat") { conversation.reset() }
                     }
                 }
+            }
+            .sheet(item: $timeOffPrefill) { prefill in
+                TimeOffEditor(period: nil, prefill: prefill.reason) { saved in
+                    applied.insert(prefill.suggestionID)
+                    updating = .timeOff(model.timeOff + [saved])
+                }
+            }
+            .fullScreenCover(item: $updating) { request in
+                PlanUpdateView(request: request) { updating = nil }
             }
             .task {
                 conversation.warmUp(model)
@@ -124,8 +141,12 @@ struct CoachView: View {
             if !suggestion.reason.isEmpty {
                 Text(suggestion.reason).font(.footnote).foregroundStyle(Theme.secondaryInk)
             }
-            Button(done ? String(localized: "Done") : (suggestion.action == .move ? String(localized: "Move it") : String(localized: "Skip it"))) {
-                if model.apply(suggestion) { applied.insert(suggestion.id) }
+            Button(done ? String(localized: "Done") : buttonTitle(suggestion)) {
+                if suggestion.action == .timeOff, let reason = suggestion.timeOffReason {
+                    timeOffPrefill = TimeOffPrefill(suggestionID: suggestion.id, reason: reason)
+                } else if model.apply(suggestion) {
+                    applied.insert(suggestion.id)
+                }
             }
             .buttonStyle(.chip)
             .disabled(done)
@@ -142,6 +163,21 @@ struct CoachView: View {
             return String(localized: "Move \(name) from \(day) to \(suggestion.newDate?.formatted(.dateTime.weekday(.wide)) ?? "")")
         case .skip:
             return String(localized: "Skip \(day)'s \(name.lowercased())")
+        case .timeOff:
+            return switch suggestion.timeOffReason {
+            case .injury?: String(localized: "Mark yourself as injured")
+            case .illness?: String(localized: "Mark yourself as sick")
+            case .vacation?: String(localized: "Add your holiday")
+            default: String(localized: "Add time off")
+            }
+        }
+    }
+
+    private func buttonTitle(_ suggestion: CoachSuggestion) -> String {
+        switch suggestion.action {
+        case .move: String(localized: "Move it")
+        case .skip: String(localized: "Skip it")
+        case .timeOff: String(localized: "Choose dates")
         }
     }
 

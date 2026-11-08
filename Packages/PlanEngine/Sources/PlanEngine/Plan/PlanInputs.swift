@@ -15,6 +15,9 @@ public struct PlanInputs: Codable, Hashable, Sendable {
     /// Optional target. Paces are always based on current fitness, never on the goal,
     /// so an ambitious goal produces a warning rather than unsafe sessions.
     public var goalTimeSeconds: Double?
+    /// Holidays, busy stretches, injuries and illness (see `TimeOff`). Optional so plans saved before it existed
+    /// still load.
+    public var timeOff: [TimeOff]?
 
     public init(
         goal: RaceDistance,
@@ -25,7 +28,8 @@ public struct PlanInputs: Codable, Hashable, Sendable {
         runDays: Set<Weekday>,
         longRunDay: Weekday,
         experience: Experience,
-        goalTimeSeconds: Double? = nil
+        goalTimeSeconds: Double? = nil,
+        timeOff: [TimeOff]? = nil
     ) {
         self.goal = goal
         self.raceDate = raceDate
@@ -36,6 +40,7 @@ public struct PlanInputs: Codable, Hashable, Sendable {
         self.longRunDay = longRunDay
         self.experience = experience
         self.goalTimeSeconds = goalTimeSeconds
+        self.timeOff = timeOff
     }
 }
 

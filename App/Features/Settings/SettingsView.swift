@@ -48,6 +48,11 @@ struct SettingsView: View {
                             LabeledContent("Run days", value: plan.inputs.runDays.sorted().map(\.mediumName).joined(separator: ", "))
                         }
                         LabeledContent("Long run", value: plan.inputs.longRunDay.fullName)
+                        NavigationLink(value: TimeOffRoute()) {
+                            LabeledContent("Time off and injuries",
+                                           value: model.timeOff.filter { ($0.end ?? model.today) >= model.today }.isEmpty
+                                               ? String(localized: "None planned") : String(localized: "\(model.timeOff.filter { ($0.end ?? model.today) >= model.today }.count) planned"))
+                        }
                         Button("End this plan", role: .destructive) { confirmEnd = true }
                     }
 
@@ -182,6 +187,11 @@ struct SettingsView: View {
                 }
 
                 Section("About") {
+                    NavigationLink {
+                        HelpView()
+                    } label: {
+                        Label("Help and how-to", systemImage: "questionmark.circle")
+                    }
                     LabeledContent("Version", value: Bundle.main.versionString)
                     Text("Free and open source under the MIT licence. No accounts, no servers, no tracking.")
                         .font(.footnote)
@@ -198,6 +208,7 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationDestination(for: RacesRoute.self) { _ in RacesScreen() }
+            .navigationDestination(for: TimeOffRoute.self) { _ in TimeOffView() }
             .sheet(isPresented: $reportingBug) { BugReportView() }
             .confirmationDialog("End this plan?", isPresented: $confirmEnd, titleVisibility: .visible) {
                 Button("End plan", role: .destructive) { model.endPlan() }

@@ -61,6 +61,8 @@ final class CoachConversation {
     private(set) var status = String(localized: "Thinking")
     private var snapshot: CoachSnapshot?
     private let suggestions = CoachSuggestionBox()
+    /// The time-off button is offered once per conversation, so the coach doesn't keep returning to an injury.
+    private var offeredTimeOff = false
     #if canImport(FoundationModels)
     private var sessionStorage: Any?
     #endif
@@ -80,8 +82,16 @@ final class CoachConversation {
     - You can't change the plan. Whenever you recommend moving or skipping a workout (tiredness, a busy day, \
     pain, illness), you must also call suggestPlanChange so the athlete gets a button; they decide. Never move a \
     workout to the day before or after another hard session or the long run.
+    - Questions about using the app (connecting Garmin or another watch, Apple Health, time off, heart-rate \
+    zones, treadmill speed, units, run days, races, calendar, sharing…): call searchHelp and answer from what it \
+    returns, in a few short steps. Never guess menu names. If it has nothing, say so and suggest Settings › About › \
+    Help and how-to.
+    - If the athlete is injured, sick or going away: give one or two sentences of practical advice, then call \
+    suggestTimeOff. A button appears under your reply, so say "Tap Choose dates below to mark it" rather than asking \
+    whether they want one. Don't keep returning to it: in later answers, only mention the injury or illness if they \
+    bring it up again.
     - You're not a doctor. For pain that changes how they run, chest pain, dizziness, fainting, or an injury, \
-    tell them to stop and see a doctor or physio, and suggest skipping rather than adjusting training.
+    tell them to rest and see a doctor or physio.
     - Don't recommend a faster goal pace or more mileage than the plan; the plan's rules set those for safety.
     - Be encouraging and honest. No emojis.
     """
@@ -101,6 +111,7 @@ final class CoachConversation {
     /// Starts over with a clean conversation.
     func reset() {
         messages = []
+        offeredTimeOff = false
         #if canImport(FoundationModels)
         sessionStorage = nil
         #endif
@@ -142,7 +153,8 @@ final class CoachConversation {
         let session = LanguageModelSession(
             tools: [PlanOverviewTool(snapshot: snapshot, report: report), WeekTool(snapshot: snapshot, report: report),
                     RecentRunsTool(snapshot: snapshot, report: report), RunDetailsTool(snapshot: snapshot, report: report),
-                    SuggestChangeTool(box: suggestions, report: report)],
+                    SuggestChangeTool(box: suggestions, report: report), HelpTool(report: report),
+                    SuggestTimeOffTool(box: suggestions, today: snapshot.upcoming.first?.date ?? .today, report: report)],
             instructions: Self.instructions + "\n\nPlan overview:\n" + snapshot.overview + "\n\n" + snapshot.today
                 + "\n\nRecent runs:\n" + snapshot.recentRuns)
         sessionStorage = session
@@ -158,7 +170,17 @@ final class CoachConversation {
             }
             let reply = messages.last?.text ?? ""
             var found = suggestions.take()
-            if found.isEmpty, let fallback = snapshot?.fallbackSuggestion(for: reply) { found = [fallback] }
+            // Said they're injured, sick or away but the model didn't offer the button: offer it anyway.
+            if !found.contains(where: { $0.action == .timeOff }),
+               let reason = CoachSnapshot.timeOffReason(in: text) ?? CoachSnapshot.timeOffOffer(in: reply),
+               let today = snapshot?.upcoming.first?.date {
+                found.append(CoachSuggestion(action: .timeOff, date: today, newDate: nil, reason: "", timeOffReason: reason))
+            }
+            if found.isEmpty, let fallback = snapshot?.fallbackSuggestion(for: reply), fallback.action != .timeOff {
+                found = [fallback]
+            }
+            if offeredTimeOff { found.removeAll { $0.action == .timeOff } }
+            if found.contains(where: { $0.action == .timeOff }) { offeredTimeOff = true }
             replaceLast(reply, suggestions: found)
         } catch LanguageModelSession.GenerationError.exceededContextWindowSize {
             // The on-device model's memory is short: start a fresh conversation and say so.
@@ -278,6 +300,46 @@ nonisolated struct SuggestChangeTool: Tool {
         report(String(localized: "Preparing a suggestion"))
         box.add(CoachSuggestion(action: action, date: date, newDate: newDate, reason: arguments.reason))
         return "Suggestion shown to the athlete as a button. Tell them briefly what you suggested and why; they decide."
+    }
+}
+
+@available(iOS 26.0, *)
+nonisolated struct HelpTool: Tool {
+    let report: @Sendable (String) -> Void
+    let name = "searchHelp"
+    let description = "How to do things in the app: connecting Garmin or other watches, Apple Health, time off and injuries, heart-rate zones, treadmill speed, units, run days, races, calendar, sharing, reminders, backups."
+
+    @Generable struct Arguments {
+        @Guide(description: "What the athlete wants to do, in their words")
+        var question: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        report(String(localized: "Looking it up"))
+        let found = AppHelp.search(arguments.question, limit: 2)
+        guard !found.isEmpty else { return "No help article matches that. Suggest Settings › About › Help and how-to." }
+        return found.map { "\($0.title):\n\($0.body)" }.joined(separator: "\n\n")
+    }
+}
+
+@available(iOS 26.0, *)
+nonisolated struct SuggestTimeOffTool: Tool {
+    let box: CoachSuggestionBox
+    let today: LocalDate
+    let report: @Sendable (String) -> Void
+    let name = "suggestTimeOff"
+    let description = "Offer a button to mark time off (injured, sick, holiday or busy). The athlete picks the dates; the plan then pauses or works around it and eases them back in."
+
+    @Generable struct Arguments {
+        @Guide(description: "Why", .anyOf(["injury", "illness", "vacation", "busy"]))
+        var reason: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        guard let reason = TimeOff.Reason(rawValue: arguments.reason) else { return "Not suggested: unknown reason." }
+        report(String(localized: "Preparing a suggestion"))
+        box.add(CoachSuggestion(action: .timeOff, date: today, newDate: nil, reason: "", timeOffReason: reason))
+        return "A button to mark time off is shown. Mention it in one short sentence, then move on."
     }
 }
 

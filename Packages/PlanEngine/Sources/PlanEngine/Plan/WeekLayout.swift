@@ -44,8 +44,10 @@ enum WeekLayout {
     static func layout(_ c: Context) -> Result {
         let inputs = c.inputs
         let lastTrainingDay = c.isRaceWeek ? inputs.raceDate.adding(days: -1) : c.monday.adding(days: 6)
+        // Days off (holiday, injury…) hold no runs; the week shrinks in proportion, like a partial week.
         let trainingDates = (0..<7).map { c.monday.adding(days: $0) }.filter {
             $0 >= inputs.startDate && $0 <= lastTrainingDay && inputs.runDays.contains($0.weekday)
+                && !inputs.isUnavailable($0)
         }
         // Partial weeks (plan start, race week) get a proportional share of the nominal volume.
         let weekMeters = min(c.volume.meters * min(1, Double(trainingDates.count) / Double(inputs.runDays.count)),
@@ -57,7 +59,7 @@ enum WeekLayout {
         let quietStart = inputs.raceDate.adding(days: -PlanRules.raceTaperQuietDays)
         let longDate = trainingDates.first {
             $0.weekday == inputs.longRunDay && $0 < quietStart && !c.isRaceWeek
-                && !c.existing.hasLongRun && !nextToHardDay($0)
+                && !c.existing.hasLongRun && !nextToHardDay($0) && !inputs.isEasyOnly($0)
         }
 
         let marathonPaceLong = inputs.goal == .marathon && c.phase == .peak && !c.volume.isStepBack
@@ -70,6 +72,7 @@ enum WeekLayout {
         let latestSessionDate = min(lastTrainingDay, quietStart.adding(days: -1))
         let sessionDates = chooseSessionDates(trainingDates.filter {
                                                   $0 != longDate && $0 <= latestSessionDate && !nextToHardDay($0)
+                                                      && !inputs.isEasyOnly($0)
                                               },
                                               longRunDay: inputs.longRunDay, max: maxSessions)
         let kinds = sessionKinds(phase: c.phase, goal: inputs.goal, weekIndex: c.weekIndex, count: sessionDates.count)
@@ -256,8 +259,9 @@ enum WeekLayout {
         // the quiet days before the race.
         var stridesLeft = PlanRules.stridesPerWeek(phase: c.phase, experience: inputs.experience, weekIndex: c.weekIndex)
         workouts += chosenEasy.sorted().map { date in
-            let meters = min(runMeters(perEasy), quietDayCap(date, raceDate: inputs.raceDate))
-            if stridesLeft > 0, date < quietStart, meters >= PlanRules.minimumRunMeters {
+            let meters = min(runMeters(perEasy), quietDayCap(date, raceDate: inputs.raceDate),
+                             inputs.isEasyOnly(date) ? TimeOff.easyOnlyMaxMeters : .infinity)
+            if stridesLeft > 0, date < quietStart, meters >= PlanRules.minimumRunMeters, !inputs.isEasyOnly(date) {
                 stridesLeft -= 1
                 return WorkoutFactory.easyWithStrides(date, meters: meters,
                                                       reps: PlanRules.strideReps(inputs.experience), paces: paces)

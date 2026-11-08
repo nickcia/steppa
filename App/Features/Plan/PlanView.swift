@@ -45,9 +45,16 @@ struct PlanView: View {
                         ForEach(Mode.allCases) { Text($0.name).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 240)
+                    .frame(width: 220)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink(value: TimeOffRoute()) {
+                        Image(systemName: "airplane")
+                    }
+                    .accessibilityLabel("Time off")
                 }
             }
+            .navigationDestination(for: TimeOffRoute.self) { _ in TimeOffView() }
             .navigationDestination(for: Workout.self) { WorkoutDetailView(workout: $0) }
             .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
             .navigationDestination(for: StrengthSchedule.Session.self) { StrengthDetailView(session: $0) }
@@ -140,6 +147,23 @@ private struct WeekCard: View {
                 }
                 .padding(.vertical, 2)
             }
+            ForEach(timeOffHere) { period in
+                NavigationLink(value: TimeOffRoute()) {
+                    HStack(spacing: 12) {
+                        ActivityIcon(symbol: period.reason.symbol, colors: period.reason.colors, size: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(period.reason.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                            Text(period.datesText).font(.caption).foregroundStyle(Theme.secondaryInk)
+                        }
+                        Spacer()
+                        Text(period.mode == .easyOnly ? String(localized: "Easy only") : String(localized: "Time off"))
+                            .font(.caption.weight(.semibold)).foregroundStyle(Theme.secondaryInk)
+                    }
+                    .padding(14)
+                    .background(Theme.subtle.opacity(0.5), in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
             ForEach(rows, id: \.id) { row in
                 switch row {
                 case .workout(let workout):
@@ -161,6 +185,12 @@ private struct WeekCard: View {
         case strength(StrengthSchedule.Session)
         var id: String { switch self { case .workout(let w): w.id; case .strength(let s): s.id } }
         var date: LocalDate { switch self { case .workout(let w): w.date; case .strength(let s): s.date } }
+    }
+
+    /// Time off that overlaps this week.
+    private var timeOffHere: [TimeOff] {
+        let end = week.startDate.adding(days: 6)
+        return model.timeOff.filter { $0.start <= end && ($0.end ?? end) >= week.startDate }
     }
 
     /// Runs and strength sessions in date order (a strength session sits after the run on the same day).

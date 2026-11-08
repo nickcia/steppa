@@ -292,6 +292,30 @@ final class AppModel {
     @discardableResult
     func applyRaceResult(_ performance: RacePerformance) -> Bool { adapt(.newRaceResult(performance)) }
 
+    // MARK: Time off
+
+    /// Holidays, busy stretches, injuries and illness, in date order.
+    var timeOff: [TimeOff] { plan?.inputs.timeOffPeriods ?? [] }
+
+    /// The time off covering today, if any.
+    var currentTimeOff: TimeOff? { plan?.inputs.timeOff(on: today) }
+
+    /// Replaces the list of time off and re-plans around it.
+    @discardableResult
+    func changeTimeOff(_ periods: [TimeOff]) -> Bool { adapt(.timeOffChanged(periods)) }
+
+    /// The list after the athlete says they're back from this time off today: it ends yesterday (or goes, if it
+    /// hadn't started).
+    func timeOffEndingToday(_ period: TimeOff) -> [TimeOff] {
+        timeOff.compactMap { other in
+            guard other.id == period.id else { return other }
+            guard other.start < today else { return nil }
+            var ended = other
+            ended.end = today.adding(days: -1)
+            return ended
+        }
+    }
+
     func setGoalTime(_ seconds: Double?) {
         guard var updated = plan else { return }
         updated.inputs.goalTimeSeconds = seconds
@@ -772,6 +796,8 @@ final class AppModel {
     /// Returns false (with `lastError` set) if it isn't allowed.
     @discardableResult
     func apply(_ suggestion: CoachSuggestion) -> Bool {
+        // Time off is chosen in its own screen (dates, open-ended or not), not applied straight from the coach.
+        guard suggestion.action != .timeOff else { return false }
         guard let workout = workout(on: suggestion.date), workout.kind != .race else {
             lastError = String(localized: "There's no workout on that day to change.")
             return false
@@ -783,6 +809,8 @@ final class AppModel {
         case .move:
             guard let newDate = suggestion.newDate else { return false }
             return move(workout, to: newDate)
+        case .timeOff:
+            return false
         }
     }
 
@@ -1015,6 +1043,7 @@ extension EditError {
         case .dateInPast: String(localized: "Past workouts can't be moved.")
         case .afterRace: String(localized: "Workouts can't be moved past race day.")
         case .differentWeek: String(localized: "Workouts can be moved within the same week.")
+        case .dayOff: String(localized: "That day is marked as time off.")
         case .breaksRule(let rule):
             switch rule {
             case .consecutiveHardDays: String(localized: "That would put two hard days in a row. Try another day.")
@@ -1042,6 +1071,8 @@ extension AdaptationReason {
             String(localized: "Your plan has been rebuilt around your new race date, \(date.dayMonth).")
         case .availabilityChanged:
             String(localized: "Your runs have been moved to fit your new available days.")
+        case .timeOffChanged:
+            String(localized: "Your plan has been rebuilt around your time off, and eases you back in afterwards.")
         }
     }
 }

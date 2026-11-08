@@ -26,6 +26,10 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
 - **Adapts as you go.** Runs from Apple Health tick workouts off automatically. Miss a few runs, take a
   break, run faster or slower than planned, change your race date or your free days, and the rest of the
   plan adjusts. It never tries to make you "catch up".
+- **Holidays, busy weeks, injury and illness.** Mark time off and the plan clears those days, shrinks those
+  weeks and, after a week or more away, eases you back in. Injured with no end date? The plan pauses until you
+  tap I'm better, then starts with an easy week.
+- **Help built in.** A searchable how-to guide in Settings, which the coach also uses to answer "how do I…?".
 - **Strides, hills and optional strength.** Easy runs finish with strides, base weeks include hill repeats, and
   short bodyweight strength routines can be turned on in Settings.
 - **Share your run.** A clean image of the session, splits and heart-rate zones for Strava, Instagram or a

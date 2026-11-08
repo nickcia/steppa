@@ -154,6 +154,17 @@ weeks) get a warning.
 Every workout is a warm-up, repeated blocks and a cool-down. This maps directly onto Apple Watch
 structured workouts.
 
+### Time off (holidays, busy weeks, injury and illness)
+
+Days marked as time off get no runs; the week shrinks in proportion to the run days left, as a partial week does.
+Time off can instead be easy running only: no long run or sessions, and easy runs of at most 8 km. A week mostly
+lost to time off counts as rest for the step-back rule. After a break of 7 days or more, volume restarts at the
+same share of the last trained loading week as after an unplanned break (80% after 1–2 weeks, 60% after 2–4,
+40% after 4–8, 25% beyond) and then grows by the usual 10% rule. After an injury of 3 days or more, the first
+7 days back are easy running only, without strides; after an illness, the first 3. An injury or illness can be
+open-ended: the plan stays paused until the athlete says they're back, which ends it the day before. Strength
+sessions skip days off, and workouts can't be moved onto them.
+
 ### Heart-rate and treadmill targets
 
 Any workout can be shown by heart rate instead of pace. Easy and long running is zone 2, marathon pace zone 3,

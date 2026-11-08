@@ -8,6 +8,8 @@ public enum EditError: Error, Equatable, Sendable {
     case differentWeek
     /// The move would break a safety rule, e.g. two hard days in a row.
     case breaksRule(PlanViolation.Rule)
+    /// The target day is time off (a holiday, injury…).
+    case dayOff
 }
 
 /// Manual changes the athlete makes in the calendar.
@@ -26,6 +28,7 @@ public enum PlanEditor {
         guard target < plan.inputs.raceDate else { throw .afterRace }
         guard target.startOfWeek == workout.date.startOfWeek else { throw .differentWeek }
         guard target != workout.date else { return plan }
+        guard !plan.inputs.isUnavailable(target) else { throw .dayOff }
 
         var edited = plan
         if let other = edited.weeks[w].workouts.firstIndex(where: { $0.date == target }) {
