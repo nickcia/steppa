@@ -4,8 +4,10 @@ import Security
 
 // Strava: runs recorded on the phone (guided runs) go straight to the athlete's Strava account, with their route,
 // as soon as they finish. Strava doesn't take runs that other apps save to Apple Health, so this is the only way
-// they get there. Runs recorded on a watch already reach Strava through Garmin Connect (or COROS, etc.), so only
-// phone runs are uploaded, and nothing is ever read back from Strava.
+// they get there. Runs recorded on a watch reach Strava through Garmin Connect (or Apple's Health import), so they
+// aren't uploaded again: TrackStar looks at the athlete's recent Strava activities to spot a watch's copy of the
+// same run, and to give watch runs the plan's name ("Week 5: Threshold · 7 km") and steps. Only times, distances,
+// names and descriptions are read, on the phone, and only the athlete's own planned runs are renamed.
 
 /// The connection to the athlete's Strava account.
 nonisolated struct StravaCredentials: Codable, Hashable, Sendable {
@@ -15,6 +17,11 @@ nonisolated struct StravaCredentials: Codable, Hashable, Sendable {
     var expiresAt: Date
     var athleteID: Int
     var athleteName: String
+    /// What the athlete allowed. nil for connections made before reading was asked for (upload only).
+    var scope: String? = nil
+
+    /// Allowed to read activities: needed to spot a watch's copy of a run and to name watch runs.
+    var canRead: Bool { scope?.contains("activity:read") ?? false }
 
     /// Refreshed a few minutes early so a token never runs out mid-upload.
     func needsRefresh(at now: Date = .now) -> Bool { expiresAt.timeIntervalSince(now) < 5 * 60 }
@@ -59,8 +66,8 @@ nonisolated struct StravaOAuth: Sendable {
     /// Where Strava sends the athlete back. Its host must be the "Authorization Callback Domain" registered for the
     /// app on strava.com/settings/api.
     var redirectURI: String
-    /// Upload activities; nothing is read.
-    static let scope = "activity:write"
+    /// Upload activities; read them to spot duplicates and name watch runs after the plan.
+    static let scope = "activity:write,activity:read_all"
 
     /// From Info.plist (STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, STRAVA_CALLBACK_DOMAIN); nil when this build has no
     /// Strava app, which hides the option.
@@ -108,16 +115,18 @@ nonisolated struct StravaOAuth: Sendable {
         url.absoluteString.lowercased().hasPrefix(redirectURI.lowercased())
     }
 
-    /// The authorization code from the redirect, after checking it answers this attempt and upload was allowed.
-    static func code(from callback: URL, attempt: Attempt) throws -> String {
+    /// The authorization code and what was allowed, after checking the redirect answers this attempt and upload
+    /// was allowed (reading is optional: without it, watch runs simply aren't renamed).
+    static func grant(from callback: URL, attempt: Attempt) throws -> (code: String, scope: String) {
         let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
         func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
         guard value("state") == attempt.state, value("error") == nil, let code = value("code"), !code.isEmpty else {
             throw StravaError.signInFailed
         }
         // The athlete can untick permissions on Strava's screen; without upload there's no point connecting.
-        guard (value("scope") ?? "").contains(scope) else { throw StravaError.unauthorized }
-        return code
+        let allowed = value("scope") ?? ""
+        guard allowed.contains("activity:write") else { throw StravaError.unauthorized }
+        return (code, allowed)
     }
 }
 
@@ -161,6 +170,11 @@ nonisolated struct StravaUpload: Codable, Hashable, Sendable {
     var meters: Double
     /// nil for runs without a route.
     var gpx: Data?
+    /// For athletes with a watch: until when to wait for the watch's copy of this run to show up (Garmin syncs a few
+    /// minutes after the run). If it does, this one isn't uploaded. nil to upload straight away.
+    var checkWatchUntil: Date? = nil
+
+    var interval: DateInterval { DateInterval(start: start, duration: max(0, elapsedSeconds)) }
 
     @MainActor init(recording: GuidedRunRecording, name: String, description: String) {
         self.name = name
@@ -299,6 +313,34 @@ nonisolated struct StravaClient: Sendable {
         return id
     }
 
+    /// The athlete's activities that started after `date`, newest first (up to 50).
+    func activities(after date: Date, credentials: StravaCredentials) async throws -> [StravaActivity] {
+        var url = baseURL.appending(path: "api/v3/athlete/activities")
+        url.append(queryItems: [URLQueryItem(name: "after", value: String(Int(date.timeIntervalSince1970))),
+                                URLQueryItem(name: "per_page", value: "50")])
+        let data = try await perform(URLRequest(url: url, timeoutInterval: 30), credentials: credentials)
+        return (try? JSONDecoder().decode([StravaActivity].self, from: data)) ?? []
+    }
+
+    /// One activity with its description (the list leaves descriptions out).
+    func activity(_ id: Int, credentials: StravaCredentials) async throws -> StravaActivity {
+        let data = try await perform(URLRequest(url: baseURL.appending(path: "api/v3/activities/\(id)"), timeoutInterval: 30),
+                                     credentials: credentials)
+        do { return try JSONDecoder().decode(StravaActivity.self, from: data) } catch { throw StravaError.server(200) }
+    }
+
+    /// Changes an activity's name and/or description.
+    func update(_ id: Int, name: String?, description: String?, credentials: StravaCredentials) async throws {
+        var fields: [String: String] = [:]
+        if let name { fields["name"] = name }
+        if let description { fields["description"] = description }
+        guard !fields.isEmpty else { return }
+        var request = URLRequest(url: baseURL.appending(path: "api/v3/activities/\(id)"), timeoutInterval: 30)
+        request.httpMethod = "PUT"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        _ = try await perform(request, credentials: credentials, body: Self.form(fields))
+    }
+
     /// A run with no route (location was off): time and distance only.
     private func createManual(_ upload: StravaUpload, credentials: StravaCredentials) async throws -> Int? {
         let local = ISO8601DateFormatter()
@@ -402,4 +444,40 @@ nonisolated struct StravaQueue: Sendable {
     func clear() { try? FileManager.default.removeItem(at: directory) }
 
     private func file(_ upload: StravaUpload) -> URL { directory.appending(path: upload.externalID + ".json") }
+}
+
+/// An activity on the athlete's Strava account (only what TrackStar needs).
+nonisolated struct StravaActivity: Decodable, Hashable, Sendable {
+    var id: Int
+    var name: String
+    var description: String?
+    var sport_type: String?
+    var start_date: String
+    var elapsed_time: Double?
+    var distance: Double?
+    var external_id: String?
+
+    var isRun: Bool { ["Run", "TrailRun", "VirtualRun"].contains(sport_type ?? "") }
+    /// Uploaded by TrackStar (from a phone run), so it already has the plan's name.
+    var isFromTrackStar: Bool { external_id?.hasPrefix("trackstar-") ?? false }
+
+    var start: Date? { ISO8601DateFormatter().date(from: start_date) }
+    var interval: DateInterval? { start.map { DateInterval(start: $0, duration: max(0, elapsed_time ?? 0)) } }
+
+    /// Still has the name Strava, Garmin or Apple gave it ("Morning Run", "Toronto Running"), or the planned workout's
+    /// name as the watch sent it: safe to replace with the plan's name. Anything else, the athlete named it themselves.
+    func hasDefaultName(plannedName: String) -> Bool {
+        let name = self.name.trimmingCharacters(in: .whitespaces)
+        if name.range(of: #"^(Morning|Lunch|Afternoon|Evening|Night) (Trail )?Run$"#, options: .regularExpression) != nil { return true }
+        // Garmin: "Toronto Running", "Running".
+        if name == "Run" || name == "Running" || name.hasSuffix(" Running") { return true }
+        return !plannedName.isEmpty && name.localizedCaseInsensitiveContains(plannedName)
+    }
+}
+
+extension DateInterval {
+    /// Overlap of more than a minute, so back-to-back runs don't count.
+    func overlapsMeaningfully(_ other: DateInterval) -> Bool {
+        (intersection(with: other)?.duration ?? 0) > 60
+    }
 }

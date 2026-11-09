@@ -19,6 +19,9 @@ final class FakeRunSource: RunSource {
     func series(forRun id: String) async throws -> RunSeries? { series[id] }
     var ageInYears: Int?
     func age() -> Int? { ageInYears }
+    /// Runs recorded by other apps (a watch), for duplicate checks.
+    var otherRunIntervals: [DateInterval] = []
+    func otherRuns(since start: Date) async -> [DateInterval] { otherRunIntervals.filter { $0.end >= start } }
 }
 
 @MainActor

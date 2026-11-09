@@ -706,6 +706,19 @@ private struct StravaSection: View {
             if let account = model.stravaAccount {
                 LabeledContent("Strava", value: account.athleteName.isEmpty ? String(localized: "Connected") : account.athleteName)
                 Toggle("Upload phone runs", isOn: Binding(get: { model.stravaAutoUpload }, set: { model.setStravaAutoUpload($0) }))
+                if account.canRead {
+                    Toggle("Name watch runs after your plan", isOn: Binding(get: { model.stravaNamesWatchRuns },
+                                                                           set: { model.setStravaNamesWatchRuns($0) }))
+                } else {
+                    Button { connect() } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Name watch runs after your plan")
+                            Text("Reconnect once to let TrackStar see your recent activities, so watch runs get your plan's name and phone runs aren't uploaded twice.")
+                                .font(.footnote)
+                                .foregroundStyle(Theme.secondaryInk)
+                        }
+                    }
+                }
                 if model.stravaQueuedCount > 0 {
                     Button {
                         Task { await model.sendQueuedStravaUploads() }
@@ -732,7 +745,7 @@ private struct StravaSection: View {
         } footer: {
             Text(model.stravaAccount == nil
                  ? "Runs you record on this phone go to Strava as soon as you finish, with their route. Runs from Garmin and other watches already reach Strava through their own apps."
-                 : "Runs you record on this phone upload as soon as you finish. TrackStar only uploads; it never reads your Strava data.")
+                 : "Phone runs upload as soon as you finish. If your watch recorded the same run, its copy is used instead, so nothing appears twice. Watch runs get your plan's name and steps unless you've renamed them.")
         }
         .confirmationDialog("Disconnect Strava?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
             Button("Disconnect", role: .destructive) { Task { await model.disconnectStrava() } }

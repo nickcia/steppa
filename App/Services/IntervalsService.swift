@@ -352,6 +352,16 @@ nonisolated struct IntervalsActivity: Decodable, Hashable, Sendable {
 
     var date: LocalDate? { LocalDate(iso: String(start_date_local.prefix(10))) }
 
+    /// When it happened, read as local time on this phone (Intervals.icu gives local time without a zone).
+    var interval: DateInterval? {
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.timeZone = .current
+        parser.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        guard let start = parser.date(from: String(start_date_local.prefix(19))) else { return nil }
+        return DateInterval(start: start, duration: max(0, elapsed_time ?? moving_time ?? 0))
+    }
+
     /// As a completed run, for activities with no matching run in Apple Health.
     var completedRun: CompletedRun? {
         guard isRun, let date, let distance, distance >= RunMatcher.minimumRunMeters,

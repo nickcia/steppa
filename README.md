@@ -26,8 +26,9 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
   and Skip. The run is saved to Apple Health with its route and ticks off the workout.
 - **Your own workouts.** Build a structured workout from blocks (warm-up, Zone 2, tempo, intervals, cool-down)
   with paces filled in from your fitness, put it on any day from the calendar, and keep it to reuse.
-- **Phone runs on Strava.** Connect Strava and runs recorded on your iPhone upload with their route as soon as
-  you finish.
+- **Strava, named after your plan.** Connect Strava and runs recorded on your iPhone upload with their route as
+  soon as you finish, titled "Week 5: Threshold · 7 km" with the workout's steps. Watch runs get the same title and
+  steps, and a run recorded on both the watch and the phone only appears once.
 - **Send to Apple Watch.** Workouts appear in the Workout app with every step and pace alerts.
 - **Send to Garmin, COROS, Suunto and Wahoo.** Sign in to Intervals.icu (free) and link your watch there
   once; your upcoming workouts are kept in step with your plan and reach your watch a few days ahead.
@@ -93,8 +94,8 @@ where TrackStar falls short, and includes a review kit for a qualified coach.
 
 - **No servers, no accounts, no analytics or tracking SDKs.** The app doesn't send data anywhere unless you
   connect Intervals.icu, in which case your upcoming workouts (and nothing else) go to your own Intervals.icu
-  calendar, or Strava, in which case runs you record on the iPhone are uploaded to your own Strava account (and
-  nothing is read back). Sign-ins are stored in the iPhone's Keychain.
+  calendar, or Strava, in which case runs you record on the iPhone are uploaded to your own Strava account, and
+  recent Strava runs are read on the phone to avoid duplicates and give watch runs the plan's name. Sign-ins are stored in the iPhone's Keychain.
 - **Apple Health: read, plus your own runs.** The app reads running workouts and distance. The only thing it writes is a run you record on your iPhone with a guided run, saved as a running workout with its route.
 - **iCloud sync** (when enabled) uses your private iCloud database, which only you can read.
 - **Crash reports** stay on the phone: after a crash the app offers to email the report, and only sends it if

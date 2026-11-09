@@ -920,11 +920,13 @@ final class AppModel {
     /// Finishes "Connect Strava" with the URL Strava sent the athlete back to.
     func finishStravaSignIn(callback: URL, attempt: StravaOAuth.Attempt) async throws {
         guard let strava, let stravaOAuth else { return }
-        let code = try StravaOAuth.code(from: callback, attempt: attempt)
-        let credentials = try await strava.signIn(code: code, oauth: stravaOAuth)
+        let grant = try StravaOAuth.grant(from: callback, attempt: attempt)
+        var credentials = try await strava.signIn(code: grant.code, oauth: stravaOAuth)
+        credentials.scope = grant.scope
         try stravaKeychain.save(credentials)
         stravaAccount = credentials
         await sendQueuedStravaUploads()
+        await nameWatchRunsOnStrava()
     }
 
     /// A URL opened in the app: Strava returning from its own app's "Authorize" screen. Returns true if handled.
@@ -946,6 +948,7 @@ final class AppModel {
         stravaQueue.clear()
         stravaAccount = nil
         stravaQueuedCount = 0
+        UserDefaults.standard.removeObject(forKey: Self.stravaHandledRunsKey)
     }
 
     #if DEBUG
@@ -958,44 +961,164 @@ final class AppModel {
         UserDefaults.standard.set(on, forKey: Self.stravaAutoUploadKey)
     }
 
+    /// Give watch runs the plan's name and steps on Strava. On by default; needs read permission.
+    private(set) var stravaNamesWatchRuns = UserDefaults.standard.object(forKey: "strava.nameWatchRuns") as? Bool ?? true
+
+    func setStravaNamesWatchRuns(_ on: Bool) {
+        stravaNamesWatchRuns = on
+        UserDefaults.standard.set(on, forKey: "strava.nameWatchRuns")
+        if on { Task { await nameWatchRunsOnStrava() } }
+    }
+
     enum StravaOutcome: Equatable {
         /// On Strava; the activity ID when known (nil when Strava already had it).
         case uploaded(Int?)
         /// No connection: it goes when the app next opens.
         case queued
+        /// Waiting a few minutes in case the watch recorded this run too.
+        case waitingForWatch
+        /// The watch recorded this run, so its copy goes to Strava instead (named after the plan when it's there).
+        case fromWatch
         case failed(String)
     }
 
-    /// Sends a run recorded on the phone to Strava, named after its workout.
-    func uploadToStrava(_ recording: GuidedRunRecording, workout: Workout) async -> StravaOutcome {
-        let summary = targetDescriber.summary(workout)
-        let upload = StravaUpload(recording: recording, name: workout.name,
-                                  description: String(localized: "\(workout.name): \(summary). Recorded with TrackStar."))
-        return await send(upload)
+    // MARK: Strava titles
+
+    /// "Week 5: Threshold · 7 km", "Week 2: Monday VO2 session", "Week 16: Race day".
+    func stravaTitle(for workout: Workout) -> String {
+        let week = plan?.weeks.firstIndex { $0.workouts.contains { $0.id == workout.id } }
+            ?? plan?.weeks.firstIndex { $0.startDate == workout.date.startOfWeek }
+        let detail: String? = switch workout.kind {
+        case .custom, .race: nil
+        case .runWalk: WorkoutDescriber(format: format).summary(workout)
+        default: format.distance(workout.totalMeters)
+        }
+        let name = [workout.name, detail].compactMap { $0 }.joined(separator: " · ")
+        guard let week else { return name }
+        return String(localized: "Week \(week + 1): \(name)")
     }
 
-    /// Tries runs left over from earlier (no connection at the time).
+    /// The workout's steps with their paces, one per line, for the Strava description.
+    func stravaDescription(for workout: Workout) -> String {
+        let describer = WorkoutDescriber(format: format)
+        var lines: [String] = []
+        func text(_ line: WorkoutDescriber.Line) -> String {
+            line.detail.map { "\(line.title) (\($0))" } ?? line.title
+        }
+        for section in describer.sections(workout) {
+            switch section {
+            case .single(let line): lines.append(text(line))
+            case .repeated(let times, let inner): lines.append("\(times) × " + inner.map(text).joined(separator: ", then "))
+            }
+        }
+        lines.append("")
+        lines.append(String(localized: "Planned with TrackStar"))
+        return lines.joined(separator: "\n")
+    }
+
+    // MARK: Strava uploads
+
+    /// Sends a run recorded on the phone to Strava, named after its workout, unless a watch recorded it too.
+    func uploadToStrava(_ recording: GuidedRunRecording, workout: Workout) async -> StravaOutcome {
+        var upload = StravaUpload(recording: recording, name: stravaTitle(for: workout),
+                                  description: stravaDescription(for: workout))
+        // Garmin and other watches sync a few minutes after the run: give the watch's copy time to show up.
+        if await hasWatch() { upload.checkWatchUntil = recording.end.addingTimeInterval(stravaWatchWait) }
+        let outcome = await process(upload)
+        if outcome == .waitingForWatch { watchForWatchCopies() }
+        return outcome
+    }
+
+    /// How long to wait for a watch's copy of a phone run before uploading the phone's (tests shorten it).
+    var stravaWatchWait: TimeInterval = 30 * 60
+
+    /// Tries runs left over from earlier (no connection, or waiting for a watch's copy).
     func sendQueuedStravaUploads() async {
         guard stravaAccount != nil else { return }
         for upload in stravaQueue.pending {
-            if case .queued = await send(upload) { break }
+            if await process(upload) == .queued { break }
         }
     }
 
-    private func send(_ upload: StravaUpload) async -> StravaOutcome {
-        guard let strava, let stravaOAuth, var account = stravaAccount else { return .failed(StravaError.unauthorized.localizedDescription) }
-        do {
-            if account.needsRefresh() {
-                account = try await strava.refresh(account, oauth: stravaOAuth)
-                try? stravaKeychain.save(account)
-                stravaAccount = account
+    /// Whether the athlete runs with a watch: one linked through Intervals.icu, or runs from another app in Health
+    /// in the last two months.
+    private func hasWatch() async -> Bool {
+        if let links = intervalsAthlete?.links, !links.isEmpty { return true }
+        guard let runSource else { return false }
+        return !(await runSource.otherRuns(since: .now.addingTimeInterval(-60 * 86_400))).isEmpty
+    }
+
+    private func process(_ upload: StravaUpload) async -> StravaOutcome {
+        if await watchRecorded(upload) {
+            stravaQueue.remove(upload)
+            stravaQueuedCount = stravaQueue.pending.count
+            return .fromWatch
+        }
+        if let deadline = upload.checkWatchUntil, Date.now < deadline {
+            stravaQueue.add(upload)
+            stravaQueuedCount = stravaQueue.pending.count
+            return .waitingForWatch
+        }
+        return await send(upload)
+    }
+
+    /// Whether a watch (or another app) recorded the same run: on Strava, in Apple Health or on Intervals.icu.
+    private func watchRecorded(_ upload: StravaUpload) async -> Bool {
+        let run = upload.interval
+        if let account = await freshStravaAccount(), account.canRead, let strava,
+           let recent = try? await strava.activities(after: run.start.addingTimeInterval(-6 * 3600), credentials: account),
+           recent.contains(where: { !$0.isFromTrackStar && $0.interval?.overlapsMeaningfully(run) == true }) {
+            return true
+        }
+        if let runSource, await runSource.otherRuns(since: run.start.addingTimeInterval(-6 * 3600))
+            .contains(where: { $0.overlapsMeaningfully(run) }) {
+            return true
+        }
+        if intervalsAccount != nil { await refreshHealth() }
+        return intervalsActivities.contains { $0.interval?.overlapsMeaningfully(run) == true }
+    }
+
+    /// Checks every couple of minutes while the app is open, until no run is waiting for a watch's copy.
+    private func watchForWatchCopies() {
+        guard watchCheck == nil else { return }
+        watchCheck = Task { [weak self] in
+            while let self, self.stravaQueue.pending.contains(where: { $0.checkWatchUntil != nil }) {
+                try? await Task.sleep(for: .seconds(120))
+                guard !Task.isCancelled else { break }
+                await self.sendQueuedStravaUploads()
+                await self.nameWatchRunsOnStrava()
             }
+            self?.watchCheck = nil
+        }
+    }
+
+    private var watchCheck: Task<Void, Never>?
+
+    /// The connection with a token that's good for a while (refreshing it if needed); nil when not connected.
+    private func freshStravaAccount() async -> StravaCredentials? {
+        guard let strava, let stravaOAuth, var account = stravaAccount else { return nil }
+        guard account.needsRefresh() else { return account }
+        guard let refreshed = try? await strava.refresh(account, oauth: stravaOAuth) else { return account }
+        account = refreshed
+        try? stravaKeychain.save(account)
+        stravaAccount = account
+        return account
+    }
+
+    private func send(_ upload: StravaUpload) async -> StravaOutcome {
+        guard let strava, stravaOAuth != nil, stravaAccount != nil else {
+            return .failed(StravaError.unauthorized.localizedDescription)
+        }
+        do {
+            guard let account = await freshStravaAccount() else { throw StravaError.unauthorized }
             let id = try await strava.upload(upload, credentials: account)
             stravaQueue.remove(upload)
             stravaQueuedCount = stravaQueue.pending.count
             return .uploaded(id)
         } catch let error as StravaError where error.isTemporary {
-            stravaQueue.add(upload)
+            var later = upload
+            later.checkWatchUntil = nil
+            stravaQueue.add(later)
             stravaQueuedCount = stravaQueue.pending.count
             return .queued
         } catch {
@@ -1004,6 +1127,59 @@ final class AppModel {
             stravaQueuedCount = stravaQueue.pending.count
             return .failed(error.localizedDescription)
         }
+    }
+
+    // MARK: Naming watch runs on Strava
+
+    private static let stravaHandledRunsKey = "strava.handledRuns"
+
+    /// Runs already looked after on Strava (named, or left alone because the athlete named them), so each is only
+    /// touched once.
+    private var stravaHandledRuns: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: Self.stravaHandledRunsKey) ?? []) }
+        set { UserDefaults.standard.set(Array(newValue.suffix(300)), forKey: Self.stravaHandledRunsKey) }
+    }
+
+    /// Gives watch runs from the last few days that ticked off a planned workout the plan's name and steps on Strava.
+    /// Only activities that still have their default name are renamed, and a description is only added where there
+    /// is none, so nothing the athlete wrote is ever replaced.
+    func nameWatchRunsOnStrava() async {
+        guard stravaNamesWatchRuns, let account = stravaAccount, account.canRead, let strava, let plan else { return }
+        let since = today.adding(days: -3)
+        let handled = stravaHandledRuns
+        let candidates = healthMatches.compactMap { workoutID, run -> (Workout, CompletedRun)? in
+            guard run.date >= since, !handled.contains(run.id),
+                  let workout = plan.workouts.first(where: { $0.id == workoutID }) else { return nil }
+            return (workout, run)
+        }
+        guard !candidates.isEmpty, let fresh = await freshStravaAccount(),
+              let activities = try? await strava.activities(after: since.adding(days: -1).date(), credentials: fresh) else { return }
+        var done = handled
+        let runs = activities.filter { $0.isRun && !$0.isFromTrackStar }
+        for (workout, run) in candidates {
+            guard let match = Self.stravaActivity(for: run, in: runs) else { continue }  // Not on Strava yet.
+            done.insert(run.id)
+            guard let detail = try? await strava.activity(match.id, credentials: fresh) else { continue }
+            let name = detail.hasDefaultName(plannedName: workout.name) ? stravaTitle(for: workout) : nil
+            let description = (detail.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? stravaDescription(for: workout) : nil
+            try? await strava.update(match.id, name: name, description: description, credentials: fresh)
+        }
+        stravaHandledRuns = done
+    }
+
+    /// The Strava activity for a run: same day, distance within 12%, and clearly the closest.
+    static func stravaActivity(for run: CompletedRun, in activities: [StravaActivity]) -> StravaActivity? {
+        let sameDay = activities.compactMap { activity -> (StravaActivity, Double)? in
+            guard let start = activity.start, LocalDate(start) == run.date, let meters = activity.distance, meters > 0
+            else { return nil }
+            let gap = abs(meters - run.distanceMeters) / run.distanceMeters
+            return gap <= 0.12 ? (activity, gap) : nil
+        }.sorted { $0.1 < $1.1 }
+        guard let best = sameDay.first else { return nil }
+        // Two runs of about the same distance that day: don't guess.
+        if sameDay.count > 1, sameDay[1].1 - best.1 < 0.03 { return nil }
+        return best.0
     }
 
     func disconnectIntervals() async {
@@ -1176,6 +1352,8 @@ final class AppModel {
         }
         await syncCalendar()
         await sendQueuedStravaUploads()
+        if stravaQueue.pending.contains(where: { $0.checkWatchUntil != nil }) { watchForWatchCopies() }
+        await nameWatchRunsOnStrava()
     }
 
     // MARK: Preferences

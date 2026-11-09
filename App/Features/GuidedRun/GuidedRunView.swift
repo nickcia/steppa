@@ -322,6 +322,14 @@ private struct GuidedRunSummary: View {
                         .foregroundStyle(Color(hex: 0xFC5200))
                 }
             }
+        case .done(.waitingForWatch):
+            Label("Checking whether your watch recorded this run too. If it didn't, it uploads to Strava in a few minutes.",
+                  systemImage: "applewatch")
+                .foregroundStyle(.white.opacity(0.7))
+        case .done(.fromWatch):
+            Label("Your watch recorded this run too, so Strava gets it from there, named after your plan.",
+                  systemImage: "applewatch.radiowaves.left.and.right")
+                .foregroundStyle(.white.opacity(0.7))
         case .done(.queued):
             Label("No connection. It'll upload to Strava when you're back online.", systemImage: "icloud.slash")
                 .foregroundStyle(.white.opacity(0.7))

@@ -15,11 +15,15 @@ protocol RunSource {
     func requestWriteAccess() async throws
     /// Saves a guided run as a running workout with its distance and route. Returns the workout's ID.
     func save(_ recording: GuidedRunRecording) async throws -> String?
+    /// When runs recorded by something other than this app (a watch, another app) happened, from `start` on.
+    /// For spotting a watch that recorded the same run as the phone.
+    func otherRuns(since start: Date) async -> [DateInterval]
 }
 
 extension RunSource {
     func requestWriteAccess() async throws {}
     func save(_ recording: GuidedRunRecording) async throws -> String? { nil }
+    func otherRuns(since start: Date) async -> [DateInterval] { [] }
 }
 
 /// Reads running workouts from Apple Health, and saves runs recorded on the phone during a guided run (nothing else
@@ -132,6 +136,19 @@ final class HealthKitRunSource: RunSource {
             try await route.finishRoute(with: workout, metadata: nil)
         }
         return workout.uuid.uuidString
+    }
+
+    func otherRuns(since start: Date) async -> [DateInterval] {
+        let running = HKQuery.predicateForWorkouts(activityPredicate:
+            HKQuery.predicateForWorkoutActivities(workoutActivityType: .running))
+        let recent = HKQuery.predicateForSamples(withStart: start, end: nil)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.workout(NSCompoundPredicate(andPredicateWithSubpredicates: [running, recent]))],
+            sortDescriptors: [SortDescriptor(\.startDate)])
+        let workouts = (try? await descriptor.result(for: store)) ?? []
+        let mine = Bundle.main.bundleIdentifier
+        return workouts.filter { $0.sourceRevision.source.bundleIdentifier != mine }
+            .map { DateInterval(start: $0.startDate, end: max($0.startDate, $0.endDate)) }
     }
 
     func age() -> Int? {
