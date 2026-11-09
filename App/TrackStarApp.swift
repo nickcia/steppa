@@ -244,6 +244,9 @@ enum DemoData {
         #endif
     }
 
+    #if !DEBUG
+    static func seedIfRequested(_ model: AppModel) {}
+    #else
     static func seedIfRequested(_ model: AppModel) {
         guard isRequested, model.plan == nil else { return }
         let today = LocalDate.today
@@ -282,4 +285,5 @@ enum DemoData {
         model.setMaxHeartRate(188)
         model.setStrength(enabled: true)
     }
+    #endif
 }
