@@ -134,9 +134,23 @@ enum AppTab: Hashable, CaseIterable {
 }
 
 struct MainTabs: View {
-    @State private var tab: AppTab = .today
+    @State private var tab: AppTab = MainTabs.initialTab
     /// Bumped when the Today tab is tapped while already open: Today jumps back to today, as tab bars usually do.
     @State private var todayReset = 0
+
+    /// Today, or with `-tab plan|progress|settings` in debug builds, that tab (for screenshots).
+    private static var initialTab: AppTab {
+        #if DEBUG
+        switch DemoData.launchValue("-tab") {
+        case "plan": return .plan
+        case "progress": return .progress
+        case "settings": return .settings
+        default: return .today
+        }
+        #else
+        return .today
+        #endif
+    }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -235,6 +249,15 @@ enum DemoData {
         false
         #endif
     }
+
+    #if DEBUG
+    /// The value after a launch argument, e.g. `-tab plan` gives "plan" for "-tab".
+    static func launchValue(_ flag: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }
+    #endif
 
     static var fakesIntervals: Bool {
         #if DEBUG

@@ -66,6 +66,21 @@ struct TodayView: View {
             debugRecap = model.healthRuns.max { $0.date < $1.date }
         }
         .sheet(item: $debugRecap) { RunRecapView(run: $0) }
+        // For screenshots: `-day 1` selects tomorrow; `-open workout` opens the next key workout, `-open run` the
+        // latest run.
+        .task {
+            if let offset = DemoData.launchValue("-day").flatMap(Int.init) { selected = model.today.adding(days: offset) }
+            switch DemoData.launchValue("-open") {
+            case "workout":
+                let key: Set<WorkoutKind> = [.tempo, .intervals, .hills]
+                if let workout = model.plan?.workouts.first(where: { $0.date >= model.today && key.contains($0.kind) }) {
+                    path.append(workout)
+                }
+            case "run":
+                if let run = model.healthRuns.max(by: { $0.date < $1.date }) { path.append(RunRoute(runID: run.id)) }
+            default: break
+            }
+        }
         #endif
     }
 
