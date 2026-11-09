@@ -134,6 +134,10 @@ struct SettingsView: View {
                     IntervalsSection()
                 }
 
+                if model.stravaAvailable {
+                    StravaSection()
+                }
+
                 Section {
                     Toggle("Show the coach", isOn: Binding(get: { model.coachEnabled }, set: { model.setCoachEnabled($0) }))
                     Text(CoachAvailability.current.message)
@@ -682,5 +686,88 @@ extension Bundle {
         let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = infoDictionary?["CFBundleVersion"] as? String ?? "?"
         return "\(version) (\(build))"
+    }
+}
+
+/// Strava: phone runs upload to the athlete's account as they finish.
+private struct StravaSection: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+    @Environment(\.openURL) private var openURL
+    @State private var connecting = false
+    @State private var confirmDisconnect = false
+    @State private var error: String?
+
+    /// Strava's orange.
+    static let orange = Color(hex: 0xFC5200)
+
+    var body: some View {
+        Section {
+            if let account = model.stravaAccount {
+                LabeledContent("Strava", value: account.athleteName.isEmpty ? String(localized: "Connected") : account.athleteName)
+                Toggle("Upload phone runs", isOn: Binding(get: { model.stravaAutoUpload }, set: { model.setStravaAutoUpload($0) }))
+                if model.stravaQueuedCount > 0 {
+                    Button {
+                        Task { await model.sendQueuedStravaUploads() }
+                    } label: {
+                        LabeledContent("Waiting to upload", value: "\(model.stravaQueuedCount)")
+                    }
+                }
+                Button("Disconnect", role: .destructive) { confirmDisconnect = true }
+            } else {
+                Button { connect() } label: {
+                    HStack {
+                        Text("Connect with Strava")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        if connecting { ProgressView().tint(.white) }
+                    }
+                }
+                .listRowBackground(Self.orange)
+                .disabled(connecting)
+            }
+        } header: {
+            Text("Strava")
+        } footer: {
+            Text(model.stravaAccount == nil
+                 ? "Runs you record on this phone go to Strava as soon as you finish, with their route. Runs from Garmin and other watches already reach Strava through their own apps."
+                 : "Runs you record on this phone upload as soon as you finish. TrackStar only uploads; it never reads your Strava data.")
+        }
+        .confirmationDialog("Disconnect Strava?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
+            Button("Disconnect", role: .destructive) { Task { await model.disconnectStrava() } }
+        } message: {
+            Text("Runs already on Strava stay there. New phone runs won't upload.")
+        }
+        .alert("Couldn't connect to Strava", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(error ?? "")
+        }
+    }
+
+    /// With the Strava app installed, its own "Authorize" screen (one tap, no password); otherwise Strava's page in
+    /// a sheet.
+    private func connect() {
+        guard let oauth = model.stravaOAuth else { return }
+        let attempt = oauth.start()
+        if UIApplication.shared.canOpenURL(attempt.appURL) {
+            model.stravaPendingAttempt = attempt
+            openURL(attempt.appURL)
+            return
+        }
+        connecting = true
+        Task {
+            defer { connecting = false }
+            do {
+                let callback = try await webAuthenticationSession.authenticate(
+                    using: attempt.webURL, callbackURLScheme: oauth.callbackScheme, preferredBrowserSession: .shared)
+                try await model.finishStravaSignIn(callback: callback, attempt: attempt)
+            } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
+                // Closed the sheet.
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
     }
 }

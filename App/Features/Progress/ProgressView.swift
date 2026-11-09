@@ -419,7 +419,7 @@ private struct RecentRuns: View {
         return HStack(spacing: 12) {
             KindIcon(kind: workout?.kind ?? .easy, size: 44)
             VStack(alignment: .leading, spacing: 2) {
-                Text(workout?.kind.name ?? String(localized: "Run"))
+                Text(workout?.name ?? String(localized: "Run"))
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                 Text("\(run.date.shortDayMonth) · \(model.format.pace(analysis.secondsPerKm))\(analysis.averageHeartRate.map { " · \(Int($0.rounded())) bpm" } ?? "")")
                     .font(.caption).foregroundStyle(Theme.secondaryInk)

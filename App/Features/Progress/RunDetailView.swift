@@ -35,7 +35,7 @@ struct RunDetailView: View {
                                         format: model.format).image() {
                 ToolbarItem(placement: .primaryAction) {
                     ShareLink(item: RunShareImage(image: image, name: "Run \(run.date)"),
-                              preview: SharePreview(model.workout(for: run)?.kind.name ?? String(localized: "Run"),
+                              preview: SharePreview(model.workout(for: run)?.name ?? String(localized: "Run"),
                                                     image: Image(uiImage: image))) {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
@@ -54,7 +54,7 @@ struct RunDetailView: View {
                 Text(run.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
                     .font(.subheadline)
                     .foregroundStyle(Theme.secondaryInk)
-                Text(workout?.kind.name ?? String(localized: "Run"))
+                Text(workout?.name ?? String(localized: "Run"))
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(Theme.ink)
                 if let source = model.dataSource(for: run) {
@@ -181,7 +181,7 @@ private struct PlanComparisonCard: View {
                     KindIcon(kind: workout.kind, size: 36)
                     VStack(alignment: .leading, spacing: 0) {
                         Text("Planned").font(.caption).foregroundStyle(Theme.secondaryInk)
-                        Text("\(workout.kind.name) · \(WorkoutDescriber(format: format).summary(workout))")
+                        Text("\(workout.name) · \(WorkoutDescriber(format: format).summary(workout))")
                             .font(.headline).foregroundStyle(Theme.ink)
                     }
                 }

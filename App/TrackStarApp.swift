@@ -17,7 +17,9 @@ struct TrackStarApp: App {
                              reminders: ReminderService(), watch: WatchService(),
                              calendar: DemoData.usesMemoryStore ? nil : CalendarService(),
                              intervals: DemoData.usesMemoryStore ? nil : IntervalsClient(),
-                             intervalsOAuth: .configured)
+                             intervalsOAuth: .configured,
+                             strava: DemoData.usesMemoryStore ? nil : StravaClient(),
+                             stravaOAuth: .configured)
         DemoData.seedIfRequested(model)
         #if DEBUG
         if DemoData.fakesIntervals { model.debugFakeIntervalsConnection() }
@@ -97,6 +99,8 @@ struct RootView: View {
             await model.startGuidedRun(workout)
         }
         #endif
+        // Strava's own app sends the athlete back here after "Authorize".
+        .onOpenURL { url in Task { await model.handleOpenURL(url) } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await model.becameActive() }

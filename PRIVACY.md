@@ -1,6 +1,6 @@
 # Privacy policy
 
-_Last updated: 7 November 2026_
+_Last updated: 9 November 2026_
 
 TrackStar is a free, open-source running coach for iPhone. It's built so that your data stays yours.
 
@@ -11,6 +11,7 @@ TrackStar is a free, open-source running coach for iPhone. It's built so that yo
 - Nothing is sent to the developer, ever.
 - If you choose to connect Intervals.icu, your upcoming workouts are sent to your own Intervals.icu account so
   they can reach your Garmin, COROS, Suunto or Wahoo watch.
+- If you choose to connect Strava, runs you record on your iPhone are uploaded to your own Strava account.
 
 ## What the app stores
 
@@ -71,6 +72,19 @@ It does not read your wellness or health data from Intervals.icu. Your sign-in i
 iPhone's Keychain, on this device only. Disconnecting in the app removes its upcoming workouts from your
 calendar and deletes the sign-in from your iPhone; you can also revoke access in Intervals.icu under
 Settings › Apps. What Intervals.icu does with your data is covered by Intervals.icu's own privacy policy.
+
+## Strava (optional)
+
+If you connect Strava, the app talks directly from your iPhone to Strava. When you finish a run recorded on your
+iPhone (a guided run), it **uploads** that run to your Strava account: its route (GPS points with times), distance,
+time, and the workout's name and steps. You can turn automatic uploads off in Settings. Runs recorded on a watch
+are not uploaded (your watch's own app sends those), and the app **never reads** anything from Strava.
+
+If you're offline when a run finishes, it waits on your iPhone and uploads the next time you open the app. Your
+Strava sign-in is stored in your iPhone's Keychain. Disconnecting in Settings revokes the app's access and deletes
+the sign-in and any waiting runs from your iPhone; you can also revoke access on Strava under Settings › My Apps.
+What Strava does with your runs is covered by Strava's own privacy policy, and its privacy settings decide who can
+see them.
 
 ## Crash reports
 

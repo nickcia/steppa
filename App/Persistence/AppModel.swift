@@ -22,8 +22,29 @@ final class AppModel {
     private let intervalsKeychain: IntervalsKeychain
     /// "Sign in with Intervals.icu"; nil in builds without a client ID, which connect with an API key instead.
     let intervalsOAuth: IntervalsOAuth?
+    private let strava: StravaClient?
+    private let stravaKeychain: StravaKeychain
+    private let stravaQueue: StravaQueue
+    /// "Connect Strava"; nil in builds without a Strava app (the option is hidden).
+    let stravaOAuth: StravaOAuth?
+    /// The Strava connection (from the Keychain); nil when not connected.
+    private(set) var stravaAccount: StravaCredentials?
+    /// Upload phone runs to Strava as they finish. On by default once connected; kept on this device.
+    private(set) var stravaAutoUpload = true
+    private static let stravaAutoUploadKey = "strava.autoUpload"
+    /// A sign-in handed to the Strava app, waiting for it to send the athlete back.
+    var stravaPendingAttempt: StravaOAuth.Attempt?
+    /// Runs that couldn't be sent yet (offline when they finished).
+    private(set) var stravaQueuedCount = 0
 
+    /// The plan as shown: the stored plan with the athlete's own workouts in it.
     private(set) var plan: TrainingPlan?
+    /// The plan as the engine keeps it, without custom workouts. Adaptation and edits work on this one.
+    private var basePlan: TrainingPlan?
+    /// Workouts the athlete built and saved ("My workouts"), most recently changed first.
+    private(set) var savedWorkouts: [WorkoutTemplate] = []
+    /// Custom workouts put on days.
+    private(set) var scheduledWorkouts: [ScheduledWorkout] = []
     /// Set when a plan has just been built in onboarding: the main screen opens on Today and plays its reveal once.
     var revealNewPlan = false
     private(set) var planID: UUID?
@@ -76,7 +97,9 @@ final class AppModel {
          runSource: RunSource? = nil, reminders: ReminderService? = nil, watch: WatchService? = nil,
          calendar: CalendarService? = nil,
          intervals: IntervalsClient? = nil, intervalsOAuth: IntervalsOAuth? = nil,
-         intervalsKeychain: IntervalsKeychain = IntervalsKeychain()) {
+         intervalsKeychain: IntervalsKeychain = IntervalsKeychain(),
+         strava: StravaClient? = nil, stravaOAuth: StravaOAuth? = nil,
+         stravaKeychain: StravaKeychain = StravaKeychain(), stravaQueue: StravaQueue = StravaQueue()) {
         self.container = container
         self.clock = clock
         self.runSource = runSource
@@ -88,6 +111,15 @@ final class AppModel {
         self.intervalsKeychain = intervalsKeychain
         self.intervalsOAuth = intervalsOAuth
         self.intervalsAccount = intervals == nil ? nil : intervalsKeychain.load()
+        self.strava = stravaOAuth == nil ? nil : strava
+        self.stravaOAuth = strava == nil ? nil : stravaOAuth
+        self.stravaKeychain = stravaKeychain
+        self.stravaQueue = stravaQueue
+        if self.strava != nil {
+            stravaAccount = stravaKeychain.load()
+            stravaAutoUpload = UserDefaults.standard.object(forKey: Self.stravaAutoUploadKey) as? Bool ?? true
+            stravaQueuedCount = stravaQueue.pending.count
+        }
         reload()
         if Persistence.syncsWithICloud {
             // Another device changed something: re-read so the UI shows it.
@@ -123,8 +155,13 @@ final class AppModel {
 
         // If two devices both created a plan before syncing, the most recently updated one wins.
         let record = activePlanRecord()
-        plan = record?.decoded()
+        basePlan = record?.decoded()
         planID = record?.planID
+        savedWorkouts = ((try? context.fetch(FetchDescriptor<WorkoutTemplateRecord>(
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]))) ?? []).compactMap(\.template)
+        scheduledWorkouts = ((try? context.fetch(FetchDescriptor<ScheduledWorkoutRecord>(
+            sortBy: [SortDescriptor(\.createdAt)]))) ?? []).compactMap(\.scheduled)
+        plan = basePlan?.withCustomWorkouts(scheduledWorkouts)
 
         statuses = [:]
         changes = []
@@ -218,7 +255,7 @@ final class AppModel {
             return false
         }
         do {
-            let previous = plan
+            let previous = basePlan
             try record.update(updated)
             if !reasons.isEmpty {
                 // Several changes before the athlete has seen them read as one: merge them, keeping the
@@ -270,7 +307,7 @@ final class AppModel {
 
     @discardableResult
     private func adapt(_ trigger: AdaptationTrigger) -> Bool {
-        guard let plan else { return false }
+        guard let plan = basePlan else { return false }
         do {
             let revision = try PlanAdapter.adapt(plan, log: trainingLog, trigger: trigger, today: today,
                                                  assessTraining: hasTrainingRecord)
@@ -317,7 +354,7 @@ final class AppModel {
     }
 
     func setGoalTime(_ seconds: Double?) {
-        guard var updated = plan else { return }
+        guard var updated = basePlan else { return }
         updated.inputs.goalTimeSeconds = seconds
         store(updated)
     }
@@ -382,13 +419,114 @@ final class AppModel {
     /// Moves a workout within its week. Returns false (and sets `lastError`) if it isn't allowed.
     @discardableResult
     func move(_ workout: Workout, to date: LocalDate) -> Bool {
-        guard let plan else { return false }
+        if workout.isCustom { return moveCustom(workout, to: date) }
+        guard let plan = basePlan else { return false }
         do {
             return store(try PlanEditor.move(workout.id, to: date, in: plan, today: today))
         } catch {
             lastError = error.message
             return false
         }
+    }
+
+    // MARK: Custom workouts
+
+    /// Whether a workout of the athlete's own can go on this day: from today to the day before the race.
+    func canAddWorkout(on date: LocalDate) -> Bool {
+        guard let plan, let first = plan.weeks.first?.startDate else { return false }
+        return date >= today && date >= first && date < plan.inputs.raceDate
+    }
+
+    /// What the plan itself has on a day, ignoring custom workouts (what a custom workout there replaces).
+    func plannedWorkout(on date: LocalDate) -> Workout? {
+        basePlan?.workouts.first { $0.date == date }
+    }
+
+    /// The custom workout behind a workout, if it is one.
+    func scheduled(_ workout: Workout) -> ScheduledWorkout? {
+        scheduledWorkouts.first { $0.workoutID == workout.id }
+    }
+
+    /// Saves a workout to "My workouts", or updates it if it's already there.
+    func saveWorkout(_ template: WorkoutTemplate) {
+        let id = template.id
+        do {
+            if let record = try context.fetch(FetchDescriptor<WorkoutTemplateRecord>(predicate: #Predicate { $0.templateID == id })).first {
+                try record.update(template)
+            } else {
+                context.insert(try WorkoutTemplateRecord(template))
+            }
+        } catch {
+            lastError = String(localized: "Couldn't save your workout: \(error.localizedDescription)")
+        }
+        save()
+    }
+
+    func deleteSavedWorkout(_ template: WorkoutTemplate) {
+        let id = template.id
+        let records = (try? context.fetch(FetchDescriptor<WorkoutTemplateRecord>(predicate: #Predicate { $0.templateID == id }))) ?? []
+        records.forEach(context.delete)
+        save()
+    }
+
+    /// Puts a workout on a day, in place of whatever was there (one custom workout a day). Returns the workout
+    /// as it now appears in the plan.
+    @discardableResult
+    func addWorkout(_ template: WorkoutTemplate, on date: LocalDate) -> Workout? {
+        guard canAddWorkout(on: date) else { return nil }
+        removeCustomWorkouts(on: date)
+        let scheduled = ScheduledWorkout(date: date, template: template)
+        do {
+            context.insert(try ScheduledWorkoutRecord(scheduled))
+        } catch {
+            lastError = String(localized: "Couldn't add your workout: \(error.localizedDescription)")
+            return nil
+        }
+        save()
+        planDidChange()
+        return plan?.workouts.first { $0.id == scheduled.workoutID }
+    }
+
+    /// Changes the blocks of a custom workout on its day only.
+    func updateWorkout(_ workout: Workout, to template: WorkoutTemplate) {
+        guard var scheduled = scheduled(workout), let record = scheduledRecord(scheduled.id) else { return }
+        scheduled.template = template
+        try? record.update(scheduled)
+        save()
+        planDidChange()
+    }
+
+    /// Takes a custom workout off its day; the plan's own workout for that day (if any) comes back.
+    func removeWorkout(_ workout: Workout) {
+        guard let scheduled = scheduled(workout) else { return }
+        scheduledRecord(scheduled.id).map(context.delete)
+        setStatus(nil, forID: workout.id)
+        save()
+        planDidChange()
+    }
+
+    private func moveCustom(_ workout: Workout, to date: LocalDate) -> Bool {
+        guard var scheduled = scheduled(workout), let record = scheduledRecord(scheduled.id) else { return false }
+        guard canAddWorkout(on: date) else {
+            lastError = String(localized: "Your own workouts can go on any day from today until the day before your race.")
+            return false
+        }
+        removeCustomWorkouts(on: date, except: scheduled.id)
+        scheduled.date = date
+        try? record.update(scheduled)
+        save()
+        planDidChange()
+        return true
+    }
+
+    private func removeCustomWorkouts(on date: LocalDate, except keep: UUID? = nil) {
+        let day = date.description
+        let records = (try? context.fetch(FetchDescriptor<ScheduledWorkoutRecord>(predicate: #Predicate { $0.dateString == day }))) ?? []
+        for record in records where record.scheduleID != keep { context.delete(record) }
+    }
+
+    private func scheduledRecord(_ id: UUID) -> ScheduledWorkoutRecord? {
+        try? context.fetch(FetchDescriptor<ScheduledWorkoutRecord>(predicate: #Predicate { $0.scheduleID == id })).first
     }
 
     // MARK: Races
@@ -775,6 +913,99 @@ final class AppModel {
     static let intervalsConnectionsURL = URL(string: "https://intervals.icu/settings")!
 
     /// Removes this app's upcoming workouts from Intervals.icu (best effort), then forgets the key.
+    // MARK: Strava
+
+    var stravaAvailable: Bool { strava != nil && stravaOAuth != nil }
+
+    /// Finishes "Connect Strava" with the URL Strava sent the athlete back to.
+    func finishStravaSignIn(callback: URL, attempt: StravaOAuth.Attempt) async throws {
+        guard let strava, let stravaOAuth else { return }
+        let code = try StravaOAuth.code(from: callback, attempt: attempt)
+        let credentials = try await strava.signIn(code: code, oauth: stravaOAuth)
+        try stravaKeychain.save(credentials)
+        stravaAccount = credentials
+        await sendQueuedStravaUploads()
+    }
+
+    /// A URL opened in the app: Strava returning from its own app's "Authorize" screen. Returns true if handled.
+    @discardableResult
+    func handleOpenURL(_ url: URL) async -> Bool {
+        guard let stravaOAuth, stravaOAuth.isCallback(url), let attempt = stravaPendingAttempt else { return false }
+        stravaPendingAttempt = nil
+        do {
+            try await finishStravaSignIn(callback: url, attempt: attempt)
+        } catch {
+            lastError = error.localizedDescription
+        }
+        return true
+    }
+
+    func disconnectStrava() async {
+        if let strava, let stravaOAuth, let account = stravaAccount { await strava.revoke(account, oauth: stravaOAuth) }
+        stravaKeychain.delete()
+        stravaQueue.clear()
+        stravaAccount = nil
+        stravaQueuedCount = 0
+    }
+
+    #if DEBUG
+    /// Tests: stand in a connection (e.g. one whose token has run out).
+    func debugSetStravaAccount(_ account: StravaCredentials?) { stravaAccount = account }
+    #endif
+
+    func setStravaAutoUpload(_ on: Bool) {
+        stravaAutoUpload = on
+        UserDefaults.standard.set(on, forKey: Self.stravaAutoUploadKey)
+    }
+
+    enum StravaOutcome: Equatable {
+        /// On Strava; the activity ID when known (nil when Strava already had it).
+        case uploaded(Int?)
+        /// No connection: it goes when the app next opens.
+        case queued
+        case failed(String)
+    }
+
+    /// Sends a run recorded on the phone to Strava, named after its workout.
+    func uploadToStrava(_ recording: GuidedRunRecording, workout: Workout) async -> StravaOutcome {
+        let summary = targetDescriber.summary(workout)
+        let upload = StravaUpload(recording: recording, name: workout.name,
+                                  description: String(localized: "\(workout.name): \(summary). Recorded with TrackStar."))
+        return await send(upload)
+    }
+
+    /// Tries runs left over from earlier (no connection at the time).
+    func sendQueuedStravaUploads() async {
+        guard stravaAccount != nil else { return }
+        for upload in stravaQueue.pending {
+            if case .queued = await send(upload) { break }
+        }
+    }
+
+    private func send(_ upload: StravaUpload) async -> StravaOutcome {
+        guard let strava, let stravaOAuth, var account = stravaAccount else { return .failed(StravaError.unauthorized.localizedDescription) }
+        do {
+            if account.needsRefresh() {
+                account = try await strava.refresh(account, oauth: stravaOAuth)
+                try? stravaKeychain.save(account)
+                stravaAccount = account
+            }
+            let id = try await strava.upload(upload, credentials: account)
+            stravaQueue.remove(upload)
+            stravaQueuedCount = stravaQueue.pending.count
+            return .uploaded(id)
+        } catch let error as StravaError where error.isTemporary {
+            stravaQueue.add(upload)
+            stravaQueuedCount = stravaQueue.pending.count
+            return .queued
+        } catch {
+            // Refused for good (e.g. access revoked): don't keep retrying it.
+            stravaQueue.remove(upload)
+            stravaQueuedCount = stravaQueue.pending.count
+            return .failed(error.localizedDescription)
+        }
+    }
+
     func disconnectIntervals() async {
         if let intervals, let account = intervalsAccount {
             _ = try? await intervals.sync([], from: today, through: intervalsSyncEnd, credentials: account)
@@ -944,6 +1175,7 @@ final class AppModel {
             await syncIntervals()
         }
         await syncCalendar()
+        await sendQueuedStravaUploads()
     }
 
     // MARK: Preferences
@@ -968,14 +1200,16 @@ final class AppModel {
 
     func exportBundle() -> ExportBundle {
         ExportBundle(exportedAt: .now, units: units, disclaimerAcceptedAt: fetchProfile()?.disclaimerAcceptedAt,
-                     plan: plan, statuses: statuses,
+                     plan: basePlan, statuses: statuses,
                      races: races.map(ExportBundle.Race.init),
-                     changes: changes.map { .init(date: $0.createdAt, reasons: $0.reasons) })
+                     changes: changes.map { .init(date: $0.createdAt, reasons: $0.reasons) },
+                     savedWorkouts: savedWorkouts, scheduledWorkouts: scheduledWorkouts)
     }
 
     /// Replaces everything stored with the contents of an export.
     func importBundle(_ bundle: ExportBundle) {
-        for type in [PlanRecord.self, WorkoutLogRecord.self, RaceRecord.self, PlanChangeRecord.self] as [any PersistentModel.Type] {
+        for type in [PlanRecord.self, WorkoutLogRecord.self, RaceRecord.self, PlanChangeRecord.self,
+                     WorkoutTemplateRecord.self, ScheduledWorkoutRecord.self] as [any PersistentModel.Type] {
             try? context.delete(model: type)
         }
         let p = profile()
@@ -992,6 +1226,12 @@ final class AppModel {
                 r.seen = true
                 context.insert(r)
             }
+        }
+        for template in bundle.savedWorkouts ?? [] {
+            if let record = try? WorkoutTemplateRecord(template) { context.insert(record) }
+        }
+        for scheduled in bundle.scheduledWorkouts ?? [] {
+            if let record = try? ScheduledWorkoutRecord(scheduled) { context.insert(record) }
         }
         for race in bundle.races {
             context.insert(RaceRecord(name: race.name, distance: race.distance, date: race.date,
@@ -1060,6 +1300,9 @@ nonisolated struct ExportBundle: Codable, Equatable {
     var statuses: [String: WorkoutStatus]
     var races: [Race]
     var changes: [Change]
+    /// Added after version 1 shipped: missing in older exports.
+    var savedWorkouts: [WorkoutTemplate]? = nil
+    var scheduledWorkouts: [ScheduledWorkout]? = nil
 
     func encoded() throws -> Data {
         let encoder = JSONEncoder()

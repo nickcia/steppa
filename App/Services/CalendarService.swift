@@ -30,7 +30,7 @@ struct CalendarEventContent: Equatable {
     static func make(for workout: Workout, format: DisplayFormat, minutes: Int,
                      calendar: Calendar = .current) -> CalendarEventContent {
         let describer = WorkoutDescriber(format: format)
-        let title = "\(workout.kind.name) · \(describer.summary(workout))"
+        let title = "\(workout.name) · \(describer.summary(workout))"
         var lines: [String] = []
         for section in describer.sections(workout) {
             switch section {

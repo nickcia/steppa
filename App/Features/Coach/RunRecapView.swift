@@ -90,7 +90,7 @@ struct RunRecapView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(run.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
                     .font(.subheadline).foregroundStyle(Theme.secondaryInk)
-                Text("\(model.workout(for: run)?.kind.name ?? String(localized: "Run")) · \(model.format.distance(run.distanceMeters))")
+                Text("\(model.workout(for: run)?.name ?? String(localized: "Run")) · \(model.format.distance(run.distanceMeters))")
                     .font(.headline).foregroundStyle(Theme.ink)
             }
         }

@@ -20,7 +20,7 @@ enum WatchWorkoutBuilder {
         return CustomWorkout(
             activity: .running,
             location: .outdoor,
-            displayName: "\(workout.kind.name) · \(describer.summary(workout))",
+            displayName: "\(workout.name) · \(describer.summary(workout))",
             warmup: workout.warmup.map { step($0, name: walk ?? String(localized: "Warm up"), alert: false) },
             blocks: workout.blocks.map { block in
                 WorkoutKit.IntervalBlock(steps: block.steps.map { interval in

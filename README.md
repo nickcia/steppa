@@ -24,6 +24,10 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
   "Ten seconds, then run") over your music, tells you when you're off pace and reads out your splits, with a big
   countdown, GPS distance and pace, and the current step on the lock screen and in the Dynamic Island, with Pause
   and Skip. The run is saved to Apple Health with its route and ticks off the workout.
+- **Your own workouts.** Build a structured workout from blocks (warm-up, Zone 2, tempo, intervals, cool-down)
+  with paces filled in from your fitness, put it on any day from the calendar, and keep it to reuse.
+- **Phone runs on Strava.** Connect Strava and runs recorded on your iPhone upload with their route as soon as
+  you finish.
 - **Send to Apple Watch.** Workouts appear in the Workout app with every step and pace alerts.
 - **Send to Garmin, COROS, Suunto and Wahoo.** Sign in to Intervals.icu (free) and link your watch there
   once; your upcoming workouts are kept in step with your plan and reach your watch a few days ahead.
@@ -89,7 +93,8 @@ where TrackStar falls short, and includes a review kit for a qualified coach.
 
 - **No servers, no accounts, no analytics or tracking SDKs.** The app doesn't send data anywhere unless you
   connect Intervals.icu, in which case your upcoming workouts (and nothing else) go to your own Intervals.icu
-  calendar. The sign-in is stored in the iPhone's Keychain.
+  calendar, or Strava, in which case runs you record on the iPhone are uploaded to your own Strava account (and
+  nothing is read back). Sign-ins are stored in the iPhone's Keychain.
 - **Apple Health: read, plus your own runs.** The app reads running workouts and distance. The only thing it writes is a run you record on your iPhone with a guided run, saved as a running workout with its route.
 - **iCloud sync** (when enabled) uses your private iCloud database, which only you can read.
 - **Crash reports** stay on the phone: after a crash the app offers to email the report, and only sends it if
@@ -135,6 +140,7 @@ Identity and capabilities live in [`Config/App.xcconfig`](Config/App.xcconfig):
 | `BUNDLE_ID_PREFIX` | Your reverse-domain prefix. The bundle ID becomes `<prefix>.runcoach`. |
 | `DEVELOPMENT_TEAM` | Your Apple Developer team ID. Needed to run on a device; a free Apple ID works. Put it in `Config/Local.xcconfig` (copy `Config/Local.xcconfig.example`), which isn't committed. |
 | `INTERVALS_CLIENT_ID` | The client ID of your Intervals.icu OAuth app, for "Sign in with Intervals.icu". Register at intervals.icu/oauth/apply, mark it as a public client, and add the redirect URI `<bundle ID in lower case>://intervals-oauth`. Leave blank to connect with a personal API key instead. |
+| `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_CALLBACK_DOMAIN` | Your Strava API app (strava.com/settings/api), for uploading phone runs. Set its Authorization Callback Domain to `STRAVA_CALLBACK_DOMAIN`. Put the secret in `Config/Local.xcconfig`; Strava has no PKCE, so the secret ships inside the app. Leave any blank to hide Strava. |
 | `ENABLE_ICLOUD` | Set to `YES` to sync through iCloud. Needs a team ID and the iCloud container `iCloud.<prefix>.runcoach` registered in your developer account. |
 
 ### Project layout

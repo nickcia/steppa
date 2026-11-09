@@ -12,9 +12,12 @@ public enum WorkoutKind: String, Codable, Sendable, CaseIterable {
     case hills
     /// Alternating running and walking, for new runners (see `RunWalk`). Easy effort, so not a hard day.
     case runWalk
+    /// Built by the athlete from blocks (see `WorkoutTemplate`). Never placed by the plan itself.
+    case custom
 
-    /// Hard days must never fall on consecutive dates.
-    public var isHard: Bool { self != .easy && self != .runWalk }
+    /// Hard days must never fall on consecutive dates. Custom workouts are the athlete's own call, so the plan's
+    /// rules don't count them either way.
+    public var isHard: Bool { self != .easy && self != .runWalk && self != .custom }
 }
 
 public enum StepGoal: Codable, Hashable, Sendable {
@@ -66,6 +69,8 @@ public struct Workout: Codable, Hashable, Sendable, Identifiable {
     /// Set when the athlete moved this workout; the date it was originally planned for.
     public var movedFrom: LocalDate?
     public var kind: WorkoutKind
+    /// The athlete's name for a custom workout; nil for planned ones.
+    public var title: String?
     public var warmup: Step?
     public var blocks: [IntervalBlock]
     public var cooldown: Step?

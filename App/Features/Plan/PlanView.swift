@@ -219,7 +219,7 @@ struct WorkoutDetailView: View {
                 HStack(spacing: Theme.Spacing.m) {
                     KindIcon(kind: workout.kind, size: 56)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(workout.kind.name).font(.title2.weight(.bold)).fontDesign(.rounded).foregroundStyle(Theme.ink)
+                        Text(workout.name).font(.title2.weight(.bold)).fontDesign(.rounded).foregroundStyle(Theme.ink)
                         Text(workout.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
                             .font(.subheadline).foregroundStyle(Theme.secondaryInk)
                     }
@@ -273,6 +273,7 @@ struct WorkoutDetailView: View {
                 .sheet(isPresented: $addingToCalendar) {
                     AddToCalendarSheet(content: model.calendarEvent(for: workout)).ignoresSafeArea()
                 }
+                if workout.isCustom { CustomWorkoutActions(workout: workout).padding(.top, Theme.Spacing.s) }
             }
             .padding(.horizontal, Theme.Spacing.m)
             .padding(.bottom, Theme.Spacing.xl)

@@ -73,7 +73,7 @@ extension CoachSnapshot {
         let today = model.today
 
         func describe(_ workout: Workout) -> String {
-            var text = "\(workout.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))) [\(workout.date)]: \(workout.kind.name), \(describer.summary(workout)), about \(format.distance(workout.totalMeters)) and \(DisplayFormat.duration(workout.totalSeconds))"
+            var text = "\(workout.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))) [\(workout.date)]: \(workout.name), \(describer.summary(workout)), about \(format.distance(workout.totalMeters)) and \(DisplayFormat.duration(workout.totalSeconds))"
             if let target = workout.blocks.flatMap(\.steps).first(where: { $0.purpose == .work })?.step.target,
                !target.zone.isEffortBased, target.zone != .stride {
                 text += ", target \(format.paceRange(target.range))"
@@ -132,7 +132,7 @@ extension CoachSnapshot {
         var details: [String: String] = [:]
         let recentLines = runs.prefix(10).map { run -> String in
             let analysis = model.analysis(for: run)
-            var line = "\(run.date): \(model.workout(for: run)?.kind.name ?? "unplanned run"), \(format.distance(run.distanceMeters)) in \(DisplayFormat.duration(run.durationSeconds)) (\(format.pace(analysis.secondsPerKm)))"
+            var line = "\(run.date): \(model.workout(for: run)?.name ?? "unplanned run"), \(format.distance(run.distanceMeters)) in \(DisplayFormat.duration(run.durationSeconds)) (\(format.pace(analysis.secondsPerKm)))"
             if let hr = analysis.averageHeartRate { line += ", avg HR \(Int(hr.rounded()))" }
             return line
         }
@@ -171,7 +171,7 @@ extension CoachSnapshot {
         let workout = model.workout(for: run)
         var lines = ["Run on \(run.date.formatted(.dateTime.weekday(.wide).day().month(.wide))): \(format.distance(run.distanceMeters)) in \(DisplayFormat.duration(run.durationSeconds)), average \(format.pace(analysis.secondsPerKm))."]
         if let workout {
-            var planned = "Planned: \(workout.kind.name), \(describer.summary(workout)), about \(format.distance(workout.totalMeters))"
+            var planned = "Planned: \(workout.name), \(describer.summary(workout)), about \(format.distance(workout.totalMeters))"
             if let target = workout.blocks.flatMap(\.steps).first(where: { $0.purpose == .work })?.step.target,
                !target.zone.isEffortBased, target.zone != .stride {
                 planned += ", target \(format.paceRange(target.range))"

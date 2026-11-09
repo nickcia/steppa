@@ -26,6 +26,11 @@ nonisolated enum AppHelp {
                     body: """
                     On today's card, tap Start (or Start on this phone on a workout). The phone talks you through each step over your music, tells you if you're a bit quick or slow for the target, reads out each kilometre (or mile), and shows a big countdown, distance and pace. The current step stays on the lock screen and in the Dynamic Island with Pause and Skip. Allow location when asked (it measures distance and keeps the cues going with the screen locked), and allow saving workouts to Apple Health so the run is kept with its route and ticks off your plan. If your phone closes the app mid-run, open it again and it carries on. To silence the voice, tap the speaker button.
                     """),
+        HelpArticle(id: "strava", title: "Upload phone runs to Strava",
+                    keywords: ["strava", "upload", "share", "sync", "kudos", "segments"],
+                    body: """
+                    Settings › Strava › Connect with Strava. If the Strava app is on your phone it opens there: tap Authorize and you're back in TrackStar. Leave "Upload your activities" ticked. From then on, every run you record on this phone (Start on a workout) goes to Strava as soon as you finish, with its route and the workout's name; the end-of-run screen says when it's there, with View on Strava. No connection? It uploads the next time you open the app. Runs from a Garmin or other watch reach Strava through the watch's own app (link Strava in Garmin Connect), so TrackStar doesn't upload those twice. To stop, turn off Upload phone runs or tap Disconnect.
+                    """),
         HelpArticle(id: "applewatch", title: "Send workouts to Apple Watch",
                     keywords: ["apple watch", "watch", "workout app", "send", "pace alerts"],
                     body: """
@@ -75,6 +80,11 @@ nonisolated enum AppHelp {
                     keywords: ["move", "swap", "reschedule", "skip", "change day", "another day"],
                     body: """
                     On Today's card or a workout's screen, tap Move (the arrows) to pick another day in the same week; the plan won't put two hard days in a row. Tap Skip to skip it. Skipped and missed runs aren't made up: the plan adjusts from what you actually did.
+                    """),
+        HelpArticle(id: "custom", title: "Build your own workout",
+                    keywords: ["custom", "own workout", "build", "create", "structured", "intervals", "zone 2", "zones", "template", "my workouts", "add workout", "replace"],
+                    body: """
+                    Plan › Calendar, tap a day, then Add (on a rest day) or Swap for your own workout (on a run day). Tap Build a new workout and add blocks: Warm up, Zone 2, Tempo, Intervals, Cool down, or more under More. Each block fills in your own pace for that zone from your fitness; tap a block to change its length (time or distance), its effort, or set a pace of your own. Hold and drag to reorder, swipe to remove. Keep Save to My workouts on to reuse it: next time, tap a day and pick it from My workouts. On the workout's page you can edit it, add it to another day, or remove it (the plan's own run for that day comes back). Your own workouts work like any other: send them to your watch, run them with spoken cues, and tick them off. Zone paces follow your fitness as it changes, unless you set your own.
                     """),
         HelpArticle(id: "strength", title: "Strength sessions",
                     keywords: ["strength", "gym", "weights", "core", "bodyweight", "exercises"],

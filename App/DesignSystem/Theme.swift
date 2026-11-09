@@ -107,6 +107,7 @@ extension WorkoutKind {
         case .race: [Color(hex: 0xFFB3CF), Color(hex: 0xEC5D93), Color(hex: 0xC23A6E)]
         case .hills: [Color(hex: 0xF4C7A1), Color(hex: 0xD98A55), Color(hex: 0xA85A2C)]
         case .runWalk: [Color(hex: 0xA6EDE0), Color(hex: 0x4FC9B4), Color(hex: 0x2E9A88)]
+        case .custom: [Color(hex: 0x9BE3FF), Color(hex: 0x3BB8F0), Color(hex: 0x1C86C4)]
         }
     }
 
@@ -126,6 +127,7 @@ extension WorkoutKind {
         case .race: "flag.checkered"
         case .hills: "mountain.2"
         case .runWalk: "figure.walk.motion"
+        case .custom: "square.stack.3d.up"
         }
     }
 
@@ -140,6 +142,7 @@ extension WorkoutKind {
         case .race: String(localized: "race")
         case .hills: String(localized: "hill session")
         case .runWalk: String(localized: "run/walk")
+        case .custom: String(localized: "workout")
         }
     }
 
@@ -153,6 +156,7 @@ extension WorkoutKind {
         case .race: String(localized: "Race day")
         case .hills: String(localized: "Hills")
         case .runWalk: String(localized: "Run/walk")
+        case .custom: String(localized: "Your workout")
         }
     }
 
@@ -166,6 +170,7 @@ extension WorkoutKind {
         case .race: String(localized: "This is what you trained for. Start controlled and enjoy it.")
         case .hills: String(localized: "Builds strength and power with less pounding than flat speedwork. Run the climbs hard but controlled, about 5K effort, and jog back down.")
         case .runWalk: String(localized: "Builds you up to running non-stop. Run gently, slow enough to talk, and walk briskly in the breaks. Slower is fine; finishing is the goal.")
+        case .custom: String(localized: "A workout you built. Zone paces follow your fitness as it changes, unless you set your own.")
         }
     }
 }
@@ -244,4 +249,9 @@ extension Experience {
         case .advanced: String(localized: "Training consistently with sessions like intervals and tempo runs.")
         }
     }
+}
+
+extension Workout {
+    /// The athlete's name for a custom workout, else the kind of run.
+    var name: String { title.flatMap { $0.isEmpty ? nil : $0 } ?? kind.name }
 }

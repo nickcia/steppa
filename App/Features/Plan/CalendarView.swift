@@ -6,6 +6,7 @@ struct CalendarView: View {
     @Environment(AppModel.self) private var model
     @State private var month: LocalDate = LocalDate.today.firstOfMonth
     @State private var selected: LocalDate = .today
+    @State private var adding = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
@@ -18,6 +19,14 @@ struct CalendarView: View {
             }
             if let workout = model.workout(on: selected) {
                 WorkoutCard(workout: workout)
+                if !workout.isCustom, workout.kind != .race, model.canAddWorkout(on: selected) {
+                    // Deliberately quiet: most people follow the plan as it is.
+                    Button { adding = true } label: {
+                        Label("Swap for your own workout", systemImage: "square.stack.3d.up")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                }
             } else {
                 Card {
                     HStack(spacing: Theme.Spacing.m) {
@@ -25,9 +34,18 @@ struct CalendarView: View {
                         Text(selected.formatted(.dateTime.weekday(.wide).day().month(.wide)) + " · " + String(localized: "Rest day"))
                             .font(.headline)
                             .foregroundStyle(Theme.ink)
+                        Spacer(minLength: 0)
+                        if model.canAddWorkout(on: selected) {
+                            Button { adding = true } label: { Label("Add", systemImage: "plus") }
+                                .buttonStyle(.chip)
+                                .accessibilityLabel("Add a workout")
+                        }
                     }
                 }
             }
+        }
+        .sheet(isPresented: $adding) {
+            AddWorkoutSheet(date: selected)
         }
     }
 
@@ -103,7 +121,7 @@ private struct CalendarDay: View {
         .contentShape(Rectangle())
         .opacity(inMonth ? 1 : 0.6)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(date.formatted(.dateTime.weekday(.wide).day().month())), \(workout?.kind.name ?? String(localized: "rest day"))"))
+        .accessibilityLabel(Text("\(date.formatted(.dateTime.weekday(.wide).day().month())), \(workout?.name ?? String(localized: "rest day"))"))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }

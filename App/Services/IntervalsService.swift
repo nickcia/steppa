@@ -32,7 +32,7 @@ enum IntervalsWorkoutBuilder {
     nonisolated static let ownedPrefixes = [externalIDPrefix, "steppa-"]
 
     static func event(for workout: Workout, format: DisplayFormat) -> IntervalsEvent {
-        let name = "\(workout.kind.name) · \(WorkoutDescriber(format: format).summary(workout))"
+        let name = "\(workout.name) · \(WorkoutDescriber(format: format).summary(workout))"
         let text = description(for: workout, units: format.units)
         return IntervalsEvent(start_date_local: "\(workout.date.description)T00:00:00", name: name,
                               description: text, external_id: externalID(for: workout, name: name, text: text))

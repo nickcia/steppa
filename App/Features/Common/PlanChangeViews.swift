@@ -103,7 +103,9 @@ struct MoveWorkoutSheet: View {
                     ForEach(0..<7, id: \.self) { offset in
                         let date = monday.adding(days: offset)
                         let existing = model.workout(on: date)
+                        // A planned run can't land under one of the athlete's own workouts (it would be hidden).
                         let available = date >= model.today && date != workout.date && (raceDate.map { date < $0 } ?? true)
+                            && (workout.isCustom || existing?.isCustom != true)
                         Button {
                             if model.move(workout, to: date) {
                                 dismiss()
@@ -118,7 +120,9 @@ struct MoveWorkoutSheet: View {
                                     Text(date.formatted(.dateTime.weekday(.wide).day().month()))
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(available ? Theme.ink : Theme.secondaryInk)
-                                    Text(existing.map { date == workout.date ? String(localized: "Currently here") : String(localized: "Swap with \($0.kind.name.lowercased())") }
+                                    Text(existing.map { date == workout.date ? String(localized: "Currently here")
+                                        : workout.isCustom ? String(localized: "Replaces \($0.kind.casualName)")
+                                        : String(localized: "Swap with \($0.name.lowercased())") }
                                          ?? String(localized: "Rest day"))
                                         .font(.caption)
                                         .foregroundStyle(Theme.secondaryInk)
@@ -128,10 +132,14 @@ struct MoveWorkoutSheet: View {
                         .disabled(!available)
                     }
                 } footer: {
-                    Text("Workouts move within the same week so your weekly distance stays the same. Hard days are kept apart.")
+                    if workout.isCustom {
+                        Text("Your workout takes the place of whatever is on that day.")
+                    } else {
+                        Text("Workouts move within the same week so your weekly distance stays the same. Hard days are kept apart.")
+                    }
                 }
             }
-            .navigationTitle(String(localized: "Move \(workout.kind.name.lowercased())"))
+            .navigationTitle(workout.isCustom ? String(localized: "Move \(workout.name)") : String(localized: "Move \(workout.name.lowercased())"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

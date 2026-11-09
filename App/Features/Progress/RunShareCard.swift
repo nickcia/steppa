@@ -24,7 +24,7 @@ struct RunShareCard: View {
                 KindIcon(kind: kind, size: 30)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(workout?.kind.name ?? String(localized: "Run"))
+                Text(workout?.name ?? String(localized: "Run"))
                     .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(Theme.ink)
                 if let workout {

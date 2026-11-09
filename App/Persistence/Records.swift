@@ -183,6 +183,57 @@ final class RunDetailRecord {
     }
 }
 
+/// A workout the athlete built and saved to reuse ("My workouts").
+@Model
+final class WorkoutTemplateRecord {
+    var templateID: UUID = UUID()
+    var name: String = ""
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
+    var templateData: Data?
+
+    init(_ template: WorkoutTemplate) throws {
+        templateID = template.id
+        try update(template)
+    }
+
+    func update(_ template: WorkoutTemplate) throws {
+        templateData = try JSONEncoder.plan.encode(template)
+        name = template.name
+        updatedAt = .now
+    }
+
+    var template: WorkoutTemplate? {
+        templateData.flatMap { try? JSONDecoder().decode(WorkoutTemplate.self, from: $0) }
+    }
+}
+
+/// A custom workout put on a day. Holds its own copy of the blocks, so changing a saved workout later doesn't
+/// rewrite days already planned with it. Kept apart from the plan, so re-planning never loses it.
+@Model
+final class ScheduledWorkoutRecord {
+    var scheduleID: UUID = UUID()
+    var dateString: String = ""
+    var createdAt: Date = Date.now
+    var templateData: Data?
+
+    init(_ scheduled: ScheduledWorkout) throws {
+        scheduleID = scheduled.id
+        try update(scheduled)
+    }
+
+    func update(_ scheduled: ScheduledWorkout) throws {
+        dateString = scheduled.date.description
+        templateData = try JSONEncoder.plan.encode(scheduled.template)
+    }
+
+    var scheduled: ScheduledWorkout? {
+        guard let date = LocalDate(iso: dateString),
+              let template = templateData.flatMap({ try? JSONDecoder().decode(WorkoutTemplate.self, from: $0) }) else { return nil }
+        return ScheduledWorkout(id: scheduleID, date: date, template: template)
+    }
+}
+
 extension JSONEncoder {
     /// Stable output: sorted keys keep stored plans byte-identical for identical content.
     nonisolated static var plan: JSONEncoder {
@@ -194,7 +245,8 @@ extension JSONEncoder {
 
 enum Persistence {
     static let models: [any PersistentModel.Type] = [PlanRecord.self, WorkoutLogRecord.self, ProfileRecord.self,
-                                                     RaceRecord.self, PlanChangeRecord.self, RunDetailRecord.self]
+                                                     RaceRecord.self, PlanChangeRecord.self, RunDetailRecord.self,
+                                                     WorkoutTemplateRecord.self, ScheduledWorkoutRecord.self]
 
     /// Syncs through the user's private CloudKit database when built with `ENABLE_ICLOUD = YES`
     /// (see Config/App.xcconfig); otherwise the store is local to the device.

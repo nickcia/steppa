@@ -104,6 +104,8 @@ partners can access):
 - Plans, runs, Health data and location stay on the device. The Coach uses Apple's on-device model.
 - Intervals.icu: workouts go to the user's own Intervals.icu account, only if they choose to connect it. That's
   optional, user-initiated and clearly disclosed in the app, which Apple's guidance lets you leave out.
+- Strava: phone runs go to the user's own Strava account, only if they connect it, and can be switched off.
+  Same reasoning as Intervals.icu: optional, user-initiated, clearly disclosed, and the developer never sees it.
 - Bug reports open a GitHub issue the user writes and sends themselves; nothing is sent automatically.
 - If analytics or a server are ever added, this answer has to change first.
 

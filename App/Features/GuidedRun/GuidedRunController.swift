@@ -93,7 +93,7 @@ final class GuidedRunController {
         let steps = GuidedTimeline.steps(for: workout, describer: describer)
         guard !steps.isEmpty else { return }
         let now = Date()
-        session = Session(workout: workout, name: workout.kind.name, steps: steps, format: describer.format,
+        session = Session(workout: workout, name: workout.name, steps: steps, format: describer.format,
                           startedAt: now, stepStartedAt: now)
         meters = 0
         resumedAfterRestart = false
@@ -379,7 +379,7 @@ final class GuidedRunController {
         let format = DisplayFormat(units: saved.units)
         let steps = GuidedTimeline.steps(for: saved.workout, describer: describer)
         guard saved.index < steps.count else { Self.clearSaved(); return }
-        var s = Session(workout: saved.workout, name: saved.workout.kind.name, steps: steps, format: format,
+        var s = Session(workout: saved.workout, name: saved.workout.name, steps: steps, format: format,
                         index: saved.index, startedAt: saved.startedAt, stepStartedAt: saved.stepStartedAt)
         s.pausedInStep = saved.pausedInStep
         s.pausedTotal = saved.pausedTotal

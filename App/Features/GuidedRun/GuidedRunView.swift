@@ -226,6 +226,14 @@ private struct GuidedRunSummary: View {
 
     enum SaveState { case saving, saved, notSaved, tooShort }
     @State private var saveState: SaveState = .saving
+    /// nil when Strava isn't connected (or uploads are off), or the run was too short.
+    @State private var strava: StravaState?
+    @Environment(\.openURL) private var openURL
+
+    enum StravaState: Equatable {
+        case uploading
+        case done(AppModel.StravaOutcome)
+    }
 
     var body: some View {
         let status = model.status(of: session.workout)
@@ -252,6 +260,7 @@ private struct GuidedRunSummary: View {
             .padding(.vertical, Theme.Spacing.m)
             .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
             healthLine
+            stravaLine
             Spacer()
             if status == nil, saveState != .saving {
                 Button {
@@ -298,15 +307,43 @@ private struct GuidedRunSummary: View {
         }
     }
 
+    @ViewBuilder private var stravaLine: some View {
+        switch strava {
+        case nil:
+            EmptyView()
+        case .uploading:
+            Label("Uploading to Strava…", systemImage: "arrow.up.circle").foregroundStyle(.white.opacity(0.7))
+        case .done(.uploaded(let id)):
+            HStack(spacing: 10) {
+                Label("On Strava.", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.green)
+                if let id, let url = URL(string: "https://www.strava.com/activities/\(id)") {
+                    Button("View on Strava") { openURL(url) }
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color(hex: 0xFC5200))
+                }
+            }
+        case .done(.queued):
+            Label("No connection. It'll upload to Strava when you're back online.", systemImage: "icloud.slash")
+                .foregroundStyle(.white.opacity(0.7))
+        case .done(.failed(let message)):
+            Label(message, systemImage: "exclamationmark.triangle").foregroundStyle(.white.opacity(0.7))
+        }
+    }
+
     private func save() async {
         guard saveState == .saving else { return }
         guard let recording = run.recording else {
             saveState = .tooShort
             return
         }
+        let uploads = model.stravaAccount != nil && model.stravaAutoUpload
+        if uploads { strava = .uploading }
         let saved = await model.saveGuidedRun(recording)
         if saved { run.forgetSavedRun() }
         saveState = saved ? .saved : .notSaved
+        if uploads {
+            strava = .done(await model.uploadToStrava(recording, workout: session.workout))
+        }
     }
 
     private func stat(_ value: String, _ label: String) -> some View {

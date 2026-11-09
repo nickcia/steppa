@@ -156,7 +156,7 @@ struct CoachView: View {
     }
 
     private func title(_ suggestion: CoachSuggestion) -> String {
-        let name = model.workout(on: suggestion.date)?.kind.name ?? String(localized: "Workout")
+        let name = model.workout(on: suggestion.date)?.name ?? String(localized: "Workout")
         let day = suggestion.date.formatted(.dateTime.weekday(.wide))
         switch suggestion.action {
         case .move:

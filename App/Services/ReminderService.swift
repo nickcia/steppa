@@ -30,7 +30,7 @@ final class ReminderService {
             let content = UNMutableNotificationContent()
             content.title = workout.kind == .race
                 ? String(localized: "Race day! Good luck")
-                : String(localized: "Today: \(workout.kind.name)")
+                : String(localized: "Today: \(workout.name)")
             content.body = describer.summary(workout) + " · ~" + DisplayFormat.duration(workout.totalSeconds)
             content.sound = .default
             let request = UNNotificationRequest(identifier: Self.prefix + workout.date.description, content: content,

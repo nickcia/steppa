@@ -34,6 +34,14 @@ INFOPLIST_FILE = $(INFOPLIST_ICLOUD_$(ENABLE_ICLOUD))
 // set their own (or a blank one) in Local.xcconfig, since Intervals.icu only returns to the registered redirect.
 INTERVALS_CLIENT_ID = 1716
 
+// Strava: phone runs upload straight to the athlete's Strava account. Register an API app at
+// strava.com/settings/api with STRAVA_CALLBACK_DOMAIN as its "Authorization Callback Domain". The client ID is public;
+// put the client secret in Config/Local.xcconfig (not committed): STRAVA_CLIENT_SECRET = ...
+// With any of the three blank, the Strava option is hidden.
+STRAVA_CLIENT_ID = 295676
+STRAVA_CLIENT_SECRET =
+STRAVA_CALLBACK_DOMAIN = nickcia.github.io
+
 // Shown when turning on "Show my plan in Calendar". Adding a single workout uses iOS's own sheet and needs no access.
 INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = Your training plan is added to its own calendar and kept up to date as it changes. Only that calendar is ever changed.
 

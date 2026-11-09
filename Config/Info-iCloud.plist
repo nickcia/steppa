@@ -10,6 +10,28 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- Strava (see Config/App.xcconfig). The URL scheme brings the athlete back from the Strava app's Authorize screen. -->
+	<key>StravaClientID</key>
+	<string>$(STRAVA_CLIENT_ID)</string>
+	<key>StravaClientSecret</key>
+	<string>$(STRAVA_CLIENT_SECRET)</string>
+	<key>StravaCallbackDomain</key>
+	<string>$(STRAVA_CALLBACK_DOMAIN)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>strava</string>
+	</array>
 	<!-- Guided runs: spoken cues and tracking keep going with the screen locked, with a Live Activity on the lock screen. -->
 	<key>NSSupportsLiveActivities</key>
 	<true/>

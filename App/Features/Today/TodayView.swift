@@ -310,7 +310,7 @@ private struct DayCell: View {
         .frame(maxWidth: .infinity, minHeight: 50)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(date.formatted(.dateTime.weekday(.wide).day().month())), \(workout?.kind.name ?? String(localized: "rest day"))"))
+        .accessibilityLabel(Text("\(date.formatted(.dateTime.weekday(.wide).day().month())), \(workout?.name ?? String(localized: "rest day"))"))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
@@ -398,7 +398,7 @@ private struct HeroCard: View {
                     Text(label)
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.6))
-                    Text(workout?.kind.name ?? (isAfterRace ? String(localized: "Plan complete") : String(localized: "Rest day")))
+                    Text(workout?.name ?? (isAfterRace ? String(localized: "Plan complete") : String(localized: "Rest day")))
                         .font(.system(size: 30, weight: .semibold))
                         .foregroundStyle(.white)
                     if let workout {
@@ -666,7 +666,7 @@ struct WorkoutCard: View {
                 HStack(spacing: 12) {
                     KindIcon(kind: workout.kind)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(workout.kind.name).font(.headline).foregroundStyle(Theme.ink)
+                        Text(workout.name).font(.headline).foregroundStyle(Theme.ink)
                         Text(WorkoutDescriber(format: format).summary(workout))
                             .font(.subheadline).foregroundStyle(Theme.secondaryInk)
                     }
@@ -817,7 +817,7 @@ struct WorkoutRow: View {
         HStack(spacing: 12) {
             KindIcon(kind: workout.kind, size: 44)
             VStack(alignment: .leading, spacing: 2) {
-                Text(workout.kind.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Text(workout.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                 Text("\(workout.date.shortDayMonth) · \(WorkoutDescriber(format: model.format).summary(workout))")
                     .font(.caption)
                     .foregroundStyle(Theme.secondaryInk)
