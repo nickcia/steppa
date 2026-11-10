@@ -17,8 +17,16 @@ Text to paste into App Store Connect, and the steps to get a build to testers.
    ASC_ISSUER_ID=12345678-aaaa-bbbb-cccc-1234567890ab
    ```
 
-Then `scripts/testflight.sh` uploads the next build, and `scripts/testflight.sh --check` archives and signs without
-uploading. Commit the new build number afterwards.
+Then:
+
+- `scripts/testflight.sh --notes-file notes.txt` uploads the next build, waits for Apple to process it, sets
+  What to Test from the file, adds it to every tester group and submits it for beta review if external testers
+  need that.
+- `scripts/testflight.sh` just uploads; `scripts/testflight.sh --check` archives and signs without uploading.
+- `swift scripts/asc.swift status` lists the tester groups and latest builds;
+  `swift scripts/asc.swift distribute --build 4 --notes-file notes.txt` sends an already-uploaded build out.
+
+Commit the new build number afterwards.
 
 ## Uploading a build from Xcode
 

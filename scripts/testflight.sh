@@ -1,8 +1,10 @@
 #!/bin/zsh
 # Archives TrackStar and uploads it to App Store Connect for TestFlight, in one command:
 #
-#   scripts/testflight.sh            # next build number, archive, upload
-#   scripts/testflight.sh --check    # archive and export only (no upload, build number unchanged)
+#   scripts/testflight.sh                         # next build number, archive, upload
+#   scripts/testflight.sh --notes-file notes.txt  # ...then, once processed, set What to Test and send it to every
+#                                                 #    tester group (see scripts/asc.swift)
+#   scripts/testflight.sh --check                 # archive and export only (no upload, build number unchanged)
 #
 # Needs an App Store Connect API key (App Store Connect › Users and Access › Integrations › Team Keys) with Admin
 # access: Apple only lets Admin keys sign with its cloud-managed distribution certificate. Put its details in Config/AppStoreConnect.env, which git ignores:
@@ -17,7 +19,19 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 check_only=false
-[[ "${1:-}" == "--check" ]] && check_only=true
+notes_file=""
+while (( $# )); do
+    case $1 in
+        --check) check_only=true ;;
+        --notes-file) notes_file=${2:?--notes-file needs a file}; shift ;;
+        *) echo "Unknown option $1" >&2; exit 1 ;;
+    esac
+    shift
+done
+if [[ -n $notes_file && ! -f $notes_file ]]; then
+    echo "Can't find $notes_file." >&2
+    exit 1
+fi
 
 config=Config/AppStoreConnect.env
 if [[ ! -f $config ]]; then
@@ -88,5 +102,8 @@ if $check_only; then
     echo "Done: .build/export/TrackStar.ipa is signed for the App Store. Nothing was uploaded."
 else
     echo "Uploaded $version ($build). It shows in TestFlight after processing, usually 10 to 30 minutes."
+    if [[ -n $notes_file ]]; then
+        swift scripts/asc.swift distribute --build "$build" --notes-file "$notes_file"
+    fi
     echo "Commit the new build number: git commit -am \"TestFlight build $build\""
 fi
