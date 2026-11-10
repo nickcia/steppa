@@ -87,7 +87,7 @@ nonisolated final class WatchService: Sendable {
         var errorDescription: String? {
             switch self {
             case .unsupported: String(localized: "Sending workouts needs an iPhone paired with an Apple Watch.")
-            case .notAuthorized: String(localized: "Allow workout scheduling for this app in Settings › Privacy & Security, then try again.")
+            case .notAuthorized: String(localized: "TrackStar isn't allowed to put workouts on your Apple Watch. Allow workout scheduling for TrackStar in the Settings app, or turn off sending workouts to Apple Watch in TrackStar's settings.")
             }
         }
     }

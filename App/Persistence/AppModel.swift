@@ -751,7 +751,7 @@ final class AppModel {
     func setWatchAutoSync(_ enabled: Bool) async {
         profile().watchAutoSync = enabled
         save()
-        if enabled { await syncWatch() }
+        if enabled { await syncWatch(quietly: false) }
     }
 
     private func syncReminders() async {
@@ -770,14 +770,17 @@ final class AppModel {
     }
 
     /// Puts these workouts on the watch, and tidies away any that were re-planned or moved. Returns false (and sets
-    /// `lastError`) if it couldn't.
+    /// `lastError`) if it couldn't. With `quietly`, a missing permission isn't reported: background syncs run on every
+    /// plan change and every return to the app, and repeating the same alert each time only gets in the way.
     @discardableResult
-    func sendToWatch(_ workouts: [Workout]) async -> Bool {
+    func sendToWatch(_ workouts: [Workout], quietly: Bool = false) async -> Bool {
         guard let watch else { return false }
         do {
             try await watch.sync(watchItems(workouts), keeping: currentWatchIDs, today: today)
             watchScheduledIDs = await watch.scheduledIDs()
             return true
+        } catch WatchService.SendError.notAuthorized where quietly {
+            return false
         } catch {
             lastError = error.localizedDescription
             return false
@@ -840,11 +843,12 @@ final class AppModel {
         (plan?.workouts ?? []).filter { $0.date >= today && today.days(until: $0.date) < 7 }
     }
 
-    /// The next seven days of workouts, kept in step with the plan when auto-sync is on.
-    func syncWatch() async {
+    /// The next seven days of workouts, kept in step with the plan when auto-sync is on. Runs in the background, so by
+    /// default a missing permission is left for the athlete to find through Sync with watch rather than raised each time.
+    func syncWatch(quietly: Bool = true) async {
         guard watchAutoSync else { return }
         // With no plan this sends nothing, which also clears this app's workouts off the watch.
-        await sendToWatch(upcomingWeek)
+        await sendToWatch(upcomingWeek, quietly: quietly)
     }
 
     func refreshWatchState() async {
