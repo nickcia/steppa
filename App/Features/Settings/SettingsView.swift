@@ -116,7 +116,7 @@ struct SettingsView: View {
                     Toggle("Send the next 7 days automatically",
                            isOn: Binding(get: { model.watchAutoSync }, set: { on in Task { await model.setWatchAutoSync(on) } }))
                     if let plan = model.plan {
-                        Button("Send this week now") {
+                        Button("Sync now") {
                             Task {
                                 await model.sendToWatch(plan.workouts.filter {
                                     $0.date >= model.today && model.today.days(until: $0.date) < 7

@@ -401,3 +401,30 @@ struct IntervalsActivityTests {
         #expect(model.dataSource(for: healthRun) == "health")
     }
 }
+
+/// "Sync with watch": the fallback button.
+@MainActor
+struct SyncWithWatchTests {
+    let sync = IntervalsSyncTests()
+
+    @Test func withNoWatchItSaysSo() async throws {
+        let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { IntervalsSyncTests.today })
+        model.acceptDisclaimer()
+        model.start(try PlanBuilder.build(AppModelTests.inputs()))
+        #expect(model.syncableWatches.isEmpty)
+        guard case .failed = await model.syncWithWatch() else { Issue.record("expected a failure"); return }
+    }
+
+    @Test func aGarminLinkedThroughIntervalsGetsTheComingWorkouts() async throws {
+        let fake = FakeIntervals()
+        fake.linkGarmin()
+        let model = try sync.model(fake)
+        try await sync.signIn(model)
+        #expect(model.syncableWatches == ["Garmin"])
+        let before = fake.requests.count
+        #expect(await model.syncWithWatch() == .synced(["Garmin"]))
+        // A forced sync goes out even though nothing changed since signing in.
+        #expect(fake.requests.count > before)
+        #expect(!fake.events.isEmpty)
+    }
+}

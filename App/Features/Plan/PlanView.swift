@@ -259,7 +259,7 @@ struct WorkoutDetailView: View {
                     }
                     .buttonStyle(.secondary)
                 }
-                SendToWatchButton(workout: workout)
+                SyncWithWatchButton(workout: workout)
                 HStack(spacing: Theme.Spacing.l) {
                     MoveWorkoutButton(workout: workout)
                     if workout.date >= model.today {

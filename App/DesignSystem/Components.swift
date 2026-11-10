@@ -47,7 +47,7 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
-/// Small capsule action, e.g. "Move" or "Send to watch" under today's workout.
+/// Small capsule action, e.g. "Move" or "Add" in a card.
 struct ChipButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

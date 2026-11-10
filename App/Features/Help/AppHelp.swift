@@ -37,9 +37,9 @@ nonisolated enum AppHelp {
                     To stop, turn off Upload phone runs or Name watch runs after your plan, or tap Disconnect.
                     """),
         HelpArticle(id: "applewatch", title: "Send workouts to Apple Watch",
-                    keywords: ["apple watch", "watch", "workout app", "send", "pace alerts"],
+                    keywords: ["apple watch", "watch", "workout app", "send", "sync", "not on watch", "missing workout", "pace alerts"],
                     body: """
-                    Open a workout (or today's card) and tap Send to Apple Watch. It appears in the Workout app with every step and pace alerts. To send workouts automatically, turn on Settings › Apple Watch › Send the next 7 days automatically. Runs you record on the watch tick workouts off through Apple Health.
+                    Your next 7 days of workouts go to the Workout app on your Apple Watch by themselves, with every step and pace alerts (Settings › Apple Watch › Send the next 7 days automatically). If a workout isn't there yet, tap Sync with watch on today's card or the workout: it puts the coming week on every watch you use, including a Garmin, COROS, Suunto or Wahoo linked through Intervals.icu (those show it after their next sync), and turns automatic sending on. Runs you record on the watch tick workouts off through Apple Health.
                     """),
         HelpArticle(id: "health", title: "Connect Apple Health so runs tick off",
                     keywords: ["health", "apple health", "runs not showing", "missing run", "tick off", "strava", "sync runs", "import"],

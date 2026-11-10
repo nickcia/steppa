@@ -769,22 +769,82 @@ final class AppModel {
         watchScheduledIDs.contains(WatchWorkoutBuilder.stableID(for: workout))
     }
 
-    /// Puts these workouts on the watch, and tidies away any that were re-planned or moved.
-    func sendToWatch(_ workouts: [Workout]) async {
-        guard let watch else { return }
+    /// Puts these workouts on the watch, and tidies away any that were re-planned or moved. Returns false (and sets
+    /// `lastError`) if it couldn't.
+    @discardableResult
+    func sendToWatch(_ workouts: [Workout]) async -> Bool {
+        guard let watch else { return false }
         do {
             try await watch.sync(watchItems(workouts), keeping: currentWatchIDs, today: today)
             watchScheduledIDs = await watch.scheduledIDs()
+            return true
         } catch {
             lastError = error.localizedDescription
+            return false
         }
+    }
+
+    // MARK: Sync with watch
+
+    /// Watches the athlete uses: an Apple Watch paired with this iPhone, and those linked through Intervals.icu.
+    var syncableWatches: [String] {
+        var names: [String] = []
+        if watchSupported { names.append(String(localized: "Apple Watch")) }
+        if intervalsAccount != nil { names += (intervalsAthlete?.links ?? []).filter(\.uploading).map(\.name) }
+        return names
+    }
+
+    enum WatchSyncOutcome: Equatable {
+        /// The watches the next workouts went to.
+        case synced([String])
+        case failed(String)
+    }
+
+    /// "Sync with watch": puts the coming week on every watch now, as a fallback for when automatic syncing hasn't
+    /// caught up. The Apple Watch then keeps updating by itself (automatic sending is switched on).
+    func syncWithWatch() async -> WatchSyncOutcome {
+        var reached: [String] = []
+        var problem: String?
+        if watchSupported {
+            if !watchAutoSync {
+                profile().watchAutoSync = true
+                save()
+            }
+            if await sendToWatch(upcomingWeek) {
+                reached.append(String(localized: "Apple Watch"))
+            } else {
+                problem = lastError
+                lastError = nil
+            }
+        }
+        if intervalsAccount != nil {
+            await refreshIntervalsLinks()
+            let before = intervalsLastSync
+            await syncIntervals(force: true)
+            if intervalsLastSync != before, intervalsLastSync != nil {
+                let links = (intervalsAthlete?.links ?? []).filter(\.uploading).map(\.name)
+                reached += links.isEmpty ? [String(localized: "Intervals.icu")] : links
+            } else if problem == nil {
+                problem = lastError
+                lastError = nil
+            }
+        }
+        if reached.isEmpty {
+            return .failed(problem ?? String(localized: "No watch to sync with. Set one up in Settings."))
+        }
+        return .synced(reached)
+    }
+
+    /// Today and the six days after it.
+    private var upcomingWeek: [Workout] {
+        (plan?.workouts ?? []).filter { $0.date >= today && today.days(until: $0.date) < 7 }
     }
 
     /// The next seven days of workouts, kept in step with the plan when auto-sync is on.
     func syncWatch() async {
         guard watchAutoSync else { return }
         // With no plan this sends nothing, which also clears this app's workouts off the watch.
-        await sendToWatch((plan?.workouts ?? []).filter { $0.date >= today && today.days(until: $0.date) < 7 })
+        await sendToWatch(upcomingWeek)
     }
 
     func refreshWatchState() async {
