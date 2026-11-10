@@ -127,7 +127,12 @@ struct SettingsView: View {
                 } header: {
                     Text("Apple Watch")
                 } footer: {
-                    Text("Workouts appear in the Workout app on your watch with each step and pace alerts, ready to start.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let problem = model.watchProblem {
+                            Label(problem, systemImage: "exclamationmark.triangle")
+                        }
+                        Text("Workouts appear in the Workout app on your watch with each step and pace alerts, ready to start.")
+                    }
                 }
 
                 if model.intervalsAvailable {
@@ -437,6 +442,11 @@ private struct IntervalsSection: View {
                     }
                 }
                 .disabled(model.intervalsSyncing)
+                if let problem = model.intervalsProblem {
+                    Label(problem, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryInk)
+                }
                 Button("Disconnect", role: .destructive) { confirmDisconnect = true }
             } else {
                 Button {

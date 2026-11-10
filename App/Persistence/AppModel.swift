@@ -751,7 +751,8 @@ final class AppModel {
     func setWatchAutoSync(_ enabled: Bool) async {
         profile().watchAutoSync = enabled
         save()
-        if enabled { await syncWatch() }
+        // Switched on by the athlete: fine to ask for permission now.
+        if enabled { await sendToWatch(upcomingWeek) }
     }
 
     private func syncReminders() async {
@@ -769,17 +770,23 @@ final class AppModel {
         watchScheduledIDs.contains(WatchWorkoutBuilder.stableID(for: workout))
     }
 
+    /// Why the last Apple Watch sync didn't work, shown quietly under Settings › Apple Watch (never as an alert, since
+    /// most syncs happen on their own). nil once one works.
+    private(set) var watchProblem: String?
+
     /// Puts these workouts on the watch, and tidies away any that were re-planned or moved. Returns false (and sets
-    /// `lastError`) if it couldn't.
+    /// `watchProblem`) if it couldn't. `ask`: allowed to show iOS's permission prompt (only when the athlete tapped
+    /// something).
     @discardableResult
-    func sendToWatch(_ workouts: [Workout]) async -> Bool {
+    func sendToWatch(_ workouts: [Workout], ask: Bool = true) async -> Bool {
         guard let watch else { return false }
         do {
-            try await watch.sync(watchItems(workouts), keeping: currentWatchIDs, today: today)
+            try await watch.sync(watchItems(workouts), keeping: currentWatchIDs, today: today, ask: ask)
             watchScheduledIDs = await watch.scheduledIDs()
+            watchProblem = nil
             return true
         } catch {
-            lastError = error.localizedDescription
+            watchProblem = error.localizedDescription
             return false
         }
     }
@@ -813,8 +820,7 @@ final class AppModel {
             if await sendToWatch(upcomingWeek) {
                 reached.append(String(localized: "Apple Watch"))
             } else {
-                problem = lastError
-                lastError = nil
+                problem = watchProblem
             }
         }
         if intervalsAccount != nil {
@@ -825,8 +831,7 @@ final class AppModel {
                 let links = (intervalsAthlete?.links ?? []).filter(\.uploading).map(\.name)
                 reached += links.isEmpty ? [String(localized: "Intervals.icu")] : links
             } else if problem == nil {
-                problem = lastError
-                lastError = nil
+                problem = intervalsProblem
             }
         }
         if reached.isEmpty {
@@ -843,8 +848,9 @@ final class AppModel {
     /// The next seven days of workouts, kept in step with the plan when auto-sync is on.
     func syncWatch() async {
         guard watchAutoSync else { return }
-        // With no plan this sends nothing, which also clears this app's workouts off the watch.
-        await sendToWatch(upcomingWeek)
+        // With no plan this sends nothing, which also clears this app's workouts off the watch. Runs on its own (when
+        // the app opens, after plan changes), so it never asks for permission or shows an alert.
+        await sendToWatch(upcomingWeek, ask: false)
     }
 
     func refreshWatchState() async {
@@ -929,10 +935,15 @@ final class AppModel {
             }
             intervalsAthlete = athlete
             adoptImportedZones(from: athlete)
+            intervalsProblem = nil
         } catch {
-            lastError = error.localizedDescription
+            // Usually runs on its own when the app opens: note it quietly rather than interrupting.
+            intervalsProblem = error.localizedDescription
         }
     }
+
+    /// Why the last Intervals.icu call didn't work, shown under Settings › Other watches. nil once one works.
+    private(set) var intervalsProblem: String?
 
     /// Keeps imported zones in step with the athlete's watch platform. Zones the athlete typed in are left alone.
     private func adoptImportedZones(from athlete: IntervalsAthlete) {
@@ -1267,8 +1278,10 @@ final class AppModel {
             _ = try await intervals.sync(events, from: today, through: intervalsSyncEnd, credentials: account)
             intervalsSyncedIDs = ids
             intervalsLastSync = .now
+            intervalsProblem = nil
         } catch {
-            lastError = error.localizedDescription
+            // Automatic syncs (app opening, plan changes) fail quietly; it tries again next time.
+            intervalsProblem = error.localizedDescription
         }
     }
 
@@ -1384,7 +1397,8 @@ final class AppModel {
             try calendar.sync(events, from: from, through: end)
             calendarSyncedKeys = keys
         } catch {
-            lastError = error.localizedDescription
+            // Only interrupt when the athlete asked for it; automatic syncs try again next time.
+            if force { lastError = error.localizedDescription }
         }
     }
 

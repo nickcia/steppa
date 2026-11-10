@@ -81,24 +81,35 @@ struct WatchItem: Sendable {
 /// The scheduler calls run in a `@concurrent` nonisolated context: `WorkoutScheduler` isn't `Sendable`
 /// in this SDK, so it must never cross from the main actor. Only `Sendable` values go in and out.
 nonisolated final class WatchService: Sendable {
-    enum SendError: LocalizedError {
-        case unsupported, notAuthorized
+    enum SendError: LocalizedError, Equatable {
+        /// No Apple Watch paired with this iPhone.
+        case unsupported
+        /// Permission hasn't been asked for yet (automatic syncs never ask; tapping Sync does).
+        case notAsked
+        /// The athlete said no. iOS asks only once and has no switch to change it later.
+        case notAuthorized
 
         var errorDescription: String? {
             switch self {
             case .unsupported: String(localized: "Sending workouts needs an iPhone paired with an Apple Watch.")
-            case .notAuthorized: String(localized: "Allow workout scheduling for this app in Settings › Privacy & Security, then try again.")
+            case .notAsked: String(localized: "Tap Sync now to let TrackStar put workouts on your Apple Watch.")
+            case .notAuthorized: String(localized: "TrackStar isn't allowed to put workouts on your Apple Watch. iOS asks only once; to be asked again, export your data (Settings › Export data), delete and reinstall TrackStar, then import it.")
             }
         }
     }
 
     var isSupported: Bool { WorkoutScheduler.isSupported }
 
-    @concurrent private func authorize() async throws {
+    /// `ask`: show iOS's one-time permission prompt if it hasn't been shown. Only when the athlete tapped something;
+    /// automatic syncs never ask.
+    @concurrent private func authorize(ask: Bool) async throws {
         guard isSupported else { throw SendError.unsupported }
         let scheduler = WorkoutScheduler.shared
         var state = await scheduler.authorizationState
-        if state == .notDetermined { state = await scheduler.requestAuthorization() }
+        if state == .notDetermined {
+            guard ask else { throw SendError.notAsked }
+            state = await scheduler.requestAuthorization()
+        }
         guard state == .authorized else { throw SendError.notAuthorized }
     }
 
@@ -110,8 +121,8 @@ nonisolated final class WatchService: Sendable {
 
     /// Schedules `items` (skipping ones already there) and removes stale ones: anything whose ID isn't in
     /// `current` (re-planned or moved since) or whose day has passed.
-    @concurrent func sync(_ items: [WatchItem], keeping current: Set<UUID>, today: LocalDate) async throws {
-        try await authorize()
+    @concurrent func sync(_ items: [WatchItem], keeping current: Set<UUID>, today: LocalDate, ask: Bool) async throws {
+        try await authorize(ask: ask)
         let scheduler = WorkoutScheduler.shared
         for scheduled in await scheduler.scheduledWorkouts {
             let date = scheduled.date

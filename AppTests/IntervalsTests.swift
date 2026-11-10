@@ -428,3 +428,27 @@ struct SyncWithWatchTests {
         #expect(!fake.events.isEmpty)
     }
 }
+
+/// No connection: every request fails.
+nonisolated struct OfflineTransport: HTTPTransport {
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) { throw URLError(.notConnectedToInternet) }
+}
+
+@MainActor
+struct QuietBackgroundSyncTests {
+    @Test func automaticSyncsDontInterruptWithAlerts() async throws {
+        let keychain = IntervalsKeychain(service: "trackstar-tests-\(UUID().uuidString)")
+        try keychain.save(IntervalsCredentials(kind: .oauth, token: "t", athleteID: "i1", athleteName: "Runner"))
+        let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { AppModelTests.start },
+                             intervals: IntervalsClient(transport: OfflineTransport()),
+                             intervalsOAuth: IntervalsSyncTests.oauth, intervalsKeychain: keychain)
+        model.acceptDisclaimer()
+        model.start(try PlanBuilder.build(AppModelTests.inputs()))
+        // What happens when the app opens with no connection.
+        await model.refreshIntervalsLinks()
+        await model.syncIntervals()
+        #expect(model.lastError == nil)
+        #expect(model.intervalsProblem != nil)
+        keychain.delete()
+    }
+}
