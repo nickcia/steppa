@@ -2,7 +2,25 @@
 
 Text to paste into App Store Connect, and the steps to get a build to testers.
 
-## Uploading a build
+## Uploading a build from the command line
+
+`scripts/testflight.sh` bumps the build number, archives and uploads in one go, using an App Store Connect API key
+(no Xcode clicking). One-time setup:
+
+1. App Store Connect › Users and Access › Integrations › App Store Connect API › Team Keys › **+**. Name it
+   "TrackStar uploads", access **Admin** (an App Manager key can't sign with Apple's cloud-managed distribution
+   certificate, so the export fails). Download the `.p8` file (it can only be downloaded once).
+2. Move it to `~/.appstoreconnect/private_keys/` (create the folder if needed).
+3. Create `Config/AppStoreConnect.env` (git ignores it) with the Key ID and the Issuer ID from that page:
+   ```
+   ASC_KEY_ID=ABC123DEFG
+   ASC_ISSUER_ID=12345678-aaaa-bbbb-cccc-1234567890ab
+   ```
+
+Then `scripts/testflight.sh` uploads the next build, and `scripts/testflight.sh --check` archives and signs without
+uploading. Commit the new build number afterwards.
+
+## Uploading a build from Xcode
 
 1. In Xcode, pick **Any iOS Device (arm64)** as the run destination.
 2. **Product › Archive.** When it finishes, the Organizer opens.

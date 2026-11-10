@@ -7,3 +7,7 @@ xcuserdata/
 
 # Personal Xcode settings (team ID)
 Config/Local.xcconfig
+
+# App Store Connect API key details for scripts/testflight.sh
+Config/AppStoreConnect.env
+*.p8
