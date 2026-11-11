@@ -34,6 +34,13 @@ struct DisplayFormat {
         return "\(text) \(units.distanceUnit)"
     }
 
+    /// For tight spaces: "9.5k", "7k", "6.2mi".
+    func shortDistance(_ meters: Double) -> String {
+        let value = ((meters / units.metersPerUnit) * 10).rounded() / 10
+        let number = value == value.rounded() ? String(Int(value)) : value.formatted(.number.precision(.fractionLength(1)))
+        return number + (units == .metric ? "k" : "mi")
+    }
+
     /// Interval reps read better in metres on any unit system ("800 m").
     func repDistance(_ meters: Double) -> String {
         meters < 2_000 ? "\(Int(meters)) m" : distance(meters)

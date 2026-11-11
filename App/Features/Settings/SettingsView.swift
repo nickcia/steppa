@@ -1,3 +1,4 @@
+import AVFoundation
 import AuthenticationServices
 import CoreTransferable
 import SwiftUI
@@ -39,6 +40,8 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+
+                RunCoachVoiceSection()
 
                 if let plan = model.plan {
                     Section("Training") {
@@ -812,5 +815,83 @@ private struct StravaSection: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+}
+
+/// The voice that talks you through guided runs, and how fast it speaks.
+private struct RunCoachVoiceSection: View {
+    @AppStorage(VoiceCoach.voiceKey) private var voiceID = ""
+    @AppStorage(VoiceCoach.speedKey) private var speed = VoiceCoach.Speed.normal.rawValue
+
+    var body: some View {
+        Section {
+            NavigationLink {
+                VoicePicker()
+            } label: {
+                // Reads voiceID so the row updates when a new voice is picked.
+                LabeledContent("Voice", value: voiceID.isEmpty ? (VoiceCoach.voice?.name ?? String(localized: "Default"))
+                                                               : (VoiceCoach.voice?.name ?? String(localized: "Default")))
+            }
+            Picker("Speed", selection: $speed) {
+                ForEach(VoiceCoach.Speed.allCases) { Text($0.name).tag($0.rawValue) }
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("Run coach")
+        } footer: {
+            Text("The voice that talks you through runs on your phone.")
+        }
+    }
+}
+
+/// Every voice on the phone for its language, best first. Tap one to hear it and use it.
+private struct VoicePicker: View {
+    @AppStorage(VoiceCoach.voiceKey) private var voiceID = ""
+    @State private var synthesizer = AVSpeechSynthesizer()
+
+    var body: some View {
+        let voices = VoiceCoach.availableVoices
+        let current = VoiceCoach.voice?.identifier
+        List {
+            Section {
+                ForEach(voices, id: \.identifier) { voice in
+                    Button {
+                        voiceID = voice.identifier
+                        preview()
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(voice.name).foregroundStyle(Theme.ink)
+                                Text(detail(voice)).font(.caption).foregroundStyle(Theme.secondaryInk)
+                            }
+                            Spacer()
+                            if voice.identifier == current {
+                                Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(Theme.accent)
+                            }
+                        }
+                    }
+                }
+            } footer: {
+                Text("Tap a voice to hear it. For more natural voices, download an Enhanced or Premium one in your iPhone's Settings › Accessibility › Spoken Content › Voices, then pick it here.")
+            }
+        }
+        .navigationTitle("Voice")
+        .navigationBarTitleDisplayMode(.inline)
+        .onDisappear { synthesizer.stopSpeaking(at: .immediate) }
+    }
+
+    /// "English (UK) · Premium"
+    private func detail(_ voice: AVSpeechSynthesisVoice) -> String {
+        let region = Locale.current.localizedString(forIdentifier: voice.language) ?? voice.language
+        switch voice.quality {
+        case .premium: return String(localized: "\(region) · Premium")
+        case .enhanced: return String(localized: "\(region) · Enhanced")
+        default: return region
+        }
+    }
+
+    private func preview() {
+        synthesizer.stopSpeaking(at: .immediate)
+        synthesizer.speak(VoiceCoach.utterance(String(localized: "Run for 5 minutes, nice and easy. Then pick it up to threshold pace.")))
     }
 }

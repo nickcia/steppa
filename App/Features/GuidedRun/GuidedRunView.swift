@@ -224,8 +224,10 @@ private struct GuidedRunSummary: View {
     @Environment(GuidedRunController.self) private var run
     @Environment(AppModel.self) private var model
 
-    enum SaveState { case saving, saved, notSaved, tooShort }
-    @State private var saveState: SaveState = .saving
+    /// `choosing`: the athlete decides: save (and upload to Strava, if connected), save without uploading, or delete.
+    enum SaveState { case choosing, saving, saved, notSaved, tooShort }
+    @State private var saveState: SaveState = .choosing
+    @State private var confirmingDelete = false
     /// nil when Strava isn't connected (or uploads are off), or the run was too short.
     @State private var strava: StravaState?
     @Environment(\.openURL) private var openURL
@@ -262,6 +264,54 @@ private struct GuidedRunSummary: View {
             healthLine
             stravaLine
             Spacer()
+            if saveState == .choosing {
+                choices
+            } else {
+                afterSaving(status: status)
+            }
+        }
+        .padding(Theme.Spacing.l)
+        .sensoryFeedback(.success, trigger: session.isFinished)
+        .task { if run.recording == nil { saveState = .tooShort } }
+        .confirmationDialog("Delete this run?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Delete run", role: .destructive) { run.close() }
+        } message: {
+            Text("It won't be saved to Apple Health or uploaded anywhere, and can't be got back.")
+        }
+    }
+
+    private var stravaConnected: Bool { model.stravaAccount != nil }
+
+    /// Save (uploading to Strava when connected, in the order the athlete's setting prefers), or delete.
+    @ViewBuilder private var choices: some View {
+        let uploadFirst = model.stravaAutoUpload
+        if stravaConnected {
+            choice(uploadFirst ? String(localized: "Save and upload to Strava") : String(localized: "Save without uploading"),
+                   primary: true) { Task { await save(upload: uploadFirst) } }
+            choice(uploadFirst ? String(localized: "Save without uploading") : String(localized: "Save and upload to Strava"),
+                   primary: false) { Task { await save(upload: !uploadFirst) } }
+        } else {
+            choice(String(localized: "Save run"), primary: true) { Task { await save(upload: false) } }
+        }
+        Button(role: .destructive) { confirmingDelete = true } label: {
+            Text("Delete run").frame(maxWidth: .infinity)
+        }
+        .font(.headline)
+        .foregroundStyle(Color(hex: 0xFF6B6B))
+        .frame(height: 44)
+    }
+
+    private func choice(_ title: String, primary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).frame(maxWidth: .infinity)
+        }
+        .font(.headline)
+        .foregroundStyle(primary ? .black : .white)
+        .frame(height: 56)
+        .background(primary ? AnyShapeStyle(.white) : AnyShapeStyle(.white.opacity(0.12)), in: Capsule())
+    }
+
+    @ViewBuilder private func afterSaving(status: WorkoutStatus?) -> some View {
             if status == nil, saveState != .saving {
                 Button {
                     model.setStatus(.done, for: session.workout)
@@ -282,15 +332,17 @@ private struct GuidedRunSummary: View {
             .foregroundStyle(.white)
             .frame(height: 56)
             .background(.white.opacity(0.12), in: Capsule())
-        }
-        .padding(Theme.Spacing.l)
-        .sensoryFeedback(.success, trigger: session.isFinished)
-        .task { await save() }
+            .disabled(saveState == .saving)
     }
 
     @ViewBuilder private var healthLine: some View {
         let status = model.status(of: session.workout)
         switch saveState {
+        case .choosing:
+            Label(stravaConnected ? String(localized: "Saving keeps it in Apple Health and ticks off your workout. Uploading also sends it to Strava.")
+                                  : String(localized: "Saving keeps it in Apple Health and ticks off your workout."),
+                  systemImage: "heart.text.square")
+                .foregroundStyle(.white.opacity(0.7))
         case .saving:
             Label("Saving to Apple Health…", systemImage: "heart.text.square").foregroundStyle(.white.opacity(0.7))
         case .saved:
@@ -338,13 +390,12 @@ private struct GuidedRunSummary: View {
         }
     }
 
-    private func save() async {
-        guard saveState == .saving else { return }
-        guard let recording = run.recording else {
-            saveState = .tooShort
-            return
-        }
-        let uploads = model.stravaAccount != nil && model.stravaAutoUpload
+    /// Saves to Apple Health and, with `upload`, sends it to Strava. Phone runs never go to Garmin: Garmin doesn't
+    /// take runs from other apps.
+    private func save(upload: Bool) async {
+        guard saveState == .choosing, let recording = run.recording else { return }
+        saveState = .saving
+        let uploads = upload && stravaConnected
         if uploads { strava = .uploading }
         let saved = await model.saveGuidedRun(recording)
         if saved { run.forgetSavedRun() }

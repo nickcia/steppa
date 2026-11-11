@@ -66,6 +66,16 @@ final class RunRecorder: NSObject {
         }
     }
 
+    /// Takes back what was recorded before the app closed, for a run that had already finished: its distance, route
+    /// and pieces, so it can still be saved in full. GPS stays off.
+    func restore(_ saved: Saved) {
+        meters = saved.meters
+        route = saved.route.map(\.location)
+        segments = saved.segments
+        last = nil
+        openSegment = nil
+    }
+
     func stop() {
         closeSegment()
         manager.stopUpdatingLocation()

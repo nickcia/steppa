@@ -255,3 +255,20 @@ extension Workout {
     /// The athlete's name for a custom workout, else the kind of run.
     var name: String { title.flatMap { $0.isEmpty ? nil : $0 } ?? kind.name }
 }
+
+extension Workout {
+    /// One word for tight spaces like the week strip: "Easy", "Tempo", or a custom workout's own name.
+    var shortName: String {
+        switch kind {
+        case .easy: String(localized: "Easy")
+        case .long: String(localized: "Long")
+        case .tempo: String(localized: "Tempo")
+        case .intervals: String(localized: "Intervals")
+        case .marathonPaceLong: String(localized: "MP long")
+        case .race: String(localized: "Race")
+        case .hills: String(localized: "Hills")
+        case .runWalk: String(localized: "Run/walk")
+        case .custom: name
+        }
+    }
+}

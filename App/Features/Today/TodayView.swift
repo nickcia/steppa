@@ -125,7 +125,8 @@ struct TodayView: View {
     }
 
     @ViewBuilder private var upNext: some View {
-        let next = (model.plan?.workouts ?? []).filter { $0.date > selected }.prefix(3)
+        // Always what's next from today, whichever day is open above (and leaving out that day, already shown).
+        let next = (model.plan?.workouts ?? []).filter { $0.date > model.today && $0.date != selected }.prefix(3)
         if !next.isEmpty {
             Text("Coming up")
                 .font(.title3.weight(.semibold))
@@ -188,17 +189,28 @@ private struct WeekCard: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.secondaryInk)
                 }
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(Weekday.allCases, id: \.self) { day in
-                        Text(day.shortName)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Theme.secondaryInk)
+                if expanded {
+                    LazyVGrid(columns: columns, spacing: 8) {
+                        ForEach(Weekday.allCases, id: \.self) { day in
+                            Text(day.shortName)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Theme.secondaryInk)
+                        }
+                        ForEach(days, id: \.self) { date in
+                            if date.month != selected.month {
+                                Color.clear.frame(height: 50)
+                            } else {
+                                DayCell(date: date, isSelected: date == selected)
+                                    .onTapGesture { withAnimation(.snappy) { selected = date } }
+                            }
+                        }
                     }
-                    ForEach(days, id: \.self) { date in
-                        if expanded && date.month != selected.month {
-                            Color.clear.frame(height: 50)
-                        } else {
-                            DayCell(date: date, isSelected: date == selected)
+                } else {
+                    // The week as a list: every day's workout and its structure at a glance.
+                    VStack(spacing: 0) {
+                        ForEach(Array(days.enumerated()), id: \.element) { index, date in
+                            if index > 0 { Divider().padding(.leading, 52) }
+                            WeekDayRow(date: date, isSelected: date == selected)
                                 .onTapGesture { withAnimation(.snappy) { selected = date } }
                         }
                     }
@@ -282,6 +294,16 @@ private struct DayCell: View {
                         Circle().strokeBorder(Theme.accent, lineWidth: 1.5)
                     }
                 }
+            dot(workout: workout, status: status, strength: strength)
+        }
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(date.formatted(.dateTime.weekday(.wide).day().month())), \(workout.map { "\($0.name), \(model.format.distance($0.totalMeters))" } ?? String(localized: "rest day"))"))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func dot(workout: Workout?, status: WorkoutStatus?, strength: StrengthSchedule.Session?) -> some View {
             Group {
                 if let workout {
                     if status == .done {
@@ -306,12 +328,89 @@ private struct DayCell: View {
                         .offset(x: workout == nil ? 0 : 8)
                 }
             }
+    }
+}
+
+/// One day in the week list: the date, the workout's name and structure ("2 km warm-up · 2 × 1600 m threshold · …"),
+/// its distance and whether it's done. Rest days say so. Tap to open the day in the card below.
+private struct WeekDayRow: View {
+    let date: LocalDate
+    let isSelected: Bool
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let workout = model.workout(on: date)
+        let status = workout.flatMap { model.status(of: $0) }
+        let strength = model.strengthSession(on: date)
+        HStack(spacing: 12) {
+            dateBadge
+            if let workout {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(status == nil ? workout.kind.color : Theme.subtle)
+                    .frame(width: 4)
+                    .padding(.vertical, 6)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(workout.name)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(status == .skipped ? Theme.secondaryInk : Theme.ink)
+                            .strikethrough(status == .skipped)
+                        if strength != nil { strengthTag }
+                    }
+                    Text(WorkoutDescriber(format: model.format).structureLine(workout))
+                        .font(.caption)
+                        .foregroundStyle(Theme.secondaryInk)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                trailing(workout, status: status)
+            } else {
+                HStack(spacing: 6) {
+                    Text("Rest").font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                    if strength != nil { strengthTag }
+                }
+                Spacer(minLength: 0)
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 50)
+        .padding(.vertical, 6)
+        .frame(minHeight: 52)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(date.formatted(.dateTime.weekday(.wide).day().month())), \(workout?.name ?? String(localized: "rest day"))"))
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private var dateBadge: some View {
+        let isToday = date == model.today
+        return VStack(spacing: 0) {
+            Text(date.formatted(.dateTime.weekday(.abbreviated)))
+                .font(.caption2.weight(.medium))
+            Text("\(date.day)")
+                .font(.callout.weight(isToday || isSelected ? .bold : .medium))
+                .monospacedDigit()
+        }
+        .foregroundStyle(isSelected ? Theme.onAccent : (isToday ? Theme.ink : Theme.secondaryInk))
+        .frame(width: 40, height: 42)
+        .background(isSelected ? Theme.accent : (isToday ? Theme.accent.opacity(0.1) : .clear),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    @ViewBuilder private func trailing(_ workout: Workout, status: WorkoutStatus?) -> some View {
+        switch status {
+        case .done?: Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(Theme.green)
+        case .skipped?: Image(systemName: "forward.end.circle").font(.title3).foregroundStyle(Theme.secondaryInk)
+        case nil:
+            Text(model.format.shortDistance(workout.totalMeters))
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(Theme.ink)
+        }
+    }
+
+    private var strengthTag: some View {
+        Text("+ Strength")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(StrengthStyle.color)
     }
 }
 

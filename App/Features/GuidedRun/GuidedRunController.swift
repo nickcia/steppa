@@ -142,6 +142,11 @@ final class GuidedRunController {
             finishPause(&s, at: Date())
             s.finishedAt = Date()
             session = s
+            stopTracking()
+            // Keep the ended run, so if the app closes before it's saved or deleted, it comes back as its summary
+            // rather than as a run still going.
+            save()
+            return
         }
         stopTracking()
     }
@@ -392,7 +397,12 @@ final class GuidedRunController {
         session = s
         meters = saved.recorder.meters
         resumedAfterRestart = true
-        guard !s.isFinished else { return } // Show the summary, so the run can still be saved.
+        guard !s.isFinished else {
+            // Show the summary, so the run can still be saved, with everything it recorded.
+            recorder.restore(saved.recorder)
+            meters = recorder.meters
+            return
+        }
         recorder.splitMeters = saved.units.metersPerUnit
         recorder.isPaused = s.isPaused
         recorder.start(resuming: saved.recorder)

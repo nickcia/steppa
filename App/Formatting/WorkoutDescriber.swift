@@ -166,6 +166,17 @@ struct WorkoutDescriber {
         return result
     }
 
+    /// The whole workout on a line or two, step by step: "Warm up · 2 km · 2 × 1600 m threshold · Cool down · 1.5 km",
+    /// "8.4 km easy · 5 × 20 s stride". Targets are left out; the workout's page has them.
+    func structureLine(_ workout: Workout) -> String {
+        sections(workout).map { section in
+            switch section {
+            case .single(let line): line.title
+            case .repeated(let times, let lines): "\(times) × " + (lines.first { !$0.isRecovery } ?? lines[0]).title
+            }
+        }.joined(separator: " · ")
+    }
+
     /// One-line summary for lists: "8 km easy", "5 × 800 m intervals", "6 km threshold".
     func summary(_ workout: Workout) -> String {
         if workout.isRunWalkSession, let block = workout.blocks.first, let run = block.steps.first?.step {
