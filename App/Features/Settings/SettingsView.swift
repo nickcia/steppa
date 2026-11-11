@@ -750,9 +750,11 @@ private struct StravaSection: View {
                 }
                 Button("Disconnect", role: .destructive) { confirmDisconnect = true }
             } else {
+                // On the page itself rather than inside a white card: Strava's artwork can't be stretched to fill one.
                 connectButton
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
             }
         } header: {
             Text("Strava")
