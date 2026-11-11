@@ -177,6 +177,21 @@ struct WorkoutDescriber {
         }.joined(separator: " · ")
     }
 
+    /// The heart of a workout for one tight line, leaving out the warm-up and cool-down: "2 × 1000 m threshold",
+    /// "5 × 20 s stride" (after an easy run), or nothing for a plain easy or long run.
+    func mainSet(_ workout: Workout) -> String? {
+        var parts: [String] = []
+        for block in workout.blocks {
+            let lines = block.steps.map { line($0.step, rep: block.iterations > 1, isRecovery: $0.purpose == .recovery) }
+            guard let work = lines.first(where: { !$0.isRecovery }) ?? lines.first else { continue }
+            parts.append(block.iterations > 1 ? "\(block.iterations) × \(work.title)" : work.title)
+        }
+        // A single steady block (an easy or long run) says nothing the name and distance don't already.
+        if workout.blocks.count == 1, workout.blocks[0].iterations == 1, workout.kind != .custom { return nil }
+        if workout.kind == .easy || workout.kind == .long, !parts.isEmpty { parts.removeFirst() }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     /// One-line summary for lists: "8 km easy", "5 × 800 m intervals", "6 km threshold".
     func summary(_ workout: Workout) -> String {
         if workout.isRunWalkSession, let block = workout.blocks.first, let run = block.steps.first?.step {

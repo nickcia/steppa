@@ -209,7 +209,7 @@ private struct WeekCard: View {
                     // The week as a list: every day's workout and its structure at a glance.
                     VStack(spacing: 0) {
                         ForEach(Array(days.enumerated()), id: \.element) { index, date in
-                            if index > 0 { Divider().padding(.leading, 52) }
+                            if index > 0 { Divider().padding(.leading, 46) }
                             WeekDayRow(date: date, isSelected: date == selected)
                                 .onTapGesture { withAnimation(.snappy) { selected = date } }
                         }
@@ -331,8 +331,8 @@ private struct DayCell: View {
     }
 }
 
-/// One day in the week list: the date, the workout's name and structure ("2 km warm-up · 2 × 1600 m threshold · …"),
-/// its distance and whether it's done. Rest days say so. Tap to open the day in the card below.
+/// One day in the week list, on one line: the date, the workout and its main set ("Threshold · 2 × 1000 m
+/// threshold"), and its distance or a tick once done. Rest days say so. Tap to open the day in the card below.
 private struct WeekDayRow: View {
     let date: LocalDate
     let isSelected: Bool
@@ -342,75 +342,65 @@ private struct WeekDayRow: View {
         let workout = model.workout(on: date)
         let status = workout.flatMap { model.status(of: $0) }
         let strength = model.strengthSession(on: date)
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             dateBadge
             if let workout {
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 1.5)
                     .fill(status == nil ? workout.kind.color : Theme.subtle)
-                    .frame(width: 4)
-                    .padding(.vertical, 6)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(workout.name)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(status == .skipped ? Theme.secondaryInk : Theme.ink)
-                            .strikethrough(status == .skipped)
-                        if strength != nil { strengthTag }
-                    }
-                    Text(WorkoutDescriber(format: model.format).structureLine(workout))
-                        .font(.caption)
-                        .foregroundStyle(Theme.secondaryInk)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                    .frame(width: 3, height: 22)
+                description(workout, status: status, strength: strength != nil)
                 Spacer(minLength: 4)
                 trailing(workout, status: status)
             } else {
-                HStack(spacing: 6) {
-                    Text("Rest").font(.subheadline).foregroundStyle(Theme.secondaryInk)
-                    if strength != nil { strengthTag }
-                }
+                (Text("Rest").foregroundStyle(Theme.secondaryInk)
+                 + (strength == nil ? Text("") : Text("  + Strength").font(.caption.weight(.semibold)).foregroundStyle(StrengthStyle.color)))
+                    .font(.subheadline)
                 Spacer(minLength: 0)
             }
         }
-        .padding(.vertical, 6)
-        .frame(minHeight: 52)
+        .frame(height: 40)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
+    /// "Threshold · 2 × 1000 m threshold + Strength", cut short at the end if it doesn't fit.
+    private func description(_ workout: Workout, status: WorkoutStatus?, strength: Bool) -> some View {
+        let main = WorkoutDescriber(format: model.format).mainSet(workout)
+        var text = Text(workout.name).font(.subheadline.weight(.semibold))
+            .foregroundStyle(status == .skipped ? Theme.secondaryInk : Theme.ink)
+        if let main {
+            text = text + Text("  \(main)").font(.footnote).foregroundStyle(Theme.secondaryInk)
+        }
+        if strength {
+            text = text + Text("  + Strength").font(.caption.weight(.semibold)).foregroundStyle(StrengthStyle.color)
+        }
+        return text.lineLimit(1).truncationMode(.tail).strikethrough(status == .skipped)
+    }
+
+    /// "Thu 12" in two small lines; filled for the open day, tinted for today.
     private var dateBadge: some View {
         let isToday = date == model.today
-        return VStack(spacing: 0) {
-            Text(date.formatted(.dateTime.weekday(.abbreviated)))
-                .font(.caption2.weight(.medium))
-            Text("\(date.day)")
-                .font(.callout.weight(isToday || isSelected ? .bold : .medium))
-                .monospacedDigit()
+        return VStack(spacing: -1) {
+            Text(date.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 10, weight: .medium))
+            Text("\(date.day)").font(.subheadline.weight(isToday || isSelected ? .bold : .medium)).monospacedDigit()
         }
         .foregroundStyle(isSelected ? Theme.onAccent : (isToday ? Theme.ink : Theme.secondaryInk))
-        .frame(width: 40, height: 42)
+        .frame(width: 36, height: 34)
         .background(isSelected ? Theme.accent : (isToday ? Theme.accent.opacity(0.1) : .clear),
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 
     @ViewBuilder private func trailing(_ workout: Workout, status: WorkoutStatus?) -> some View {
         switch status {
-        case .done?: Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(Theme.green)
-        case .skipped?: Image(systemName: "forward.end.circle").font(.title3).foregroundStyle(Theme.secondaryInk)
+        case .done?: Image(systemName: "checkmark.circle.fill").font(.body).foregroundStyle(Theme.green)
+        case .skipped?: Image(systemName: "forward.end.circle").font(.body).foregroundStyle(Theme.secondaryInk)
         case nil:
             Text(model.format.shortDistance(workout.totalMeters))
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.ink)
         }
-    }
-
-    private var strengthTag: some View {
-        Text("+ Strength")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(StrengthStyle.color)
     }
 }
 
