@@ -209,7 +209,8 @@ private struct WeekCard: View {
                     // The week as a list: every day's workout and its structure at a glance.
                     VStack(spacing: 0) {
                         ForEach(Array(days.enumerated()), id: \.element) { index, date in
-                            if index > 0 { Divider().padding(.leading, 46) }
+                            if index > 0, days[index - 1] != selected, date != selected { Divider().padding(.leading, 52) }
+                            else if index > 0 { Color.clear.frame(height: 1) }
                             WeekDayRow(date: date, isSelected: date == selected)
                                 .onTapGesture { withAnimation(.snappy) { selected = date } }
                         }
@@ -359,6 +360,10 @@ private struct WeekDayRow: View {
             }
         }
         .frame(height: 40)
+        .padding(.horizontal, 6)
+        // The open day: a soft band across the whole row rather than a filled date.
+        .background(isSelected ? Theme.subtle.opacity(0.55) : .clear,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -378,17 +383,16 @@ private struct WeekDayRow: View {
         return text.lineLimit(1).truncationMode(.tail).strikethrough(status == .skipped)
     }
 
-    /// "Thu 12" in two small lines; filled for the open day, tinted for today.
+    /// "Thu 12" in two small lines. Today is in bold ink; other days are quieter.
     private var dateBadge: some View {
         let isToday = date == model.today
         return VStack(spacing: -1) {
-            Text(date.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 10, weight: .medium))
-            Text("\(date.day)").font(.subheadline.weight(isToday || isSelected ? .bold : .medium)).monospacedDigit()
+            Text(isToday ? String(localized: "Today") : date.formatted(.dateTime.weekday(.abbreviated)))
+                .font(.system(size: 10, weight: isToday ? .bold : .medium))
+            Text("\(date.day)").font(.subheadline.weight(isToday ? .bold : .medium)).monospacedDigit()
         }
-        .foregroundStyle(isSelected ? Theme.onAccent : (isToday ? Theme.ink : Theme.secondaryInk))
+        .foregroundStyle(isToday ? Theme.ink : Theme.secondaryInk)
         .frame(width: 36, height: 34)
-        .background(isSelected ? Theme.accent : (isToday ? Theme.accent.opacity(0.1) : .clear),
-                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 
     @ViewBuilder private func trailing(_ workout: Workout, status: WorkoutStatus?) -> some View {

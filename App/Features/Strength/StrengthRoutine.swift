@@ -130,10 +130,8 @@ struct StrengthDetailView: View {
                                     Text(exercise.cue).font(.subheadline).foregroundStyle(Theme.secondaryInk)
                                     if let motion = exercise.motion {
                                         ExerciseAnimation(motion: motion)
-                                            .frame(height: 150)
+                                            .frame(height: 170)
                                             .frame(maxWidth: .infinity)
-                                            .background(Theme.subtle.opacity(0.35),
-                                                        in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
                                             .padding(.top, 8)
                                     }
                                 }
