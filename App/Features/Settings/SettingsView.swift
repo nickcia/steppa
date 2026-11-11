@@ -750,18 +750,24 @@ private struct StravaSection: View {
                 }
                 Button("Disconnect", role: .destructive) { confirmDisconnect = true }
             } else {
-                // On the page itself rather than inside a white card: Strava's artwork can't be stretched to fill one.
-                connectButton
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your runs on Strava").font(.headline).foregroundStyle(Theme.ink)
+                        Text("Phone runs upload as you finish, with their route and your plan's title. Watch runs get the same title.")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    connectButton
+                }
+                .padding(.vertical, 8)
             }
         } header: {
             Text("Strava")
         } footer: {
             VStack(alignment: .leading, spacing: 12) {
                 Text(model.stravaAccount == nil
-                     ? "Runs you record on this phone go to Strava as soon as you finish, with their route. Runs from Garmin and other watches already reach Strava through their own apps."
+                     ? "Runs from Garmin and other watches reach Strava through their own apps; TrackStar doesn't upload them twice."
                      : "Phone runs upload as soon as you finish. If your watch recorded the same run, its copy is used instead, so nothing appears twice. Watch runs get your plan's name and steps unless you've renamed them.")
                 // Strava's own mark, as its brand guidelines ask, kept small and apart from TrackStar's name.
                 Image("StravaCompatibleLogo")
