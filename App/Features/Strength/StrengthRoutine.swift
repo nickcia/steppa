@@ -7,6 +7,8 @@ struct StrengthRoutine {
         let name: String
         let amount: String
         let cue: String
+        /// A how-to animation, for exercises that have one.
+        var motion: ExerciseMotion? = nil
         var id: String { name }
     }
 
@@ -24,7 +26,7 @@ struct StrengthRoutine {
                 summary: String(localized: "Builds the strength that keeps running form together when you're tired."),
                 rounds: 3, minutes: 25, exercises: [
                     .init(name: String(localized: "Squats"), amount: String(localized: "12"),
-                          cue: String(localized: "Sit back and down, knees over toes, chest up.")),
+                          cue: String(localized: "Sit back and down, knees over toes, chest up."), motion: .squat),
                     .init(name: String(localized: "Reverse lunges"), amount: String(localized: "10 each leg"),
                           cue: String(localized: "Step back, lower until both knees are at right angles.")),
                     .init(name: String(localized: "Glute bridges"), amount: String(localized: "15"),
@@ -64,7 +66,7 @@ struct StrengthRoutine {
                 summary: String(localized: "A short round to stay loose before race day. Nothing should feel hard."),
                 rounds: 1, minutes: 10, exercises: [
                     .init(name: String(localized: "Squats"), amount: String(localized: "10"),
-                          cue: String(localized: "Easy pace, full range.")),
+                          cue: String(localized: "Easy pace, full range."), motion: .squat),
                     .init(name: String(localized: "Glute bridges"), amount: String(localized: "12"),
                           cue: String(localized: "Squeeze at the top.")),
                     .init(name: String(localized: "Calf raises"), amount: String(localized: "15"),
@@ -126,6 +128,14 @@ struct StrengthDetailView: View {
                                         Text(exercise.amount).font(.subheadline.weight(.medium)).foregroundStyle(Theme.ink)
                                     }
                                     Text(exercise.cue).font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                                    if let motion = exercise.motion {
+                                        ExerciseAnimation(motion: motion)
+                                            .frame(height: 150)
+                                            .frame(maxWidth: .infinity)
+                                            .background(Theme.subtle.opacity(0.35),
+                                                        in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                                            .padding(.top, 8)
+                                    }
                                 }
                             }
                         }
