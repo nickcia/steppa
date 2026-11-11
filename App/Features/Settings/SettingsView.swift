@@ -708,8 +708,20 @@ private struct StravaSection: View {
     @State private var confirmDisconnect = false
     @State private var error: String?
 
-    /// Strava's orange.
-    static let orange = Color(hex: 0xFC5200)
+    /// Strava's official "Connect with Strava" button (its artwork, unchanged, 48 pt tall as the guidelines say).
+    private var connectButton: some View {
+        Button { connect() } label: {
+            Image("StravaConnectButton")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 48)
+                .opacity(connecting ? 0.5 : 1)
+                .overlay { if connecting { ProgressView().tint(.white) } }
+        }
+        .buttonStyle(.plain)
+        .disabled(connecting)
+        .accessibilityLabel("Connect with Strava")
+    }
 
     var body: some View {
         Section {
@@ -720,14 +732,14 @@ private struct StravaSection: View {
                     Toggle("Name watch runs after your plan", isOn: Binding(get: { model.stravaNamesWatchRuns },
                                                                            set: { model.setStravaNamesWatchRuns($0) }))
                 } else {
-                    Button { connect() } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Name watch runs after your plan")
-                            Text("Reconnect once to let TrackStar see your recent activities, so watch runs get your plan's name and phone runs aren't uploaded twice.")
-                                .font(.footnote)
-                                .foregroundStyle(Theme.secondaryInk)
-                        }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Name watch runs after your plan")
+                        Text("Reconnect once to let TrackStar see your recent activities, so watch runs get your plan's name and phone runs aren't uploaded twice.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.secondaryInk)
+                        connectButton
                     }
+                    .padding(.vertical, 4)
                 }
                 if model.stravaQueuedCount > 0 {
                     Button {
@@ -738,24 +750,24 @@ private struct StravaSection: View {
                 }
                 Button("Disconnect", role: .destructive) { confirmDisconnect = true }
             } else {
-                Button { connect() } label: {
-                    HStack {
-                        Text("Connect with Strava")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                        Spacer()
-                        if connecting { ProgressView().tint(.white) }
-                    }
-                }
-                .listRowBackground(Self.orange)
-                .disabled(connecting)
+                connectButton
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
             }
         } header: {
             Text("Strava")
         } footer: {
-            Text(model.stravaAccount == nil
-                 ? "Runs you record on this phone go to Strava as soon as you finish, with their route. Runs from Garmin and other watches already reach Strava through their own apps."
-                 : "Phone runs upload as soon as you finish. If your watch recorded the same run, its copy is used instead, so nothing appears twice. Watch runs get your plan's name and steps unless you've renamed them.")
+            VStack(alignment: .leading, spacing: 12) {
+                Text(model.stravaAccount == nil
+                     ? "Runs you record on this phone go to Strava as soon as you finish, with their route. Runs from Garmin and other watches already reach Strava through their own apps."
+                     : "Phone runs upload as soon as you finish. If your watch recorded the same run, its copy is used instead, so nothing appears twice. Watch runs get your plan's name and steps unless you've renamed them.")
+                // Strava's own mark, as its brand guidelines ask, kept small and apart from TrackStar's name.
+                Image("StravaCompatibleLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 12)
+                    .accessibilityLabel("Compatible with Strava")
+            }
         }
         .confirmationDialog("Disconnect Strava?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
             Button("Disconnect", role: .destructive) { Task { await model.disconnectStrava() } }

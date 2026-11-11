@@ -27,7 +27,7 @@ struct HillsAndStridesTests {
             }.compactMap(\.detail)
         }
         #expect(details(hills).contains("Hard uphill, about 5K effort"))
-        #expect(details(strides).contains("Quick but relaxed, not a sprint"))
+        #expect(details(strides).contains { $0.hasSuffix("/km · quick but relaxed, not a sprint") })
         #expect(describer.summary(hills).contains("uphill"))
     }
 

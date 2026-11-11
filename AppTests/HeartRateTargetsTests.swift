@@ -15,10 +15,14 @@ struct HeartRateTargetsTests {
         // 375 s/km is 9.6 km/h, 345 s/km is 10.4 km/h.
         #expect(WorkoutDescriber(format: format, display: .treadmill, treadmillUnits: .metric).detail(easy) == "9.6–10.4 km/h")
         #expect(WorkoutDescriber(format: format, display: .treadmill, treadmillUnits: .imperial).detail(easy) == "6.0–6.5 mph")
-        // Without zones, heart rate falls back to pace; strides are always by feel.
+        // Without zones, heart rate falls back to pace. Strides are too short for heart rate: by feel, with a pace to aim for.
         #expect(WorkoutDescriber(format: format, display: .heartRate).detail(easy) == format.paceRange(easy.range))
         let stride = PaceTarget(zone: .stride, range: PaceRange(fast: 200, slow: 220))
-        #expect(WorkoutDescriber(format: format, display: .heartRate, zones: zones).detail(stride).contains("Quick but relaxed"))
+        let byFeel = WorkoutDescriber(format: format, display: .heartRate, zones: zones).detail(stride)
+        #expect(byFeel.contains("go by feel") && byFeel.contains(format.paceRange(stride.range)))
+        // Strides have a pace and a treadmill speed too (200–220 s/km is 16.4–18.0 km/h).
+        #expect(WorkoutDescriber(format: format).detail(stride).hasPrefix(format.paceRange(stride.range)))
+        #expect(WorkoutDescriber(format: format, display: .treadmill, treadmillUnits: .metric).detail(stride).hasPrefix("16.4–18.0 km/h"))
     }
 
     @Test func headlineFollowsTheDisplay() {

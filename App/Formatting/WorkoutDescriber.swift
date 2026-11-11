@@ -71,7 +71,11 @@ struct WorkoutDescriber {
                 return String(localized: "Hard uphill, reaching \(bpm(hr.bpm)) by the top")
             }
             return String(localized: "Hard uphill, about 5K effort")
-        case (_, .stride): return String(localized: "Quick but relaxed, not a sprint")
+        // Strides: a target in every view, with the feel that matters more than the number for 20 seconds.
+        case (.pace, .stride): return String(localized: "\(format.paceRange(target.range)) · quick but relaxed, not a sprint")
+        case (.treadmill, .stride): return String(localized: "\(speedRange(target.range)) · quick but relaxed, not a sprint")
+        case (.heartRate, .stride):
+            return String(localized: "Too short for heart rate to catch up: go by feel, quick but relaxed (about \(format.paceRange(target.range)))")
         case (.heartRate, _):
             guard let zones, let hr = zones.target(for: target.zone) else { return format.paceRange(target.range) }
             return "\(zoneName(hr.zones)) · \(bpm(hr.bpm))"
