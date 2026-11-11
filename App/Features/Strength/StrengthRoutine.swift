@@ -28,19 +28,19 @@ struct StrengthRoutine {
                     .init(name: String(localized: "Squats"), amount: String(localized: "12"),
                           cue: String(localized: "Sit back and down, knees over toes, chest up."), motion: .squat),
                     .init(name: String(localized: "Reverse lunges"), amount: String(localized: "10 each leg"),
-                          cue: String(localized: "Step back, lower until both knees are at right angles.")),
+                          cue: String(localized: "Step back, lower until both knees are at right angles."), motion: .reverseLunge),
                     .init(name: String(localized: "Glute bridges"), amount: String(localized: "15"),
-                          cue: String(localized: "Drive through your heels, squeeze at the top for a second.")),
+                          cue: String(localized: "Drive through your heels, squeeze at the top for a second."), motion: .gluteBridge),
                     .init(name: String(localized: "Single-leg calf raises"), amount: String(localized: "15 each leg"),
-                          cue: String(localized: "Slow on the way down. Hold a wall for balance.")),
+                          cue: String(localized: "Slow on the way down. Hold a wall for balance."), motion: .singleLegCalfRaise),
                     .init(name: String(localized: "Single-leg Romanian deadlift"), amount: String(localized: "10 each leg"),
-                          cue: String(localized: "Hinge at the hip with a flat back; reach towards the floor.")),
+                          cue: String(localized: "Hinge at the hip with a flat back; reach towards the floor."), motion: .singleLegRDL),
                     .init(name: String(localized: "Plank"), amount: String(localized: "40 s"),
-                          cue: String(localized: "Straight line from head to heels; don't let your hips sag.")),
+                          cue: String(localized: "Straight line from head to heels; don't let your hips sag."), motion: .plank),
                     .init(name: String(localized: "Side plank"), amount: String(localized: "30 s each side"),
-                          cue: String(localized: "Hips high; drop to your knees if needed.")),
+                          cue: String(localized: "Hips high; drop to your knees if needed."), motion: .sidePlank),
                     .init(name: String(localized: "Dead bug"), amount: String(localized: "10 each side"),
-                          cue: String(localized: "Lower back stays pressed to the floor.")),
+                          cue: String(localized: "Lower back stays pressed to the floor."), motion: .deadBug),
                 ])
         case .maintenance:
             StrengthRoutine(
@@ -48,17 +48,17 @@ struct StrengthRoutine {
                 summary: String(localized: "Keeps the strength you've built without adding fatigue to harder training."),
                 rounds: 2, minutes: 18, exercises: [
                     .init(name: String(localized: "Split squats"), amount: String(localized: "10 each leg"),
-                          cue: String(localized: "Back knee towards the floor, front heel down.")),
+                          cue: String(localized: "Back knee towards the floor, front heel down."), motion: .splitSquat),
                     .init(name: String(localized: "Single-leg glute bridges"), amount: String(localized: "12 each leg"),
-                          cue: String(localized: "Keep your hips level as you lift.")),
+                          cue: String(localized: "Keep your hips level as you lift."), motion: .singleLegBridge),
                     .init(name: String(localized: "Step-ups"), amount: String(localized: "10 each leg"),
-                          cue: String(localized: "Push through the top foot; don't spring off the bottom one.")),
+                          cue: String(localized: "Push through the top foot; don't spring off the bottom one."), motion: .stepUp),
                     .init(name: String(localized: "Calf raises"), amount: String(localized: "20"),
-                          cue: String(localized: "On a step if you have one; full range, slow down.")),
+                          cue: String(localized: "On a step if you have one; full range, slow down."), motion: .calfRaise),
                     .init(name: String(localized: "Plank"), amount: String(localized: "45 s"),
-                          cue: String(localized: "Brace as if someone's about to poke your stomach.")),
+                          cue: String(localized: "Brace as if someone's about to poke your stomach."), motion: .plank),
                     .init(name: String(localized: "Side plank"), amount: String(localized: "30 s each side"),
-                          cue: String(localized: "Stack your feet or stagger them for balance.")),
+                          cue: String(localized: "Stack your feet or stagger them for balance."), motion: .sidePlank),
                 ])
         case .light:
             StrengthRoutine(
@@ -68,13 +68,13 @@ struct StrengthRoutine {
                     .init(name: String(localized: "Squats"), amount: String(localized: "10"),
                           cue: String(localized: "Easy pace, full range."), motion: .squat),
                     .init(name: String(localized: "Glute bridges"), amount: String(localized: "12"),
-                          cue: String(localized: "Squeeze at the top.")),
+                          cue: String(localized: "Squeeze at the top."), motion: .gluteBridge),
                     .init(name: String(localized: "Calf raises"), amount: String(localized: "15"),
-                          cue: String(localized: "Smooth and controlled.")),
+                          cue: String(localized: "Smooth and controlled."), motion: .calfRaise),
                     .init(name: String(localized: "Plank"), amount: String(localized: "30 s"),
-                          cue: String(localized: "Just hold good form.")),
+                          cue: String(localized: "Just hold good form."), motion: .plank),
                     .init(name: String(localized: "Leg swings"), amount: String(localized: "10 each way, each leg"),
-                          cue: String(localized: "Front to back, then side to side, holding a wall.")),
+                          cue: String(localized: "Front to back, then side to side, holding a wall."), motion: .legSwings),
                 ])
         }
     }

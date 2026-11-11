@@ -49,13 +49,24 @@ final class VoiceCoach: NSObject {
         }
     }
 
-    /// The voice the athlete picked, if it's still on the phone; else the phone's own voice for its language.
+    /// The voice the athlete picked, if it's still on the phone; else the best one installed for the phone's language
+    /// (a downloaded Premium or Enhanced voice sounds far better than the built-in compact ones), preferring the
+    /// phone's own accent.
     static var voice: AVSpeechSynthesisVoice? {
         if let id = UserDefaults.standard.string(forKey: voiceKey), let chosen = AVSpeechSynthesisVoice(identifier: id) {
             return chosen
         }
-        return AVSpeechSynthesisVoice(language: Locale.current.identifier)
+        let region = Locale.current.identifier.replacingOccurrences(of: "_", with: "-")
+        let voices = availableVoices
+        let best = voices.first?.quality
+        return voices.first { $0.quality == best && $0.language == region }
+            ?? voices.first
             ?? AVSpeechSynthesisVoice(language: Locale.preferredLanguages.first)
+    }
+
+    /// Whether any Enhanced or Premium voice is installed for the phone's language.
+    static var hasNaturalVoice: Bool {
+        availableVoices.contains { $0.quality == .enhanced || $0.quality == .premium }
     }
 
     static var speed: Speed {

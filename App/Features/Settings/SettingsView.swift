@@ -853,6 +853,20 @@ private struct VoicePicker: View {
         let voices = VoiceCoach.availableVoices
         let current = VoiceCoach.voice?.identifier
         List {
+            if !VoiceCoach.hasNaturalVoice {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Get a natural-sounding voice, free", systemImage: "sparkles")
+                            .font(.headline)
+                            .foregroundStyle(Theme.ink)
+                        Text("Apple's Premium voices sound much more human than these. On your iPhone, open Settings › Accessibility › Spoken Content › Voices › English, pick a voice marked Premium (like Ava, Zoe or Evan) and download it. Come back here and TrackStar uses it.")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
             Section {
                 ForEach(voices, id: \.identifier) { voice in
                     Button {
