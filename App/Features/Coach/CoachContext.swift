@@ -93,7 +93,7 @@ extension CoachSnapshot {
         Goal: \(plan.inputs.goal.name) on \(plan.inputs.raceDate) (\(max(0, today.days(until: plan.inputs.raceDate))) days away).
         Plan: \(plan.weeks.count) weeks. Now in week \((current?.index ?? 0) + 1), \(current?.phase.name ?? "") phase\(current?.isStepBack == true ? " (an easier step-back week)" : "").
         Runs on \(plan.inputs.runDays.sorted().map(\.fullName).joined(separator: ", ")); long run on \(plan.inputs.longRunDay.fullName). Experience: \(plan.inputs.experience.name).
-        Paces per \(unit): easy \(format.paceRange(paces.easy)), marathon \(format.pace(paces.marathon.mid)), threshold \(format.pace(paces.threshold.mid)), interval \(format.pace(paces.interval.mid)).
+        Paces per \(unit): easy \(format.paceRange(paces.easy)), marathon \(format.targetPace(paces.marathon.mid)), threshold \(format.targetPace(paces.threshold.mid)), interval \(format.targetPace(paces.interval.mid)).
         Predicted \(plan.inputs.goal.name) time now: \(DisplayFormat.clock(model.prediction?.seconds ?? plan.predictedRaceSeconds)).
         """
         if let goal = plan.inputs.goalTimeSeconds { overview += " Goal time: \(DisplayFormat.clock(goal))." }

@@ -27,13 +27,14 @@ enum WatchWorkoutBuilder {
                     WorkoutKit.IntervalStep(interval.purpose == .work ? .work : .recovery,
                                             step: step(interval.step,
                                                        name: walk.map { interval.purpose == .work ? String(localized: "Run") : $0 },
-                                                       alert: interval.purpose == .work))
+                                                       alert: interval.purpose == .work, format: format))
                 }, iterations: block.iterations)
             },
             cooldown: workout.cooldown.map { step($0, name: walk ?? String(localized: "Cool down"), alert: false) })
     }
 
-    static func step(_ step: PlanEngine.Step, name: String?, alert: Bool) -> WorkoutKit.WorkoutStep {
+    /// `format`: rounds pace alerts to the nearest 5 s in the athlete's units, matching what the app shows.
+    static func step(_ step: PlanEngine.Step, name: String?, alert: Bool, format: DisplayFormat? = nil) -> WorkoutKit.WorkoutStep {
         let goal: WorkoutGoal = switch step.goal {
         case .distance(let meters): .distance(meters, .meters)
         case .time(let seconds): .time(seconds, .seconds)
@@ -42,7 +43,8 @@ enum WatchWorkoutBuilder {
         // Hills are run by effort and strides are too short for a pace alert to help.
         let paced = step.target.map { !$0.zone.isEffortBased && $0.zone != .stride } ?? false
         let speedAlert: SpeedRangeAlert? = alert && paced ? step.target.map { target in
-            .speed(speed(target.range.slow)...speed(target.range.fast), unit: .metersPerSecond, metric: .current)
+            let range = format?.rounded(target.range) ?? target.range
+            return .speed(speed(range.slow)...speed(range.fast), unit: .metersPerSecond, metric: .current)
         } : nil
         if #available(iOS 18.0, *) {
             return WorkoutKit.WorkoutStep(goal: goal, alert: speedAlert,

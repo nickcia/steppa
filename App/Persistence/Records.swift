@@ -246,7 +246,8 @@ extension JSONEncoder {
 enum Persistence {
     static let models: [any PersistentModel.Type] = [PlanRecord.self, WorkoutLogRecord.self, ProfileRecord.self,
                                                      RaceRecord.self, PlanChangeRecord.self, RunDetailRecord.self,
-                                                     WorkoutTemplateRecord.self, ScheduledWorkoutRecord.self]
+                                                     WorkoutTemplateRecord.self, ScheduledWorkoutRecord.self,
+                                                     GearRecord.self, ShoeRunRecord.self]
 
     /// Syncs through the user's private CloudKit database when built with `ENABLE_ICLOUD = YES`
     /// (see Config/App.xcconfig); otherwise the store is local to the device.

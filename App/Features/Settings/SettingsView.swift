@@ -34,6 +34,32 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    NavigationLink {
+                        ConnectionsView()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Connections").font(.headline).foregroundStyle(Theme.ink)
+                            Text(model.connectionsSummary)
+                                .font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
+                Section {
+                    NavigationLink {
+                        GearView()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Gear").font(.headline).foregroundStyle(Theme.ink)
+                            Text(model.gearSummary)
+                                .font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
                 Section("Units") {
                     Picker("Distance", selection: Binding(get: { model.units }, set: { model.setUnits($0) })) {
                         ForEach(UnitSystem.allCases) { Text($0.name).tag($0) }
@@ -83,6 +109,7 @@ struct SettingsView: View {
                     } label: {
                         LabeledContent("Heart-rate zones", value: zonesSourceName)
                     }
+                    MaxHeartRateRow()
                     Picker("Show targets as", selection: Binding(get: { model.targetDisplay }, set: { model.setTargetDisplay($0) })) {
                         ForEach(WorkoutTargetDisplay.allCases) { Text($0.name).tag($0) }
                     }
@@ -94,60 +121,6 @@ struct SettingsView: View {
                     Text("Heart rate and treadmill")
                 } footer: {
                     Text("Workouts can show pace, heart rate or treadmill speed. You can also switch on any workout.")
-                }
-
-                Section {
-                    if model.healthConnected {
-                        LabeledContent("Apple Health", value: String(localized: "\(model.healthRuns.count) runs found"))
-                        MaxHeartRateRow()
-                        Button("Refresh runs") { Task { await model.refreshHealth() } }
-                    } else {
-                        Button {
-                            Task { await model.connectHealth() }
-                        } label: {
-                            Label("Connect Apple Health", systemImage: "heart.text.square")
-                        }
-                        .disabled(!model.healthAvailable)
-                    }
-                } header: {
-                    Text("Apple Health")
-                } footer: {
-                    Text("Runs from Apple Watch, Garmin, Coros and other apps that save to Health tick off your workouts automatically. Manage access in the Health app under Sharing › Apps.")
-                }
-
-                Section {
-                    Toggle("Send the next 7 days automatically",
-                           isOn: Binding(get: { model.watchAutoSync }, set: { on in Task { await model.setWatchAutoSync(on) } }))
-                    if let plan = model.plan {
-                        Button("Sync now") {
-                            Task {
-                                await model.sendToWatch(plan.workouts.filter {
-                                    $0.date >= model.today && model.today.days(until: $0.date) < 7
-                                })
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Apple Watch")
-                } footer: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        if let problem = model.watchProblem {
-                            Label(problem, systemImage: "exclamationmark.triangle")
-                        }
-                        Text("Workouts appear in the Workout app on your watch with each step and pace alerts, ready to start.")
-                    }
-                }
-
-                if model.garminAvailable {
-                    GarminSection()
-                }
-
-                if model.intervalsAvailable {
-                    IntervalsSection()
-                }
-
-                if model.stravaAvailable {
-                    StravaSection()
                 }
 
                 Section {
@@ -276,7 +249,7 @@ extension SettingsView {
         switch model.heartRateZones?.source {
         case .imported?: String(localized: "From your watch")
         case .custom?: String(localized: "Your own")
-        case .estimated?: String(localized: "Estimated")
+        case .estimated?: String(localized: "Automatic")
         case nil: String(localized: "Not set")
         }
     }
@@ -309,6 +282,8 @@ private struct HeartRateZonesView: View {
                     }
                 } header: {
                     Text(sourceText(zones.source))
+                } footer: {
+                    if zones.source == .estimated, let basis = basisText { Text(basis) }
                 }
 
                 Section {
@@ -327,7 +302,7 @@ private struct HeartRateZonesView: View {
                 }
             } else {
                 Section {
-                    Text("Zones need your maximum heart rate. Add your date of birth in Apple Health, record a run with heart rate, or set your maximum under Apple Health in Settings.")
+                    Text("Zones need your maximum heart rate. Add your date of birth in Apple Health, record a run with heart rate, or set your maximum heart rate in Settings, under Heart rate and treadmill.")
                         .font(.subheadline)
                 }
             }
@@ -355,12 +330,12 @@ private struct HeartRateZonesView: View {
                         .font(.subheadline).foregroundStyle(Theme.secondaryInk)
                 }
                 if model.storedHeartRateZones != nil {
-                    Button("Use estimated zones instead") { model.setHeartRateZones(nil) }
+                    Button("Use automatic zones instead") { model.setHeartRateZones(nil) }
                 }
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
                     if let importMessage { Text(importMessage) }
-                    Text("Apple Watch doesn't share its zones with other apps, so with Apple Watch, zones are estimated from your maximum heart rate unless you set your own.")
+                    Text("Apple Watch doesn't share its zones with other apps, so with Apple Watch, zones are worked out automatically from your runs unless you set your own.")
                 }
             }
         }
@@ -372,8 +347,23 @@ private struct HeartRateZonesView: View {
         switch source {
         case .imported: String(localized: "From your watch, through Intervals.icu")
         case .custom: String(localized: "Your own zones")
-        case .estimated: String(localized: "Estimated from your maximum heart rate")
+        case .estimated: String(localized: "Automatic, from your runs")
         }
+    }
+
+    /// How the automatic maximum was found: "Your maximum is 187 bpm, the highest your heart reached in the past year
+    /// (Long run, Oct 24). Zones update as you run."
+    private var basisText: String? {
+        if model.maxHeartRateIsSet, let bpm = model.estimatedMaxHeartRate {
+            return String(localized: "Based on the maximum of \(Int(bpm.rounded())) bpm you set. Zones are 60, 70, 80 and 90% of it.")
+        }
+        guard let basis = model.automaticMaxHeartRate else { return nil }
+        let bpm = Int(basis.bpm.rounded())
+        if let run = basis.run {
+            let name = model.workout(for: run)?.name ?? String(localized: "a run")
+            return String(localized: "Your maximum is \(bpm) bpm, the highest your heart reached in the past year (\(name), \(run.date.formatted(.dateTime.month(.abbreviated).day()))). Zones are 60, 70, 80 and 90% of it, and update as you run.")
+        }
+        return String(localized: "Your maximum is about \(bpm) bpm, worked out from your age until a hard run shows a higher one. Zones are 60, 70, 80 and 90% of it, and update as you run.")
     }
 
     /// Edits a limit, keeping the zones in order; the result is the athlete's own.
@@ -403,7 +393,7 @@ private struct MaxHeartRateRow: View {
         let estimate = model.estimatedMaxHeartRate
         Stepper {
             LabeledContent("Max heart rate") {
-                Text(estimate.map { "\(Int($0.rounded())) bpm\(model.maxHeartRateIsSet ? "" : String(localized: " (estimated)"))" }
+                Text(estimate.map { "\(Int($0.rounded())) bpm\(model.maxHeartRateIsSet ? "" : String(localized: " (automatic)"))" }
                      ?? String(localized: "Not known yet"))
             }
         } onIncrement: {
@@ -412,298 +402,8 @@ private struct MaxHeartRateRow: View {
             model.setMaxHeartRate(max((estimate ?? 180).rounded() - 1, 120))
         }
         if model.maxHeartRateIsSet {
-            Button("Use the estimate instead") { model.setMaxHeartRate(nil) }
+            Button("Use automatic instead") { model.setMaxHeartRate(nil) }
                 .font(.subheadline)
-        }
-    }
-}
-
-/// Garmin Connect™: one sign-in, then workouts go to the watch and runs come back.
-private struct GarminSection: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
-    @State private var connecting = false
-    @State private var confirmDisconnect = false
-    @State private var error: String?
-
-    var body: some View {
-        Section {
-            if model.garminConnected {
-                LabeledContent("Garmin Connect™", value: String(localized: "Connected"))
-                Button {
-                    Task { await model.syncGarmin(force: true) }
-                } label: {
-                    HStack {
-                        Text("Sync now")
-                        Spacer()
-                        if model.garminSyncing {
-                            ProgressView()
-                        } else if let last = model.garminLastSync {
-                            Text(last, format: .relative(presentation: .named))
-                                .foregroundStyle(Theme.secondaryInk)
-                        }
-                    }
-                }
-                .disabled(model.garminSyncing)
-                if let problem = model.garminProblem {
-                    Label(problem, systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.secondaryInk)
-                }
-                Button("Disconnect", role: .destructive) { confirmDisconnect = true }
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Your Garmin watch").font(.headline).foregroundStyle(Theme.ink)
-                        Text("Workouts appear on your watch with every step and pace, and runs you finish come back to tick off your plan. Sign in once; there's nothing else to set up.")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.secondaryInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Button { connect() } label: {
-                        HStack(spacing: 8) {
-                            if connecting { ProgressView().tint(.white) }
-                            Text("Connect with Garmin Connect™")
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.primary)
-                    .disabled(connecting)
-                }
-                .padding(.vertical, 8)
-            }
-        } header: {
-            Text("Garmin")
-        } footer: {
-            Text(model.garminConnected
-                 ? "The next two weeks of workouts are on your Garmin Connect™ calendar and follow your plan as it changes. Runs from your Garmin show here, marked with your device. They're never shown to the coach."
-                 : "You'll sign in on Garmin's own page. TrackStar never sees your Garmin password.")
-        }
-        .confirmationDialog("Disconnect Garmin Connect™?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) { Task { await model.disconnectGarmin() } }
-        } message: {
-            Text("TrackStar's upcoming workouts are removed from your Garmin Connect™ calendar, and your Garmin runs are deleted from this iPhone and from TrackStar's server.")
-        }
-        .alert("Couldn't connect to Garmin", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(error ?? "")
-        }
-    }
-
-    private func connect() {
-        connecting = true
-        Task {
-            defer { connecting = false }
-            do {
-                let url = try await model.garminSignInURL()
-                let callback = try await webAuthenticationSession.authenticate(
-                    using: url, callbackURLScheme: model.garminCallbackScheme, preferredBrowserSession: .shared)
-                try await model.finishGarminSignIn(callback: callback)
-            } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
-                // Closed the sheet.
-            } catch {
-                self.error = error.localizedDescription
-            }
-        }
-    }
-}
-
-/// Garmin, COROS and other watches, through the athlete's own (free) Intervals.icu account.
-private struct IntervalsSection: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
-    @Environment(\.openURL) private var openURL
-    @State private var enteringKey = false
-    @State private var signingIn = false
-    @State private var confirmDisconnect = false
-    @State private var signInError: String?
-    @State private var settingUpWatch = false
-
-    var body: some View {
-        Section {
-            if let account = model.intervalsAccount {
-                LabeledContent("Intervals.icu", value: account.athleteName.isEmpty ? String(localized: "Connected") : account.athleteName)
-                watchRows
-                Button {
-                    Task { await model.syncIntervals(force: true) }
-                } label: {
-                    HStack {
-                        Text("Sync now")
-                        Spacer()
-                        if model.intervalsSyncing {
-                            ProgressView()
-                        } else if let last = model.intervalsLastSync {
-                            Text(last, format: .relative(presentation: .named))
-                                .foregroundStyle(Theme.secondaryInk)
-                        }
-                    }
-                }
-                .disabled(model.intervalsSyncing)
-                if let problem = model.intervalsProblem {
-                    Label(problem, systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.secondaryInk)
-                }
-                Button("Disconnect", role: .destructive) { confirmDisconnect = true }
-            } else {
-                Button {
-                    if model.intervalsOAuth != nil { signIn() } else { enteringKey = true }
-                } label: {
-                    HStack {
-                        Label(model.garminAvailable ? "Connect COROS, Suunto or Wahoo" : "Connect Garmin, COROS and others",
-                              systemImage: "applewatch.radiowaves.left.and.right")
-                        if signingIn { Spacer(); ProgressView() }
-                    }
-                }
-                .disabled(signingIn)
-            }
-        } header: {
-            Text("Other watches")
-        } footer: {
-            if model.intervalsAccount == nil {
-                Text("Workouts are sent through Intervals.icu, a free training site that passes them on to Garmin Connect, COROS, Suunto and Wahoo. You'll sign in to Intervals.icu (or create a free account), then link your watch there once.")
-            } else {
-                Text("Your upcoming workouts are on your Intervals.icu calendar and are kept in step with your plan. Linked watches get them a few days ahead.")
-            }
-        }
-        .sheet(isPresented: $enteringKey) { IntervalsAPIKeyView() }
-        .sheet(isPresented: $settingUpWatch) { WatchSetupView() }
-        .confirmationDialog("Disconnect Intervals.icu?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) { Task { await model.disconnectIntervals() } }
-        } message: {
-            Text("Upcoming workouts from this app are removed from your Intervals.icu calendar, and this iPhone forgets the connection.")
-        }
-        .alert("Couldn't connect", isPresented: Binding(get: { signInError != nil }, set: { if !$0 { signInError = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(signInError ?? "")
-        }
-    }
-
-    /// One row per linked watch service, or a prompt to link one.
-    @ViewBuilder private var watchRows: some View {
-        if let athlete = model.intervalsAthlete {
-            ForEach(athlete.links) { link in
-                // A plain row: LabeledContent with a Label value grew a large empty space below it on iOS 27, and a
-                // Label here showed only its icon.
-                HStack {
-                    Text(link.name)
-                    Spacer(minLength: 8)
-                    if link.uploading {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("Receiving workouts")
-                        }
-                        .foregroundStyle(.green)
-                        .lineLimit(1)
-                    } else {
-                        Button("Turn on") { Task { await model.enableIntervalsUpload(link) } }
-                    }
-                }
-            }
-            if !athlete.links.contains(where: { $0.service == .garmin }) {
-                Button {
-                    settingUpWatch = true
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label(athlete.links.isEmpty ? "Link your watch" : "Link Garmin", systemImage: "link")
-                        Text("A one-time step on Intervals.icu, about a minute. We'll walk you through it.")
-                            .font(.footnote)
-                            .foregroundStyle(Theme.secondaryInk)
-                    }
-                }
-            }
-        }
-    }
-
-    private func signIn() {
-        guard let oauth = model.intervalsOAuth else { return }
-        let attempt = oauth.start()
-        signingIn = true
-        Task {
-            defer { signingIn = false }
-            do {
-                let callback = try await webAuthenticationSession.authenticate(
-                    using: attempt.url, callbackURLScheme: oauth.callbackScheme, preferredBrowserSession: .shared)
-                try await model.finishIntervalsSignIn(callback: callback, attempt: attempt)
-                // Signed in: straight on to linking the watch (or confirming it's already linked).
-                settingUpWatch = true
-            } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
-                // The athlete closed the sign-in sheet.
-            } catch {
-                signInError = error.localizedDescription
-            }
-        }
-    }
-}
-
-/// Connect with a personal Intervals.icu API key: for builds without an OAuth client ID.
-private struct IntervalsAPIKeyView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    @State private var apiKey = ""
-    @State private var working = false
-    @State private var error: String?
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text("In Intervals.icu, open Settings, scroll to Developer Settings, tap Generate API key and copy it.")
-                    Link(destination: AppModel.intervalsConnectionsURL) {
-                        Label("Open Intervals.icu settings", systemImage: "safari")
-                    }
-                }
-
-                Section {
-                    SecureField("API key", text: $apiKey)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("API key")
-                } footer: {
-                    Text("Your key is stored in this iPhone's Keychain and only ever sent to Intervals.icu.")
-                }
-
-                if let error {
-                    Section {
-                        Text(error).foregroundStyle(.red)
-                    }
-                }
-            }
-            .navigationTitle("Intervals.icu")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if working {
-                        ProgressView()
-                    } else {
-                        Button("Connect") { connect() }
-                            .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                }
-            }
-            .interactiveDismissDisabled(working)
-        }
-    }
-
-    private func connect() {
-        working = true
-        error = nil
-        Task {
-            do {
-                try await model.connectIntervals(apiKey: apiKey)
-                dismiss()
-            } catch IntervalsError.unauthorized {
-                self.error = String(localized: "Intervals.icu didn't accept that key. Check you copied all of it.")
-            } catch {
-                self.error = error.localizedDescription
-            }
-            working = false
         }
     }
 }
@@ -795,122 +495,6 @@ extension Bundle {
         let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = infoDictionary?["CFBundleVersion"] as? String ?? "?"
         return "\(version) (\(build))"
-    }
-}
-
-/// Strava: phone runs upload to the athlete's account as they finish.
-private struct StravaSection: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
-    @Environment(\.openURL) private var openURL
-    @State private var connecting = false
-    @State private var confirmDisconnect = false
-    @State private var error: String?
-
-    /// Strava's official "Connect with Strava" button (its artwork, unchanged, 48 pt tall as the guidelines say).
-    private var connectButton: some View {
-        Button { connect() } label: {
-            Image("StravaConnectButton")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 48)
-                .opacity(connecting ? 0.5 : 1)
-                .overlay { if connecting { ProgressView().tint(.white) } }
-        }
-        .buttonStyle(.plain)
-        .disabled(connecting)
-        .accessibilityLabel("Connect with Strava")
-    }
-
-    var body: some View {
-        Section {
-            if let account = model.stravaAccount {
-                LabeledContent("Strava", value: account.athleteName.isEmpty ? String(localized: "Connected") : account.athleteName)
-                Toggle("Upload phone runs", isOn: Binding(get: { model.stravaAutoUpload }, set: { model.setStravaAutoUpload($0) }))
-                if account.canRead {
-                    Toggle("Name watch runs after your plan", isOn: Binding(get: { model.stravaNamesWatchRuns },
-                                                                           set: { model.setStravaNamesWatchRuns($0) }))
-                } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Name watch runs after your plan")
-                        Text("Reconnect once to let TrackStar see your recent activities, so watch runs get your plan's name and phone runs aren't uploaded twice.")
-                            .font(.footnote)
-                            .foregroundStyle(Theme.secondaryInk)
-                        connectButton
-                    }
-                    .padding(.vertical, 4)
-                }
-                if model.stravaQueuedCount > 0 {
-                    Button {
-                        Task { await model.sendQueuedStravaUploads() }
-                    } label: {
-                        LabeledContent("Waiting to upload", value: "\(model.stravaQueuedCount)")
-                    }
-                }
-                Button("Disconnect", role: .destructive) { confirmDisconnect = true }
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Your runs on Strava").font(.headline).foregroundStyle(Theme.ink)
-                        Text("Phone runs upload as you finish, with their route and your plan's title. Watch runs get the same title.")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.secondaryInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    connectButton
-                }
-                .padding(.vertical, 8)
-            }
-        } header: {
-            Text("Strava")
-        } footer: {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(model.stravaAccount == nil
-                     ? "Runs from Garmin and other watches reach Strava through their own apps; TrackStar doesn't upload them twice."
-                     : "Phone runs upload as soon as you finish. If your watch recorded the same run, its copy is used instead, so nothing appears twice. Watch runs get your plan's name and steps unless you've renamed them.")
-                // Strava's own mark, as its brand guidelines ask, kept small and apart from TrackStar's name.
-                Image("StravaCompatibleLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 12)
-                    .accessibilityLabel("Compatible with Strava")
-            }
-        }
-        .confirmationDialog("Disconnect Strava?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) { Task { await model.disconnectStrava() } }
-        } message: {
-            Text("Runs already on Strava stay there. New phone runs won't upload.")
-        }
-        .alert("Couldn't connect to Strava", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(error ?? "")
-        }
-    }
-
-    /// With the Strava app installed, its own "Authorize" screen (one tap, no password); otherwise Strava's page in
-    /// a sheet.
-    private func connect() {
-        guard let oauth = model.stravaOAuth else { return }
-        let attempt = oauth.start()
-        if UIApplication.shared.canOpenURL(attempt.appURL) {
-            model.stravaPendingAttempt = attempt
-            openURL(attempt.appURL)
-            return
-        }
-        connecting = true
-        Task {
-            defer { connecting = false }
-            do {
-                let callback = try await webAuthenticationSession.authenticate(
-                    using: attempt.webURL, callbackURLScheme: oauth.callbackScheme, preferredBrowserSession: .shared)
-                try await model.finishStravaSignIn(callback: callback, attempt: attempt)
-            } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
-                // Closed the sheet.
-            } catch {
-                self.error = error.localizedDescription
-            }
-        }
     }
 }
 

@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import HealthKit
 import PlanEngine
@@ -18,12 +19,19 @@ protocol RunSource {
     /// When runs recorded by something other than this app (a watch, another app) happened, from `start` on.
     /// For spotting a watch that recorded the same run as the phone.
     func otherRuns(since start: Date) async -> [DateInterval]
+    /// The run's GPS route, thinned to a few hundred points for drawing. nil without one (treadmill, no GPS, or
+    /// route access not allowed).
+    func route(forRun id: String) async -> [CLLocationCoordinate2D]?
+    /// Whether Health has something new to ask about (route access, added after the first connection).
+    func needsAccessRequest() async -> Bool
 }
 
 extension RunSource {
     func requestWriteAccess() async throws {}
     func save(_ recording: GuidedRunRecording) async throws -> String? { nil }
     func otherRuns(since start: Date) async -> [DateInterval] { [] }
+    func route(forRun id: String) async -> [CLLocationCoordinate2D]? { nil }
+    func needsAccessRequest() async -> Bool { false }
 }
 
 /// Reads running workouts from Apple Health, and saves runs recorded on the phone during a guided run (nothing else
@@ -40,7 +48,12 @@ final class HealthKitRunSource: RunSource {
     /// Asking again after an update only prompts for the new types.
     private var readTypes: Set<HKObjectType> {
         [HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning), HKQuantityType(.heartRate),
-         HKQuantityType(.runningPower), HKQuantityType(.stepCount), HKCharacteristicType(.dateOfBirth)]
+         HKQuantityType(.runningPower), HKQuantityType(.stepCount), HKCharacteristicType(.dateOfBirth),
+         HKSeriesType.workoutRoute()]
+    }
+
+    func needsAccessRequest() async -> Bool {
+        (try? await store.statusForAuthorizationRequest(toShare: [], read: readTypes)) == .shouldRequest
     }
 
     func requestAccess() async throws {
@@ -156,12 +169,34 @@ final class HealthKitRunSource: RunSource {
         return Calendar.current.dateComponents([.year], from: date, to: .now).year
     }
 
+    func route(forRun id: String) async -> [CLLocationCoordinate2D]? {
+        guard let uuid = UUID(uuidString: id) else { return nil }
+        let byID = HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForObject(with: uuid))], sortDescriptors: [])
+        guard let workout = try? await byID.result(for: store).first else { return nil }
+        let routes = HKSampleQueryDescriptor(
+            predicates: [.sample(type: HKSeriesType.workoutRoute(), predicate: HKQuery.predicateForObjects(from: workout))],
+            sortDescriptors: [])
+        guard let route = (try? await routes.result(for: store))?.first as? HKWorkoutRoute else { return nil }
+        var points: [CLLocationCoordinate2D] = []
+        do {
+            for try await location in HKWorkoutRouteQueryDescriptor(route).results(for: store)
+            where location.horizontalAccuracy >= 0 && location.horizontalAccuracy < 50 {
+                points.append(location.coordinate)
+            }
+        } catch {
+            return nil
+        }
+        guard points.count >= 2 else { return nil }
+        let step = max(1, points.count / 300)
+        return stride(from: 0, to: points.count, by: step).map { points[$0] } + [points[points.count - 1]]
+    }
+
     static func run(from workout: HKWorkout) -> CompletedRun? {
         let distanceType = HKQuantityType(.distanceWalkingRunning)
         let meters = workout.statistics(for: distanceType)?.sumQuantity()?.doubleValue(for: .meter())
             ?? workout.totalDistance?.doubleValue(for: .meter())
         guard let meters, meters >= RunMatcher.minimumRunMeters, workout.duration > 0 else { return nil }
         return CompletedRun(id: workout.uuid.uuidString, date: LocalDate(workout.startDate),
-                            distanceMeters: meters, durationSeconds: workout.duration)
+                            distanceMeters: meters, durationSeconds: workout.duration, start: workout.startDate)
     }
 }

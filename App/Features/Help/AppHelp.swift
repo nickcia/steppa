@@ -15,11 +15,11 @@ nonisolated enum AppHelp {
         HelpArticle(id: "garmin", title: "Connect a Garmin, COROS, Suunto or Wahoo watch",
                     keywords: ["garmin", "coros", "suunto", "wahoo", "forerunner", "fenix", "epix", "instinct", "polar", "watch", "connect", "sync", "intervals", "send workouts"],
                     body: """
-                    TrackStar sends workouts to these watches through Intervals.icu, a free training site, because Garmin doesn't let small apps connect directly.
-                    1. In TrackStar, go to Settings › Other watches and tap Connect Garmin, COROS and others. Sign in to Intervals.icu (or create a free account).
-                    2. TrackStar then walks you through linking your watch on Intervals.icu: tap Open Intervals.icu, find Garmin (or COROS, Suunto, Wahoo) under Connections, tap Connect, tick Upload planned workouts, and sign in. If you stop part-way, Today shows Finish connecting your watch.
-                    3. Back in TrackStar, it notices the link by itself, and Settings › Other watches shows your watch as Receiving workouts. Your upcoming workouts appear in Garmin Connect's calendar and on your watch, and finished runs come back to TrackStar automatically.
-                    Your watch's heart-rate zones come across too (Settings › Heart-rate zones).
+                    Garmin: Settings › Connections › Connect with Garmin Connect. Sign in on Garmin's page and allow TrackStar. Your next two weeks of workouts go to your Garmin Connect calendar and on to your watch with every step and pace, and follow your plan as it changes. Runs you finish on the watch come back to tick off your plan, marked with your watch's name. If a workout is missing, tap Sync now there.
+                    COROS, Suunto and Wahoo connect through Intervals.icu, a free training site:
+                    1. Settings › Connections › Other watches, and tap Connect. Sign in to Intervals.icu (or create a free account).
+                    2. TrackStar then walks you through linking your watch on Intervals.icu: tap Open Intervals.icu, find your watch under Connections, tap Connect, tick Upload planned workouts, and sign in. If you stop part-way, Today shows Finish connecting your watch.
+                    3. Back in TrackStar, it notices the link by itself, and Other watches shows your watch as Receiving workouts. Finished runs come back to TrackStar automatically, and your watch's heart-rate zones come across too (Settings › Heart-rate zones).
                     """),
         HelpArticle(id: "phone", title: "Run with just your phone (spoken cues)",
                     keywords: ["phone", "no watch", "without a watch", "audio", "voice", "spoken", "cues", "guided", "start", "lock screen", "dynamic island", "countdown"],
@@ -29,8 +29,8 @@ nonisolated enum AppHelp {
         HelpArticle(id: "strava", title: "Strava: uploads, names and duplicates",
                     keywords: ["strava", "upload", "share", "sync", "kudos", "segments", "duplicate", "twice", "title", "name", "description"],
                     body: """
-                    Settings › Strava › Connect with Strava. If the Strava app is on your phone it opens there: tap Authorize and you're back in TrackStar. Leave both permissions ticked.
-                    Runs you record on this phone (Start on a workout) go to Strava as soon as you finish, titled like "Week 5: Threshold · 7 km" with the workout's steps as the description. No connection? It uploads the next time you open the app.
+                    Settings › Connections › Connect with Strava. If the Strava app is on your phone it opens there: tap Authorize and you're back in TrackStar. Leave both permissions ticked.
+                    Runs you record on this phone (Start on a workout) go to Strava as soon as you finish, titled like "Week 5 · Threshold 7 km", with where it sits in your plan and the workout's steps as the description. No connection? It uploads the next time you open the app.
                     Runs from a Garmin, Apple Watch or other watch reach Strava through the watch's own app (link Strava in Garmin Connect, or turn on Health in the Strava app). TrackStar then gives them the same title and steps, as long as they still have their default name, like "Morning Run". Anything you've named yourself is left alone.
                     Recording on your watch and your phone at once? TrackStar spots the watch's copy (it waits up to 30 minutes for a Garmin to sync) and doesn't upload the phone's, so the run only appears once.
                     Only real runs go to Strava: ticking a workout off with Mark as done never uploads or changes anything there.
@@ -39,12 +39,12 @@ nonisolated enum AppHelp {
         HelpArticle(id: "applewatch", title: "Send workouts to Apple Watch",
                     keywords: ["apple watch", "watch", "workout app", "send", "sync", "not on watch", "missing workout", "pace alerts"],
                     body: """
-                    Your next 7 days of workouts go to the Workout app on your Apple Watch by themselves, with every step and pace alerts (Settings › Apple Watch › Send the next 7 days automatically). If a workout isn't there yet, tap Sync with watch on today's card or the workout: it puts the coming week on every watch you use, including a Garmin, COROS, Suunto or Wahoo linked through Intervals.icu (those show it after their next sync), and turns automatic sending on. Runs you record on the watch tick workouts off through Apple Health.
+                    Your next 7 days of workouts go to the Workout app on your Apple Watch by themselves, with every step and pace alerts (Settings › Connections › Apple Watch › Send the next 7 days automatically; it only shows when an Apple Watch is paired with your iPhone). If a workout isn't there yet, tap Sync with watch on today's card or the workout: it puts the coming week on every watch you use, including a Garmin connected to TrackStar and a COROS, Suunto or Wahoo linked through Intervals.icu (those show it after their next sync), and turns automatic sending on. Runs you record on the watch tick workouts off through Apple Health.
                     """),
         HelpArticle(id: "health", title: "Connect Apple Health so runs tick off",
                     keywords: ["health", "apple health", "runs not showing", "missing run", "tick off", "strava", "sync runs", "import"],
                     body: """
-                    Settings › Apple Health › Connect Apple Health. TrackStar reads your running workouts (from Apple Watch, Garmin Connect, COROS, Strava and other apps that save to Health) and ticks off the matching workouts. If a run is missing, check the Health app under Sharing › Apps › TrackStar, then tap Refresh runs in Settings. You can also tick a workout off by hand with Mark as done.
+                    Settings › Connections › Connect Apple Health. TrackStar reads your running workouts (from Apple Watch, Garmin Connect, COROS, Strava and other apps that save to Health) and ticks off the matching workouts. If a run is missing, check the Health app under Sharing › Apps › TrackStar, then tap Refresh runs in Settings › Connections. You can also tick a workout off by hand with Mark as done.
                     """),
         HelpArticle(id: "timeoff", title: "Plan a holiday, a busy week or time off",
                     keywords: ["vacation", "holiday", "trip", "travel", "away", "break", "busy", "time off", "can't run", "cannot run", "days off", "pause"],
@@ -59,7 +59,7 @@ nonisolated enum AppHelp {
         HelpArticle(id: "heartrate", title: "Run by heart rate, and heart-rate zones",
                     keywords: ["heart rate", "hr", "bpm", "zones", "zone 2", "pulse", "max heart rate", "import zones"],
                     body: """
-                    Open a workout and switch the Structure card to Heart rate: each step shows its zone and beats per minute (easy runs are zone 2, threshold zone 4, intervals zone 5). To show heart rate everywhere, Settings › Heart rate and treadmill › Show targets as › Heart rate. Zones come from your Garmin or other watch through Intervals.icu, or set your own in Settings › Heart-rate zones; otherwise they're estimated from your maximum heart rate (Settings › Apple Health › Max heart rate). Apple Watch doesn't share its zones with apps.
+                    Open a workout and switch the Structure card to Heart rate: each step shows its zone and beats per minute (easy runs are zone 2, threshold zone 4, intervals zone 5). To show heart rate everywhere, Settings › Heart rate and treadmill › Show targets as › Heart rate. Zones come from your Garmin or other watch through Intervals.icu, or set your own in Settings › Heart-rate zones; otherwise they're automatic: 60, 70, 80 and 90% of your maximum heart rate, which TrackStar takes from the highest heart rate in your runs over the past year (or your age), so they update as you run. You can set the maximum yourself in Settings › Heart rate and treadmill › Max heart rate. Apple Watch doesn't share its zones with apps.
                     """),
         HelpArticle(id: "treadmill", title: "Treadmill speeds in km/h or mph",
                     keywords: ["treadmill", "km/h", "kmh", "mph", "speed", "indoor", "gym", "incline"],

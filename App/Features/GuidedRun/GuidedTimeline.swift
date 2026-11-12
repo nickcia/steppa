@@ -156,7 +156,7 @@ enum GuidedTimeline {
     /// "A bit quick. Ease off to about 5:15 per kilometre."
     static func paceCue(_ verdict: PaceVerdict, target: PaceRange, units: UnitSystem) -> String {
         let format = DisplayFormat(units: units)
-        let aim = DisplayFormat.clock(format.paceSeconds(target.mid))
+        let aim = DisplayFormat.clock(format.targetPaceSeconds(target.mid))
         let per = units == .metric ? String(localized: "per kilometre") : String(localized: "per mile")
         return switch verdict {
         case .fast: String(localized: "A bit quick. Ease off to about \(aim) \(per).")

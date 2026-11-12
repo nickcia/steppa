@@ -43,5 +43,51 @@
 		<string>audio</string>
 		<string>location</string>
 	</array>
+	<!-- Shared workouts: a .trackstar file opens in TrackStar. -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.content</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>TrackStar workout</string>
+			<key>UTTypeIdentifier</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).workout</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>trackstar</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.trackstar.workout+json</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>TrackStar workout</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER).workout</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
+	<!-- Save a run's share image to Photos (add-only). -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Saves your run's share image to your photo library, so you can add it to Strava or post it.</string>
 </dict>
 </plist>

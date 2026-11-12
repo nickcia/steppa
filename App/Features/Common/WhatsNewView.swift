@@ -15,16 +15,22 @@ nonisolated struct WhatsNew: Sendable {
     var id: String
     var items: [Item]
 
-    static let current = WhatsNew(id: "2026-11-garmin", items: [
-        Item(symbol: "applewatch.radiowaves.left.and.right",
-             title: String(localized: "Garmin, in one tap"),
-             detail: String(localized: "Connect Garmin Connect™ in Settings. Your next two weeks of workouts appear on your watch, with every step and pace, and follow your plan as it changes.")),
-        Item(symbol: "arrow.down.heart",
-             title: String(localized: "Garmin runs come back"),
-             detail: String(localized: "Runs you finish on your Garmin tick off your plan and show their splits, heart rate and cadence here.")),
-        Item(symbol: "applewatch",
-             title: String(localized: "Other watches"),
-             detail: String(localized: "COROS, Suunto and Wahoo still connect through Intervals.icu, and Apple Watch works as before.")),
+    static let current = WhatsNew(id: "2026-11-trends", items: [
+        Item(symbol: "waveform.path.ecg",
+             title: String(localized: "Fitness, fatigue and form"),
+             detail: String(localized: "Progress now shows how your fitness is building, how tired you are, and your fitness score and threshold pace over time.")),
+        Item(symbol: "map",
+             title: String(localized: "Your runs, with maps"),
+             detail: String(localized: "Recent runs show their route. After a run, save a picture of it sized for Strava, or share it anywhere.")),
+        Item(symbol: "drop",
+             title: String(localized: "Fuel on the run"),
+             detail: String(localized: "Runs over 75 minutes come with a gel plan: how many, and when to take them.")),
+        Item(symbol: "shoe",
+             title: String(localized: "Gear and shared workouts"),
+             detail: String(localized: "Track the distance on your shoes in Settings › Gear, and share a workout with a friend so you can run it together.")),
+        Item(symbol: "link",
+             title: String(localized: "Connections in one place"),
+             detail: String(localized: "Apple Health, your watch and Strava now live in Settings › Connections. Heart-rate zones now update from your runs.")),
     ])
 
     static let seenKey = "whatsNew.seen"

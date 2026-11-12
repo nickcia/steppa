@@ -228,6 +228,7 @@ private struct GuidedRunSummary: View {
     enum SaveState { case choosing, saving, saved, notSaved, tooShort }
     @State private var saveState: SaveState = .choosing
     @State private var confirmingDelete = false
+    @State private var sharingRun: CompletedRun?
     /// nil when Strava isn't connected (or uploads are off), or the run was too short.
     @State private var strava: StravaState?
     @Environment(\.openURL) private var openURL
@@ -312,6 +313,17 @@ private struct GuidedRunSummary: View {
     }
 
     @ViewBuilder private func afterSaving(status: WorkoutStatus?) -> some View {
+            // Once saved, the run is like any other: offer its picture for Strava or a post.
+            if saveState == .saved, let saved = model.healthRun(for: session.workout) {
+                Button { sharingRun = saved } label: {
+                    Label("Share image", systemImage: "photo").frame(maxWidth: .infinity)
+                }
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(height: 56)
+                .background(.white.opacity(0.12), in: Capsule())
+                .sheet(item: $sharingRun) { RunShareSheet(run: $0) }
+            }
             if status == nil, saveState != .saving {
                 Button {
                     model.setStatus(.done, for: session.workout)

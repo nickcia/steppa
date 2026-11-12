@@ -111,6 +111,8 @@ struct StravaTests {
                              strava: StravaClient(transport: fake), stravaOAuth: oauth,
                              stravaKeychain: StravaKeychain(service: "trackstar-tests-\(UUID().uuidString)"),
                              stravaQueue: StravaQueue(directory: URL.temporaryDirectory.appending(path: "strava-\(UUID().uuidString)")))
+        // Whether this simulator "has" an Apple Watch is remembered between runs; tests decide it themselves.
+        model.appleWatchPaired = false
         model.acceptDisclaimer()
         model.start(try PlanBuilder.build(AppModelTests.inputs()))
         return model
@@ -173,7 +175,7 @@ struct StravaTests {
         let outcome = await model.uploadToStrava(recording(), workout: workout)
         #expect(outcome == .uploaded(501))
         let upload = try #require(fake.bodies.first { $0.contains("<gpx") })
-        #expect(upload.contains("name=\"name\"\r\n\r\nWeek 1: \(workout.name)"))
+        #expect(upload.contains("name=\"name\"\r\n\r\nWeek 1 · \(workout.name)"))
         // Uploading the same run again is recognised as already there.
         #expect(await model.uploadToStrava(recording(), workout: workout) == .uploaded(nil))
     }
@@ -256,15 +258,18 @@ struct StravaTests {
         let model = try makeModel(FakeStrava())
         let plan = try #require(model.plan)
         let easy = try #require(plan.weeks[1].workouts.first { $0.kind == .easy })
-        #expect(model.stravaTitle(for: easy) == "Week 2: Easy run · \(model.format.distance(easy.totalMeters))")
+        #expect(model.stravaTitle(for: easy) == "Week 2 · Easy run \(model.format.distance(easy.totalMeters))")
         let tempo = try #require(plan.workouts.first { $0.kind == .tempo })
         let description = model.stravaDescription(for: tempo)
+        #expect(description.hasPrefix("Week "))
+        #expect(description.contains(" of \(plan.weeks.count) · "))
+        #expect(description.contains(plan.inputs.goal.name))
         #expect(description.contains("Warm up"))
         #expect(description.contains("/km"))
         #expect(description.hasSuffix("Planned with TrackStar"))
         let custom = try #require(model.addWorkout(WorkoutTemplate(name: "Hill blast", blocks: [.preset(.tempo)]),
                                                    on: model.today.adding(days: 1)))
-        #expect(model.stravaTitle(for: custom).hasSuffix(": Hill blast"))
+        #expect(model.stravaTitle(for: custom).hasSuffix(" · Hill blast"))
     }
 
     @Test func phoneUploadsUseThePlansTitle() async throws {
@@ -274,7 +279,7 @@ struct StravaTests {
         let workout = try #require(model.plan?.workouts.first)
         _ = await model.uploadToStrava(recording(), workout: workout)
         let upload = try #require(fake.bodies.first { $0.contains("<gpx") })
-        #expect(upload.contains("name=\"name\"\r\n\r\nWeek 1: \(workout.name)"))
+        #expect(upload.contains("name=\"name\"\r\n\r\nWeek 1 · \(workout.name)"))
     }
 
     // MARK: Duplicates
@@ -319,6 +324,16 @@ struct StravaTests {
         await model.sendQueuedStravaUploads()
         #expect(fake.requests.contains("POST /api/v3/uploads"))
         #expect(model.stravaQueuedCount == 0)
+    }
+
+    @Test func aPairedAppleWatchMeansWaitingForItsCopy() async throws {
+        let fake = FakeStrava()
+        let model = try makeModel(fake, health: FakeRunSource(runs: []))
+        model.appleWatchPaired = true
+        defer { model.appleWatchPaired = false }
+        try await connect(model)
+        #expect(await model.uploadToStrava(recording(), workout: try #require(model.plan?.workouts.first)) == .waitingForWatch)
+        #expect(!fake.requests.contains("POST /api/v3/uploads"))
     }
 
     @Test func withoutAWatchThereIsNoWait() async throws {

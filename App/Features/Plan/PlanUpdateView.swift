@@ -139,7 +139,7 @@ struct PlanUpdateView: View {
             items.append(Item(title: String(localized: "Updating your fitness"),
                               detail: String(localized: "From your \(format.distance(result.distanceMeters)) in \(DisplayFormat.clock(result.timeSeconds))")))
             items.append(Item(title: String(localized: "Resetting your paces"),
-                              detail: String(localized: "Easy about \(DisplayFormat.clock(format.paceSeconds(plan.paces.easy.mid))) · threshold \(format.pace(plan.paces.threshold.mid))")))
+                              detail: String(localized: "Easy about \(DisplayFormat.clock(format.targetPaceSeconds(plan.paces.easy.mid))) · threshold \(format.targetPace(plan.paces.threshold.mid))")))
         case .timeOff:
             break
         }

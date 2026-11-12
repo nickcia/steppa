@@ -6,7 +6,7 @@ import Security
 // as soon as they finish. Strava doesn't take runs that other apps save to Apple Health, so this is the only way
 // they get there. Runs recorded on a watch reach Strava through Garmin Connect (or Apple's Health import), so they
 // aren't uploaded again: TrackStar looks at the athlete's recent Strava activities to spot a watch's copy of the
-// same run, and to give watch runs the plan's name ("Week 5: Threshold · 7 km") and steps. Only times, distances,
+// same run, and to give watch runs the plan's name ("Week 5 · Threshold 7 km") and steps. Only times, distances,
 // names and descriptions are read, on the phone, and only the athlete's own planned runs are renamed.
 
 /// The connection to the athlete's Strava account.

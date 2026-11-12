@@ -12,6 +12,7 @@ struct RunDetailView: View {
     let runID: String
     @Environment(AppModel.self) private var model
     @State private var askingCoach = false
+    @State private var sharing = false
 
     var body: some View {
         ScrollView {
@@ -30,17 +31,16 @@ struct RunDetailView: View {
         .navigationTitle("Run")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let run = model.healthRuns.first(where: { $0.id == runID }),
-               let image = RunShareCard(run: run, analysis: model.analysis(for: run), workout: model.workout(for: run),
-                                        format: model.format, attribution: model.garminAttribution(for: run)).image() {
+            if model.healthRuns.contains(where: { $0.id == runID }) {
                 ToolbarItem(placement: .primaryAction) {
-                    ShareLink(item: RunShareImage(image: image, name: "Run \(run.date)"),
-                              preview: SharePreview(model.workout(for: run)?.name ?? String(localized: "Run"),
-                                                    image: Image(uiImage: image))) {
+                    Button { sharing = true } label: {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
             }
+        }
+        .sheet(isPresented: $sharing) {
+            if let run = model.healthRuns.first(where: { $0.id == runID }) { RunShareSheet(run: run) }
         }
     }
 
@@ -117,6 +117,8 @@ struct RunDetailView: View {
                 PlanComparisonCard(workout: workout, analysis: analysis)
             }
 
+            RunShoesRow(run: run)
+
             let notes = RunNotes.make(analysis: analysis, workout: workout, format: format)
             if !notes.isEmpty {
                 Card(padding: 18) {
@@ -161,7 +163,6 @@ struct RunDetailView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
                 .font(.title3.weight(.semibold))
-                .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(Theme.ink)
@@ -390,7 +391,7 @@ private struct ZonesCard: View {
         case .imported?: String(localized: "Using the zones from your watch, through Intervals.icu.")
         case .custom?: String(localized: "Using the zones you set in Settings.")
         default: maxIsSet ? String(localized: "Based on the maximum heart rate you set in Settings.")
-                          : String(localized: "Based on an estimated maximum from your age and recent runs. You can import your watch's zones or set your own in Settings.")
+                          : String(localized: "Automatic zones, from the highest heart rate in your runs over the past year (or your age). You can import your watch's zones or set your own in Settings.")
         }
     }
 

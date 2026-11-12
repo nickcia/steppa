@@ -108,7 +108,8 @@ struct WatchWorkoutBuilderTests {
         let work = block.steps[0].step
         #expect(work.goal == .distance(source.steps[0].step.estimatedMeters, .meters))
         let alert = try #require(work.alert as? SpeedRangeAlert)
-        let range = source.steps[0].step.target!.range
+        // Pace alerts match the paces the app shows: rounded to 5 s in the athlete's units.
+        let range = format.rounded(source.steps[0].step.target!.range)
         #expect(abs(alert.target.lowerBound.converted(to: .metersPerSecond).value - 1000 / range.slow) < 0.0001)
         #expect(abs(alert.target.upperBound.converted(to: .metersPerSecond).value - 1000 / range.fast) < 0.0001)
 

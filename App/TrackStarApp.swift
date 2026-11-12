@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftData
 import SwiftUI
 import PlanEngine
@@ -8,6 +9,7 @@ struct TrackStarApp: App {
     @State private var model: AppModel
     @State private var crashes = CrashReporter()
     @State private var guidedRun = GuidedRunController.shared
+    private let watchPairing: WatchPairing?
 
     init() {
         let container = Persistence.makeContainer(inMemory: DemoData.usesMemoryStore)
@@ -26,6 +28,12 @@ struct TrackStarApp: App {
         #if DEBUG
         if DemoData.fakesIntervals { model.debugFakeIntervalsConnection() }
         #endif
+        if DemoData.pretendsAppleWatch {
+            model.appleWatchPaired = true
+            watchPairing = nil
+        } else {
+            watchPairing = WatchPairing { [weak model] paired in model?.appleWatchPaired = paired }
+        }
         _model = State(initialValue: model)
     }
 
@@ -53,6 +61,9 @@ struct RootView: View {
     #endif
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingWhatsNew = false
+    /// A workout someone shared, opened from a ".trackstar" file.
+    @State private var receivedWorkout: ReceivedWorkout?
+    @State private var receivedProblem: String?
 
     var body: some View {
         @Bindable var model = model
@@ -108,7 +119,27 @@ struct RootView: View {
         }
         #endif
         // Strava's own app sends the athlete back here after "Authorize".
-        .onOpenURL { url in Task { await model.handleOpenURL(url) } }
+        .onOpenURL { url in
+            // A shared workout (from AirDrop, Messages, Files…).
+            if SharedWorkout.canOpen(url) {
+                do throws(SharedWorkout.Problem) {
+                    receivedWorkout = ReceivedWorkout(workout: try SharedWorkout.read(from: url))
+                } catch {
+                    receivedProblem = error.errorDescription
+                }
+                return
+            }
+            Task { await model.handleOpenURL(url) }
+        }
+        .sheet(item: $receivedWorkout) { received in
+            SharedWorkoutSheet(shared: received.workout).environment(model)
+        }
+        .alert("Couldn't open this workout", isPresented: Binding(get: { receivedProblem != nil },
+                                                                  set: { if !$0 { receivedProblem = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(receivedProblem ?? "")
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await model.becameActive() }
@@ -271,6 +302,15 @@ enum DemoData {
     }
     #endif
 
+    /// Demo screenshots and `-appleWatch` (the simulator has no watch) act as if an Apple Watch is paired.
+    static var pretendsAppleWatch: Bool {
+        #if DEBUG
+        isRequested || ProcessInfo.processInfo.arguments.contains("-appleWatch")
+        #else
+        false
+        #endif
+    }
+
     static var fakesIntervals: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-intervalsConnected")
@@ -314,11 +354,29 @@ enum DemoData {
                 power: times.map { .init($0, 245 + 12 * sin($0 / 150)) },
                 cadence: times.map { .init($0, 166 + 3 * sin($0 / 200)) },
                 altitude: times.map { .init($0, 40 + 12 * sin($0 / 400)) })
-            runs.append(CompletedRun(id: id, date: workout.date, distanceMeters: meters, durationSeconds: duration))
+            runs.append(CompletedRun(id: id, date: workout.date, distanceMeters: meters, durationSeconds: duration,
+                                     start: Calendar.current.date(bySettingHour: 7, minute: 10, second: 0, of: workout.date.date())))
         }
         model.loadDemoRuns(runs, series: series)
+        // Out-and-back loops along a waterfront for the run cards' maps, longer for longer runs.
+        for run in runs {
+            let length = run.distanceMeters / 2 / 111_000
+            let points = (0...60).map { i -> CLLocationCoordinate2D in
+                let t = Double(i) / 60
+                let out = t < 0.5 ? t * 2 : (1 - t) * 2
+                return CLLocationCoordinate2D(latitude: 43.6365 + out * length * 0.35 + (t < 0.5 ? 0 : 0.0012),
+                                              longitude: -79.4040 + out * length * 1.3)
+            }
+            model.debugSetRoute(points, for: run.id)
+        }
         model.setMaxHeartRate(188)
         model.setStrength(enabled: true)
     }
     #endif
+}
+
+/// A shared workout waiting to be looked at; a fresh one each time a file is opened.
+struct ReceivedWorkout: Identifiable {
+    let id = UUID()
+    let workout: SharedWorkout
 }

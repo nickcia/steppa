@@ -80,6 +80,7 @@ struct GarminTests {
     func makeModel(_ fake: FakeServer, health: FakeRunSource? = nil,
                    store: GarminRunStore = GarminRunStore(file: URL.temporaryDirectory.appending(path: "garmin-\(UUID().uuidString)/runs.json"))) throws -> AppModel {
         UserDefaults.standard.removeObject(forKey: "garmin.connected")
+        UserDefaults.standard.removeObject(forKey: AppModel.garminSentKey)
         let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { Self.today },
                              runSource: health, server: makeServer(fake), garminStore: store)
         model.acceptDisclaimer()
@@ -194,6 +195,23 @@ struct GarminTests {
         #expect(model.includesGarminRuns)
 
         await model.disconnectGarmin()
+    }
+
+    @Test func sentWorkoutsShowAsOnTheWatchUntilTheyChange() async throws {
+        let fake = FakeServer()
+        let model = try makeModel(fake)
+        let upcoming = try #require(model.plan?.workouts.first { $0.date > Self.today })
+        #expect(model.watches(holding: upcoming).isEmpty)
+        try await connect(model)
+        #expect(model.watches(holding: upcoming) == ["Garmin"])
+
+        // A moved workout is a different one on Garmin's calendar until it's sent again.
+        var moved = upcoming
+        moved.date = moved.date.adding(days: 1)
+        #expect(model.watches(holding: moved).isEmpty)
+
+        await model.disconnectGarmin()
+        #expect(model.watches(holding: upcoming).isEmpty)
     }
 
     @Test func unchangedPlansArentSentAgain() async throws {

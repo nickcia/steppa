@@ -800,7 +800,7 @@ private struct BuildingPlanView: View {
         }
         items.append(Item(title: String(localized: "Reading your fitness"), detail: fitnessText(format)))
         items.append(Item(title: String(localized: "Setting your paces"),
-                          detail: String(localized: "Easy about \(DisplayFormat.clock(format.paceSeconds(plan.paces.easy.mid))) · threshold \(format.pace(plan.paces.threshold.mid))")))
+                          detail: String(localized: "Easy about \(DisplayFormat.clock(format.targetPaceSeconds(plan.paces.easy.mid))) · threshold \(format.targetPace(plan.paces.threshold.mid))")))
         items.append(Item(title: String(localized: "Building \(plan.weeks.count) weeks"),
                           detail: String(localized: "From \(format.distance(plan.inputs.currentWeeklyMeters)) up to \(format.distance(plan.weeks.map(\.targetMeters).max() ?? 0)) a week, then a taper")))
         items.append(Item(title: String(localized: "Checking the safety rules"),

@@ -21,6 +21,7 @@ struct TodayView: View {
                     header.revealed(0, revealStep)
                     PlanChangeBanner()
                     WatchSetupNudge()
+                    ShoeReplacementNudge()
                     WeekCard(selected: $selected).revealed(1, revealStep)
                     HeroCard(date: selected).revealed(2, revealStep)
                     if let strength = model.strengthSession(on: selected) {
@@ -585,7 +586,7 @@ private struct HeroCard: View {
                     Label("Synced", systemImage: "checkmark.circle.fill")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.white.opacity(0.8))
-                } else if model.isOnWatch(workout) {
+                } else if !model.watches(holding: workout).isEmpty {
                     Label("On your watch", systemImage: "applewatch.radiowaves.left.and.right")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.white.opacity(0.8))
@@ -803,7 +804,8 @@ struct WorkoutCard: View {
 }
 
 /// "Sync with watch": a fallback for when a workout hasn't reached the watch yet. Puts the coming week on every watch
-/// the athlete uses (Apple Watch directly, Garmin and others through Intervals.icu). Hidden without a watch.
+/// the athlete uses (Apple Watch, Garmin, and others through Intervals.icu). Hidden without a watch. Once the workout is
+/// on a watch it says so instead, with a small Send again for when the watch doesn't show it.
 struct SyncWithWatchButton: View {
     let workout: Workout
     @Environment(AppModel.self) private var model
@@ -812,13 +814,24 @@ struct SyncWithWatchButton: View {
 
     var body: some View {
         if workout.date >= model.today, model.status(of: workout) == nil, !model.syncableWatches.isEmpty {
+            let holding = model.watches(holding: workout)
             VStack(spacing: 6) {
-                Button { sync() } label: {
-                    Label(syncing ? String(localized: "Syncing…") : String(localized: "Sync with watch"),
-                          systemImage: "arrow.triangle.2.circlepath")
+                if !holding.isEmpty {
+                    Label("On your \(holding.formatted(.list(type: .and)))", systemImage: "applewatch.radiowaves.left.and.right")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.accent)
+                        .multilineTextAlignment(.center)
+                    Button(syncing ? String(localized: "Sending…") : String(localized: "Send again")) { sync() }
+                        .font(.subheadline)
+                        .disabled(syncing)
+                } else {
+                    Button { sync() } label: {
+                        Label(syncing ? String(localized: "Syncing…") : String(localized: "Sync with watch"),
+                              systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.secondary)
+                    .disabled(syncing)
                 }
-                .buttonStyle(.secondary)
-                .disabled(syncing)
                 if let note {
                     Label(note.text, systemImage: note.symbol)
                         .font(.caption)
@@ -839,10 +852,6 @@ struct SyncWithWatchButton: View {
         case .failed(let message)?:
             return (message, "exclamationmark.triangle")
         case nil:
-            if model.isOnWatch(workout) { return (String(localized: "On your Apple Watch"), "applewatch.radiowaves.left.and.right") }
-            if model.intervalsLastSync != nil, let watch = model.syncableWatches.first(where: { $0 != String(localized: "Apple Watch") }) {
-                return (String(localized: "Sent to your \(watch)"), "applewatch.radiowaves.left.and.right")
-            }
             return nil
         }
     }

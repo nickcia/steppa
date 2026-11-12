@@ -22,6 +22,7 @@ struct TrainingProgressView: View {
                         }
                         DistanceTrendCard(plan: plan)
                         StatGrid(plan: plan)
+                        TrendsSection()
                         RecentRuns()
                         PredictionCard(plan: plan)
                         ChangeHistory()
@@ -36,6 +37,7 @@ struct TrainingProgressView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: WeeklyDistanceRoute.self) { _ in WeeklyDistanceView() }
             .navigationDestination(for: RunRoute.self) { RunDetailView(runID: $0.runID) }
+            .navigationDestination(for: AllRunsRoute.self) { _ in AllRunsView() }
         }
     }
 }
@@ -153,9 +155,7 @@ struct WeeklyDistanceView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(alignment: .lastTextBaseline) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(model.format.distance(doneToDate))
-                                        .font(.system(size: 44, weight: .semibold))
-                                        .monospacedDigit()
+                                    FigureText(text: model.format.distance(doneToDate), size: 44)
                                         .foregroundStyle(Theme.ink)
                                     Text(String(localized: "run of \(model.format.distance(plannedToDate)) planned so far"))
                                         .font(.subheadline)
@@ -165,7 +165,6 @@ struct WeeklyDistanceView: View {
                                 let share = plannedToDate > 0 ? doneToDate / plannedToDate : 0
                                 Text("\(Int((share * 100).rounded()))%")
                                     .font(.title2.weight(.semibold))
-                                    .monospacedDigit()
                                     .foregroundStyle(Theme.heat(share))
                             }
                             WeekBarsChart(weeks: totals.all)
@@ -285,13 +284,10 @@ private struct DistanceTrendCard: View {
                     Spacer()
                     Text("\(Int((share * 100).rounded()))%")
                         .font(.title3.weight(.medium))
-                        .monospacedDigit()
                         .foregroundStyle(Theme.heat(share))
                 }
                 HStack(alignment: .lastTextBaseline) {
-                    Text(model.format.distance(completed))
-                        .font(.system(size: 56, weight: .semibold))
-                        .monospacedDigit()
+                    FigureText(text: model.format.distance(completed), size: 56)
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
                         .foregroundStyle(Theme.ink)
@@ -373,9 +369,7 @@ struct StatCard: View {
                 Image(systemName: symbol).font(.title3).foregroundStyle(tint).frame(height: 24)
             }
             HStack(alignment: .lastTextBaseline, spacing: 6) {
-                Text(value)
-                    .font(.system(size: 38, weight: .semibold))
-                    .monospacedDigit()
+                FigureText(text: value, size: 38)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                     .foregroundStyle(Theme.ink)
@@ -399,46 +393,30 @@ struct StatCard: View {
     }
 }
 
-/// The latest runs from the athlete's devices; each opens its analysis.
+/// The last few runs as cards with their routes, and a way to see all of them.
 private struct RecentRuns: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let runs = model.healthRuns.sorted { $0.date > $1.date }.prefix(8)
+        let runs = model.healthRuns.sorted { ($0.start ?? $0.date.date()) > ($1.start ?? $1.date.date()) }.prefix(5)
         if !runs.isEmpty {
-            Text("Recent runs")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Theme.ink)
-                .padding(.top, Theme.Spacing.s)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recent runs")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                Spacer()
+                NavigationLink("All runs", value: AllRunsRoute())
+                    .font(.subheadline.weight(.semibold))
+            }
+            .padding(.top, Theme.Spacing.s)
             VStack(spacing: 8) {
+                if model.routeAccessNeeded { RouteAccessPrompt() }
                 ForEach(Array(runs)) { run in
-                    NavigationLink(value: RunRoute(runID: run.id)) { row(run) }
+                    NavigationLink(value: RunRoute(runID: run.id)) { RunCard(run: run) }
                         .buttonStyle(.plain)
                 }
             }
         }
-    }
-
-    private func row(_ run: CompletedRun) -> some View {
-        let analysis = model.analysis(for: run)
-        let workout = model.workout(for: run)
-        return HStack(spacing: 12) {
-            KindIcon(kind: workout?.kind ?? .easy, size: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(workout?.name ?? String(localized: "Run"))
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
-                Text("\(run.date.shortDayMonth) · \(model.format.pace(analysis.secondsPerKm))\(analysis.averageHeartRate.map { " · \(Int($0.rounded())) bpm" } ?? "")")
-                    .font(.caption).foregroundStyle(Theme.secondaryInk)
-                if let garmin = model.garminAttribution(for: run) {
-                    Text(garmin).font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
-                }
-            }
-            Spacer()
-            ValuePill(text: model.format.distance(run.distanceMeters))
-        }
-        .padding(14)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
-        .accessibilityElement(children: .combine)
     }
 }
 

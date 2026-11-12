@@ -246,6 +246,9 @@ struct WorkoutDetailView: View {
                             .contentTransition(.numericText())
                     }
                 }
+                if workout.date >= model.today, model.status(of: workout) == nil {
+                    FuelingCard(workout: workout)
+                }
                 if workout.date == model.today, workout.kind != .race, model.status(of: workout) == nil {
                     Button { Task { await model.startGuidedRun(workout) } } label: {
                         Label("Start on this phone", systemImage: "play.fill")
@@ -280,6 +283,9 @@ struct WorkoutDetailView: View {
         }
         .screenBackground()
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { ShareWorkoutButton(workout: workout) }
+        }
     }
 }
 
@@ -319,7 +325,7 @@ struct TargetDisplayPicker: View {
         switch model.heartRateZones?.source {
         case .imported?: String(localized: "Zones from your watch, through Intervals.icu. Heart rate takes a minute to settle, so go by feel at the start of each step.")
         case .custom?: String(localized: "Zones you set in Settings. Heart rate takes a minute to settle, so go by feel at the start of each step.")
-        case .estimated?: String(localized: "Zones estimated from your maximum heart rate. Import your watch's zones or set your own in Settings.")
+        case .estimated?: String(localized: "Automatic zones, from your runs. Import your watch's zones or set your own in Settings.")
         case nil: String(localized: "Add your age in Apple Health, or set your zones in Settings, to see heart-rate targets.")
         }
     }

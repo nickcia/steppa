@@ -112,7 +112,8 @@ struct IntervalsWorkoutTextTests {
     @Test func pacesAreAbsoluteAndInTheAthletesUnits() {
         let range = PaceRange(fast: 240, slow: 250) // 4:00–4:10 per km
         #expect(IntervalsWorkoutBuilder.pace(range, units: .metric) == "4:10-4:00/km Pace")
-        #expect(IntervalsWorkoutBuilder.pace(range, units: .imperial) == "6:42-6:26/mi Pace")
+        // 6:42–6:26 per mile, to the nearest 5 seconds.
+        #expect(IntervalsWorkoutBuilder.pace(range, units: .imperial) == "6:40-6:25/mi Pace")
     }
 
     @Test func workoutTextFollowsThePlan() throws {

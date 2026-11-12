@@ -115,8 +115,8 @@ enum IntervalsWorkoutBuilder {
     /// An absolute pace range, slow to fast: "5:10-4:50/km Pace".
     static func pace(_ range: PaceRange, units: UnitSystem) -> String {
         let format = DisplayFormat(units: units)
-        let slow = DisplayFormat.clock(format.paceSeconds(range.slow))
-        let fast = DisplayFormat.clock(format.paceSeconds(range.fast))
+        let slow = DisplayFormat.clock(format.targetPaceSeconds(range.slow))
+        let fast = DisplayFormat.clock(format.targetPaceSeconds(range.fast))
         return "\(slow)-\(fast)/\(units == .metric ? "km" : "mi") Pace"
     }
 }

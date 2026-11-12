@@ -53,8 +53,32 @@ struct DisplayFormat {
         "\(Self.clock(paceSeconds(secondsPerKm))) /\(units.distanceUnit)"
     }
 
+    /// Target paces are given to the nearest 5 seconds per km (or mile): easier to read and to run. Paces actually run
+    /// (splits, averages) stay exact.
+    static let targetPaceStep = 5.0
+
+    /// A target pace in seconds per display unit, rounded to the nearest 5 s.
+    func targetPaceSeconds(_ secondsPerKm: Double) -> Double {
+        (paceSeconds(secondsPerKm) / Self.targetPaceStep).rounded() * Self.targetPaceStep
+    }
+
+    /// The same range in s/km, rounded to 5 s in the athlete's units, for watches and anything else that takes s/km.
+    func rounded(_ range: PaceRange) -> PaceRange {
+        let perKm = 1000 / units.metersPerUnit
+        let fast = targetPaceSeconds(range.fast)
+        // A narrow range never collapses to a single pace.
+        let slow = max(targetPaceSeconds(range.slow), fast + Self.targetPaceStep)
+        return PaceRange(fast: fast * perKm, slow: slow * perKm)
+    }
+
+    /// A single target pace: "5:15 /km".
+    func targetPace(_ secondsPerKm: Double) -> String {
+        "\(Self.clock(targetPaceSeconds(secondsPerKm))) /\(units.distanceUnit)"
+    }
+
+    /// A target range: "5:05–5:25 /km".
     func paceRange(_ range: PaceRange) -> String {
-        "\(Self.clock(paceSeconds(range.fast)))–\(Self.clock(paceSeconds(range.slow))) /\(units.distanceUnit)"
+        "\(Self.clock(targetPaceSeconds(range.fast)))–\(Self.clock(targetPaceSeconds(range.slow))) /\(units.distanceUnit)"
     }
 
     /// "4:05", "1:32:05".

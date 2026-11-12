@@ -130,7 +130,6 @@ struct Metric: View {
             Text(value)
                 .font(.title3.weight(.bold))
                 .fontDesign(.rounded)
-                .monospacedDigit()
                 .foregroundStyle(Theme.ink)
             Text(label)
                 .font(.caption)
@@ -173,18 +172,26 @@ extension View {
         background(Theme.background.ignoresSafeArea())
     }
 
-    /// Fades scrolled content out as it reaches the status bar, so nothing runs under the clock and there's no
-    /// hard edge (screens without a nav bar). Apply to the scroll view, before its background.
+    /// Blurs scrolled content as it reaches the status bar: clear further down, more blurred towards the clock, so
+    /// nothing reads under it and there's no hard edge (screens without a nav bar). Apply to the scroll view.
+    @ViewBuilder
     func statusBarBackdrop() -> some View {
-        mask(alignment: .top) {
-            VStack(spacing: 0) {
-                LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
-                                       .init(color: .black.opacity(0.35), location: 0.4),
-                                       .init(color: .black, location: 1)],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(height: 18)
-                // Reaches past the bottom edge, so content under the floating tab bar stays visible.
-                Color.black.padding(.bottom, -400)
+        if #available(iOS 26.0, *) {
+            // The system's own soft edge: a progressive blur, as in Apple's apps.
+            scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            overlay(alignment: .top) {
+                GeometryReader { proxy in
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .frame(height: proxy.safeAreaInsets.top + 20)
+                        .mask(LinearGradient(stops: [.init(color: .black, location: 0),
+                                                     .init(color: .black, location: 0.55),
+                                                     .init(color: .clear, location: 1)],
+                                             startPoint: .top, endPoint: .bottom))
+                        .ignoresSafeArea(edges: .top)
+                }
+                .allowsHitTesting(false)
             }
         }
     }
@@ -330,5 +337,38 @@ extension View {
                     .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
             }
         }
+    }
+}
+
+/// A big figure with its units set smaller, so "90.7 km" or "9 h 32 min" reads as one figure instead of a number,
+/// a wide gap and a word as big as the number. Digits and their punctuation stay at `size`; units and the spaces
+/// around them shrink to `unitScale` of it.
+struct FigureText: View {
+    let text: String
+    var size: CGFloat
+    var weight: Font.Weight = .semibold
+    var unitScale: CGFloat = 0.55
+
+    var body: Text {
+        Self.parts(text).reduce(Text(verbatim: "")) { result, part in
+            result + Text(verbatim: part.text)
+                .font(.system(size: part.isNumber ? size : size * unitScale, weight: weight))
+        }
+    }
+
+    /// Splits "9 h 32 min" into runs of number ("9", "32") and everything else (" h ", " min").
+    static func parts(_ text: String) -> [(text: String, isNumber: Bool)] {
+        var parts: [(text: String, isNumber: Bool)] = []
+        for character in text {
+            // Punctuation inside a figure ("90.7", "2:09:18", "0/3", "24%") stays full size; after a space it's a
+            // unit ("/km") and shrinks.
+            let isNumber = character.isNumber || (".,:%−-/".contains(character) && parts.last?.isNumber == true)
+            if let last = parts.last, last.isNumber == isNumber {
+                parts[parts.count - 1].text.append(character)
+            } else {
+                parts.append((String(character), isNumber))
+            }
+        }
+        return parts
     }
 }

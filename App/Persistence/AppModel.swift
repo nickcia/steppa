@@ -1,4 +1,5 @@
 import CoreData
+import CoreLocation
 import Foundation
 import Observation
 import SwiftData
@@ -11,7 +12,8 @@ final class AppModel {
     /// Held strongly: a `ModelContext` doesn't keep its container alive, and using a context whose
     /// container has been released traps inside SwiftData.
     private let container: ModelContainer
-    private var context: ModelContext { container.mainContext }
+    /// Internal (not private) so the gear extension in Gear.swift can use it.
+    var context: ModelContext { container.mainContext }
     /// Injectable so tests can pin "today".
     private let clock: () -> LocalDate
     private let runSource: RunSource?
@@ -47,9 +49,14 @@ final class AppModel {
     private(set) var garminStatus: GarminStatus?
     private(set) var garminLastSync: Date?
     private(set) var garminSyncing = false
-    /// Why the last Garmin sync didn't work, shown under Settings › Garmin Connect. nil once one works.
+    /// Why the last Garmin sync didn't work, shown under Settings › Connections › Garmin. nil once one works.
     private(set) var garminProblem: String?
     private var garminSyncedKeys: Set<String>?
+    /// Workouts known to be on Garmin Connect, remembered across launches so Today can say a workout is on the watch.
+    private var garminSentKeys = Set(UserDefaults.standard.stringArray(forKey: AppModel.garminSentKey) ?? []) {
+        didSet { UserDefaults.standard.set(Array(garminSentKeys), forKey: Self.garminSentKey) }
+    }
+    static let garminSentKey = "garmin.sentKeys"
     /// Runs recorded on a Garmin, kept on this iPhone.
     private var garminRuns: [GarminRun] = []
 
@@ -68,6 +75,9 @@ final class AppModel {
     private(set) var units: UnitSystem = .localeDefault
     private(set) var disclaimerAccepted = false
     private(set) var races: [RaceRecord] = []
+    /// Shoes, watches and heart-rate monitors, and which shoes each run was done in (set in Gear.swift).
+    var gear: [GearRecord] = []
+    var shoeRuns: [ShoeRunRecord] = []
     private(set) var changes: [PlanChangeRecord] = []
     /// Runs read from Apple Health, and which planned workout each one fulfilled.
     /// Runs from the athlete's devices: Apple Health, plus runs only on Intervals.icu (not in Health).
@@ -102,6 +112,11 @@ final class AppModel {
     private(set) var intervalsSyncing = false
     /// What was last sent, so coming back to the app doesn't re-sync an unchanged plan every time.
     private var intervalsSyncedIDs: Set<String>?
+    /// Workouts known to be on the Intervals.icu calendar, remembered across launches (like `garminSentKeys`).
+    private var intervalsSentIDs = Set(UserDefaults.standard.stringArray(forKey: AppModel.intervalsSentKey) ?? []) {
+        didSet { UserDefaults.standard.set(Array(intervalsSentIDs), forKey: Self.intervalsSentKey) }
+    }
+    static let intervalsSentKey = "intervals.sentIDs"
     /// "Show my plan in Calendar". Kept on this device only, like calendar access itself.
     private(set) var calendarSyncEnabled = false
     private var calendarSyncedKeys: Set<String>?
@@ -202,6 +217,7 @@ final class AppModel {
                 sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))) ?? []
         }
         races = ((try? context.fetch(FetchDescriptor<RaceRecord>())) ?? []).sorted { $0.date < $1.date }
+        loadGear()
         // Merged rather than replaced, so recordings fetched this session survive a reload.
         let stored = Dictionary(((try? context.fetch(FetchDescriptor<RunDetailRecord>())) ?? []).compactMap { record in
             record.series.map { (record.runID, $0) }
@@ -240,7 +256,7 @@ final class AppModel {
         return created
     }
 
-    private func save() {
+    func save() {
         do {
             try context.save()
         } catch {
@@ -666,6 +682,7 @@ final class AppModel {
             return run
         }
         healthRuns = (others + fromGarmin).sorted { $0.date < $1.date }
+        countRunsInShoes()
     }
 
     /// Same day, distance within 5%.
@@ -707,10 +724,32 @@ final class AppModel {
     }
     #endif
 
-    /// Maximum heart rate for zones: the athlete's own setting, else estimated from age and recorded runs.
+    /// Maximum heart rate for zones: the athlete's own setting, else worked out automatically from their runs and age.
     var estimatedMaxHeartRate: Double? {
-        fetchProfile()?.maxHeartRate
-            ?? RunAnalyzer.estimatedMaxHeartRate(age: runSource?.age(), runs: Array(runSeries.values))
+        fetchProfile()?.maxHeartRate ?? automaticMaxHeartRate?.bpm
+    }
+
+    /// An automatic maximum heart rate and what it came from.
+    struct MaxHeartRateBasis: Equatable {
+        var bpm: Double
+        /// The run where the heart rate went highest, when that set the maximum; nil when it came from age.
+        var run: CompletedRun?
+    }
+
+    /// How far back runs count towards maximum heart rate. Older runs drop out, so the maximum follows the athlete
+    /// as they age and as their fitness changes, and the zones follow it.
+    static let maxHeartRateWindowDays = 365
+
+    /// Maximum heart rate from the last year of recorded runs and the athlete's age (the higher of the two; a
+    /// recorded maximum alone counts once it's high enough to be near a real one). Updates with every run.
+    var automaticMaxHeartRate: MaxHeartRateBasis? {
+        let recent = healthRuns.filter { $0.date.days(until: today) <= Self.maxHeartRateWindowDays }
+            .compactMap { run in runSeries[run.id].map { (run, $0) } }
+        guard let bpm = RunAnalyzer.estimatedMaxHeartRate(age: runSource?.age(), runs: recent.map(\.1)) else { return nil }
+        let highest = recent.compactMap { run, series in
+            RunAnalyzer.highestRecordedHeartRate([series]).map { (run, $0) }
+        }.max { $0.1 < $1.1 }
+        return MaxHeartRateBasis(bpm: bpm, run: highest.flatMap { $0.1 >= bpm ? $0.0 : nil })
     }
 
     var maxHeartRateIsSet: Bool { fetchProfile()?.maxHeartRate != nil }
@@ -725,6 +764,40 @@ final class AppModel {
         RunAnalyzer.analyze(runSeries[run.id] ?? RunSeries(), distanceMeters: run.distanceMeters,
                             durationSeconds: run.durationSeconds, splitMeters: units.metersPerUnit,
                             maxHeartRate: estimatedMaxHeartRate, zones: storedHeartRateZones)
+    }
+
+    // MARK: Routes
+
+    /// Routes already read from Health, by run ID (an empty array: the run has none).
+    @ObservationIgnored private var routeCache: [String: [CLLocationCoordinate2D]] = [:]
+
+    /// True when Health is connected but TrackStar hasn't yet asked to read routes (added after the first connection).
+    private(set) var routeAccessNeeded = false
+
+    /// A run's route for its map, read once from Health. nil for runs without one (treadmill, Garmin, Intervals.icu).
+    func route(for run: CompletedRun) async -> [CLLocationCoordinate2D]? {
+        if let cached = routeCache[run.id] { return cached.isEmpty ? nil : cached }
+        guard healthConnected, let runSource, UUID(uuidString: run.id) != nil else { return nil }
+        let route = await runSource.route(forRun: run.id)
+        routeCache[run.id] = route ?? []
+        return route
+    }
+
+    #if DEBUG
+    /// Demo routes (`-demo`), in place of Health's.
+    func debugSetRoute(_ route: [CLLocationCoordinate2D], for runID: String) { routeCache[runID] = route }
+    #endif
+
+    func checkRouteAccess() async {
+        guard healthConnected, let runSource else { routeAccessNeeded = false; return }
+        routeAccessNeeded = await runSource.needsAccessRequest()
+    }
+
+    /// Shows Health's permission sheet for routes (only what hasn't been asked before).
+    func allowRoutes() async {
+        try? await runSource?.requestAccess()
+        routeCache = [:]
+        routeAccessNeeded = false
     }
 
     // MARK: Heart-rate zones and how targets are shown
@@ -828,13 +901,25 @@ final class AppModel {
         }
     }
 
-    var watchSupported: Bool { watch?.isSupported ?? false }
+    /// Whether an Apple Watch is paired with this iPhone (see `WatchPairing`). Remembered so Settings doesn't flicker
+    /// while iOS answers at launch.
+    var appleWatchPaired = UserDefaults.standard.bool(forKey: AppModel.appleWatchPairedKey) {
+        didSet {
+            guard appleWatchPaired != oldValue else { return }
+            UserDefaults.standard.set(appleWatchPaired, forKey: Self.appleWatchPairedKey)
+            if appleWatchPaired { Task { await syncWatch() } }
+        }
+    }
+    static let appleWatchPairedKey = "appleWatch.paired"
+
+    /// Workouts can go to an Apple Watch: one is paired, and this iPhone can schedule them.
+    var watchSupported: Bool { appleWatchPaired && (watch?.isSupported ?? false) }
 
     func isOnWatch(_ workout: Workout) -> Bool {
         watchScheduledIDs.contains(WatchWorkoutBuilder.stableID(for: workout))
     }
 
-    /// Why the last Apple Watch sync didn't work, shown quietly under Settings › Apple Watch (never as an alert, since
+    /// Why the last Apple Watch sync didn't work, shown quietly under Settings › Connections › Apple Watch (never as an alert, since
     /// most syncs happen on their own). nil once one works.
     private(set) var watchProblem: String?
 
@@ -856,6 +941,22 @@ final class AppModel {
     }
 
     // MARK: Sync with watch
+
+    /// The watches this workout is already on: "Apple Watch", "Garmin", or a watch linked through Intervals.icu.
+    func watches(holding workout: Workout) -> [String] {
+        var names: [String] = []
+        if watchSupported, isOnWatch(workout) { names.append(String(localized: "Apple Watch")) }
+        if garminConnected, garminSentKeys.contains(GarminWorkoutBuilder.workout(for: workout, format: format).key) {
+            names.append("Garmin")
+        }
+        if intervalsAccount != nil,
+           intervalsSentIDs.contains(IntervalsWorkoutBuilder.event(for: workout, format: format).external_id) {
+            let links = (intervalsAthlete?.links ?? []).filter(\.uploading).map(\.name)
+            names += links.isEmpty ? [String(localized: "Intervals.icu")] : links
+        }
+        var seen = Set<String>()
+        return names.filter { seen.insert($0).inserted }
+    }
 
     /// Watches the athlete uses: an Apple Watch paired with this iPhone, and those linked through Intervals.icu.
     var syncableWatches: [String] {
@@ -909,7 +1010,7 @@ final class AppModel {
             }
         }
         if reached.isEmpty {
-            return .failed(problem ?? String(localized: "No watch to sync with. Set one up in Settings."))
+            return .failed(problem ?? String(localized: "No watch to sync with. Set one up in Settings › Connections."))
         }
         return .synced(reached)
     }
@@ -921,7 +1022,7 @@ final class AppModel {
 
     /// The next seven days of workouts, kept in step with the plan when auto-sync is on.
     func syncWatch() async {
-        guard watchAutoSync else { return }
+        guard watchAutoSync, watchSupported else { return }
         // With no plan this sends nothing, which also clears this app's workouts off the watch. Runs on its own (when
         // the app opens, after plan changes), so it never asks for permission or shows an alert.
         await sendToWatch(upcomingWeek, ask: false)
@@ -1016,7 +1117,7 @@ final class AppModel {
         }
     }
 
-    /// Why the last Intervals.icu call didn't work, shown under Settings › Other watches. nil once one works.
+    /// Why the last Intervals.icu call didn't work, shown under Settings › Connections › Other watches. nil once one works.
     private(set) var intervalsProblem: String?
 
     /// Keeps imported zones in step with the athlete's watch platform. Zones the athlete typed in are left alone.
@@ -1129,7 +1230,7 @@ final class AppModel {
 
     // MARK: Strava titles
 
-    /// "Week 5: Threshold · 7 km", "Week 2: Monday VO2 session", "Week 16: Race day".
+    /// "Week 5 · Threshold 7 km", "Week 2 · Monday VO2 session", "Week 16 · Race day".
     func stravaTitle(for workout: Workout) -> String {
         let week = plan?.weeks.firstIndex { $0.workouts.contains { $0.id == workout.id } }
             ?? plan?.weeks.firstIndex { $0.startDate == workout.date.startOfWeek }
@@ -1138,15 +1239,25 @@ final class AppModel {
         case .runWalk: WorkoutDescriber(format: format).summary(workout)
         default: format.distance(workout.totalMeters)
         }
-        let name = [workout.name, detail].compactMap { $0 }.joined(separator: " · ")
+        // "Week 5 · Easy run 9.5 km", or a custom workout's own name: "Week 5 · Monday VO2 session".
+        let name = [workout.name, detail].compactMap { $0 }.joined(separator: " ")
         guard let week else { return name }
-        return String(localized: "Week \(week + 1): \(name)")
+        return String(localized: "Week \(week + 1) · \(name)")
+    }
+
+    /// Where the workout sits in the plan: "Week 5 of 14 · Base · Half marathon on Jan 23".
+    func stravaPlanLine(for workout: Workout) -> String? {
+        guard let plan, let index = plan.weeks.firstIndex(where: { $0.workouts.contains { $0.id == workout.id } })
+                ?? plan.weeks.firstIndex(where: { $0.startDate == workout.date.startOfWeek }) else { return nil }
+        let race = String(localized: "\(plan.inputs.goal.name) on \(plan.inputs.raceDate.formatted(.dateTime.month(.abbreviated).day()))")
+        return String(localized: "Week \(index + 1) of \(plan.weeks.count)") + " · " + plan.weeks[index].phase.name + " · " + race
     }
 
     /// The workout's steps with their paces, one per line, for the Strava description.
     func stravaDescription(for workout: Workout) -> String {
         let describer = WorkoutDescriber(format: format)
         var lines: [String] = []
+        if let context = stravaPlanLine(for: workout) { lines += [context, ""] }
         func text(_ line: WorkoutDescriber.Line) -> String {
             line.detail.map { "\(line.title) (\($0))" } ?? line.title
         }
@@ -1185,10 +1296,10 @@ final class AppModel {
         }
     }
 
-    /// Whether the athlete runs with a watch: one linked through Intervals.icu, or runs from another app in Health
-    /// in the last two months.
+    /// Whether the athlete runs with a watch: a paired Apple Watch, Garmin, one linked through Intervals.icu, or runs
+    /// from another app in Health in the last two months.
     private func hasWatch() async -> Bool {
-        if garminConnected { return true }
+        if garminConnected || appleWatchPaired { return true }
         if let links = intervalsAthlete?.links, !links.isEmpty { return true }
         guard let runSource else { return false }
         return !(await runSource.otherRuns(since: .now.addingTimeInterval(-60 * 86_400))).isEmpty
@@ -1338,6 +1449,7 @@ final class AppModel {
         intervalsAthlete = nil
         intervalsLastSync = nil
         intervalsSyncedIDs = nil
+        intervalsSentIDs = []
     }
 
     /// Makes the Intervals.icu calendar match the plan from today on. Skipped when nothing changed since the
@@ -1353,6 +1465,7 @@ final class AppModel {
         do {
             _ = try await intervals.sync(events, from: today, through: intervalsSyncEnd, credentials: account)
             intervalsSyncedIDs = ids
+            intervalsSentIDs = ids
             intervalsLastSync = .now
             intervalsProblem = nil
         } catch {
@@ -1445,6 +1558,7 @@ final class AppModel {
         garminStatus = nil
         garminLastSync = nil
         garminSyncedKeys = nil
+        garminSentKeys = []
         garminProblem = nil
         mergeRuns()
         matchHealthRuns()
@@ -1466,6 +1580,8 @@ final class AppModel {
                 return
             }
             garminSyncedKeys = result.waiting == 0 ? keys : nil
+            // With some waiting for tomorrow, only the ones that were already there are known to be on the calendar.
+            garminSentKeys = result.waiting == 0 ? keys : garminSentKeys.intersection(keys)
             garminLastSync = .now
             garminProblem = result.waiting > 0
                 ? String(localized: "Some changes go to Garmin Connect tomorrow, to stay within Garmin's daily limit.") : nil
@@ -1618,6 +1734,7 @@ final class AppModel {
     func becameActive() async {
         reload()
         await refreshHealth()
+        await checkRouteAccess()
         reviewPlan()
         await syncReminders()
         await syncWatch()

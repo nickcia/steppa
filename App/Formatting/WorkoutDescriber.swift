@@ -96,7 +96,7 @@ struct WorkoutDescriber {
             return (Self.speed(target.range.mid, units: treadmillUnits), "\(target.zone.name) \(treadmillUnits.speedUnit)")
         case .pace: break
         }
-        return (DisplayFormat.clock(format.paceSeconds(target.range.mid)), "\(target.zone.name) /\(format.units.distanceUnit)")
+        return (DisplayFormat.clock(format.targetPaceSeconds(target.range.mid)), "\(target.zone.name) /\(format.units.distanceUnit)")
     }
 
     private func zoneName(_ zones: ClosedRange<Int>) -> String {

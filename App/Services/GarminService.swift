@@ -62,7 +62,7 @@ enum GarminWorkoutBuilder {
         let describer = WorkoutDescriber(format: format)
         let name = "\(workout.name) · \(describer.summary(workout))"
         let description = String(localized: "Planned with TrackStar")
-        let steps = steps(for: workout)
+        let steps = steps(for: workout, format: format)
         let content = (try? JSONEncoder.sortedKeys.encode(steps)).map { String(decoding: $0, as: UTF8.self) } ?? ""
         let digest = SHA256.hash(data: Data("\(workout.date)|\(name)|\(content)".utf8))
         let hash = digest.prefix(6).map { String(format: "%02x", $0) }.joined()
@@ -70,11 +70,12 @@ enum GarminWorkoutBuilder {
                                  name: name, description: description, steps: steps)
     }
 
-    static func steps(for workout: Workout) -> [GarminPlanStep] {
+    /// `format`: rounds paces to the nearest 5 s in the athlete's units, matching what the app shows.
+    static func steps(for workout: Workout, format: DisplayFormat? = nil) -> [GarminPlanStep] {
         let runWalk = workout.isRunWalkSession
         var steps: [GarminPlanStep] = []
         if let warmup = workout.warmup {
-            steps.append(step(warmup, intensity: .warmup, note: runWalk ? String(localized: "Walk") : nil))
+            steps.append(step(warmup, intensity: .warmup, note: runWalk ? String(localized: "Walk") : nil, format: format))
         }
         for block in workout.blocks {
             let inner = block.steps.map { interval -> GarminPlanStep in
@@ -83,7 +84,7 @@ enum GarminWorkoutBuilder {
                         ? step(interval.step, intensity: .active, note: String(localized: "Run"), pace: false)
                         : step(interval.step, intensity: .recovery, note: String(localized: "Walk"), pace: false)
                 }
-                return step(interval.step, intensity: interval.purpose == .work ? .active : .recovery)
+                return step(interval.step, intensity: interval.purpose == .work ? .active : .recovery, format: format)
             }
             if block.iterations > 1 {
                 steps.append(.repeated(times: block.iterations, steps: inner))
@@ -92,17 +93,20 @@ enum GarminWorkoutBuilder {
             }
         }
         if let cooldown = workout.cooldown {
-            steps.append(step(cooldown, intensity: .cooldown, note: runWalk ? String(localized: "Walk") : nil))
+            steps.append(step(cooldown, intensity: .cooldown, note: runWalk ? String(localized: "Walk") : nil, format: format))
         }
         return steps
     }
 
     /// Hill and stride steps are by effort, so they get a name instead of a pace alert.
-    static func step(_ step: Step, intensity: GarminPlanStep.Intensity, note: String? = nil, pace: Bool = true) -> GarminPlanStep {
+    static func step(_ step: Step, intensity: GarminPlanStep.Intensity, note: String? = nil, pace: Bool = true,
+                     format: DisplayFormat? = nil) -> GarminPlanStep {
         switch step.target?.zone {
         case .hill?: return .step(intensity: intensity, goal: step.goal, pace: nil, note: String(localized: "Uphill hard"))
         case .stride?: return .step(intensity: intensity, goal: step.goal, pace: nil, note: String(localized: "Stride"))
-        default: return .step(intensity: intensity, goal: step.goal, pace: pace ? step.target?.range : nil, note: note)
+        default:
+            let range = step.target.map { format?.rounded($0.range) ?? $0.range }
+            return .step(intensity: intensity, goal: step.goal, pace: pace ? range : nil, note: note)
         }
     }
 }
@@ -156,7 +160,7 @@ nonisolated struct GarminRun: Codable, Hashable, Sendable, Identifiable {
 
     var completedRun: CompletedRun? {
         guard let date, let distance, distance >= RunMatcher.minimumRunMeters, let duration, duration > 0 else { return nil }
-        return CompletedRun(id: runID, date: date, distanceMeters: distance, durationSeconds: duration)
+        return CompletedRun(id: runID, date: date, distanceMeters: distance, durationSeconds: duration, start: startDate)
     }
 
     /// "Garmin Forerunner 265", or just "Garmin" when the model isn't known (Garmin's attribution rule).

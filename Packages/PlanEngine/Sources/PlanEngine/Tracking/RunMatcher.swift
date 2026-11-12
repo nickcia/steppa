@@ -7,12 +7,15 @@ public struct CompletedRun: Codable, Hashable, Sendable, Identifiable {
     public var date: LocalDate
     public var distanceMeters: Double
     public var durationSeconds: Double
+    /// When it started, where known. Optional so runs saved before it was kept still load.
+    public var start: Date?
 
-    public init(id: String, date: LocalDate, distanceMeters: Double, durationSeconds: Double) {
+    public init(id: String, date: LocalDate, distanceMeters: Double, durationSeconds: Double, start: Date? = nil) {
         self.id = id
         self.date = date
         self.distanceMeters = distanceMeters
         self.durationSeconds = durationSeconds
+        self.start = start
     }
 
     public var paceSecondsPerKm: Double { durationSeconds / distanceMeters * 1000 }
