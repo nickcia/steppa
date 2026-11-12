@@ -151,6 +151,8 @@ struct OnboardingView: View {
         guard let plan = planOrNil else { return }
         model.setUnits(draft.units)
         model.acceptDisclaimer()
+        // Everything is new to someone just starting, so there's no "What's new" for them.
+        WhatsNew.markSeen()
         model.revealNewPlan = true
         model.start(plan)
         model.setStrength(enabled: draft.strengthEnabled, perWeek: draft.strengthPerWeek)

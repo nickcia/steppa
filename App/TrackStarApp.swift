@@ -52,6 +52,7 @@ struct RootView: View {
     @State private var debugWatchSetup = ProcessInfo.processInfo.arguments.contains("-watchSetup")
     #endif
     @Environment(\.scenePhase) private var scenePhase
+    @State private var showingWhatsNew = false
 
     var body: some View {
         @Bindable var model = model
@@ -64,6 +65,11 @@ struct RootView: View {
                     // A fresh set of tabs for each plan, so a new plan always opens on Today.
                     .id(model.planID)
                     .transition(.opacity)
+                    // After an update, what changed, once. Not over a crash report or a run in progress.
+                    .onAppear {
+                        if WhatsNew.isUnseen, crashes.pending == nil, guidedRun.session == nil { showingWhatsNew = true }
+                    }
+                    .sheet(isPresented: $showingWhatsNew) { WhatsNewView() }
             }
         }
         .animation(.default, value: model.plan == nil)
