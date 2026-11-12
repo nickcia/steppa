@@ -58,6 +58,5 @@ There are no analytics, advertising or other data processors.
 
 ## Before Garmin users can connect
 
-The privacy policy currently says there are no servers. Before shipping Garmin, it needs a section saying what the
-server handles (Garmin sign-in tokens, planned workouts sent to Garmin, and activities held only until the phone
-collects them), that nothing is sold or used for training, and how disconnecting deletes it.
+Done (11 November 2026): PRIVACY.md has a Garmin Connect section covering the server, Cloudflare, no AI, and
+deletion. Starter access was granted and the TrackStar app created in the developer portal.

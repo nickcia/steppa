@@ -9,6 +9,8 @@ struct RunShareCard: View {
     let analysis: RunAnalysis
     let workout: Workout?
     let format: DisplayFormat
+    /// "Garmin Forerunner 265" for a Garmin run: Garmin asks for it on every image of its data.
+    var attribution: String? = nil
 
     /// Points; rendered at 3× for a 1080 × 1350 image (4:5, Instagram's portrait size).
     static let size = CGSize(width: 360, height: 450)
@@ -17,9 +19,16 @@ struct RunShareCard: View {
         let kind = workout?.kind ?? .easy
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text(run.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.secondaryInk)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(run.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.secondaryInk)
+                    if let attribution {
+                        Text(attribution)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                    }
+                }
                 Spacer()
                 KindIcon(kind: kind, size: 30)
             }

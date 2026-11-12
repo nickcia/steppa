@@ -286,7 +286,7 @@ private struct WelcomeStep: View {
                 Feature(symbol: "applewatch", title: String(localized: "Works with your watch"),
                         detail: String(localized: "Runs from Apple Watch, Garmin, Coros and others arrive through Apple Health. No extra accounts. (We don't connect to Strava directly, but most watches that sync to Strava can also sync to Apple Health.)"))
                 Feature(symbol: "lock.shield", title: String(localized: "Private by design"),
-                        detail: String(localized: "No sign-up and no servers. Your data stays on your phone and your own iCloud."))
+                        detail: String(localized: "No sign-up and no accounts. Your plan and runs stay on your phone and your own iCloud."))
             }
             Card {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {

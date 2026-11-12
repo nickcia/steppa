@@ -14,6 +14,12 @@ struct TrainingProgressView: View {
                             .font(.system(size: 40, weight: .semibold))
                             .foregroundStyle(Theme.ink)
                             .padding(.top, Theme.Spacing.s)
+                        if model.includesGarminRuns {
+                            // Garmin asks for this wherever totals or charts are worked out partly from its data.
+                            Text("Includes runs recorded on Garmin devices")
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(Theme.secondaryInk)
+                        }
                         DistanceTrendCard(plan: plan)
                         StatGrid(plan: plan)
                         RecentRuns()
@@ -423,6 +429,9 @@ private struct RecentRuns: View {
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                 Text("\(run.date.shortDayMonth) · \(model.format.pace(analysis.secondsPerKm))\(analysis.averageHeartRate.map { " · \(Int($0.rounded())) bpm" } ?? "")")
                     .font(.caption).foregroundStyle(Theme.secondaryInk)
+                if let garmin = model.garminAttribution(for: run) {
+                    Text(garmin).font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
+                }
             }
             Spacer()
             ValuePill(text: model.format.distance(run.distanceMeters))

@@ -14,7 +14,10 @@
 	<key>StravaClientID</key>
 	<string>$(STRAVA_CLIENT_ID)</string>
 	<key>StravaClientSecret</key>
-	<string>$(STRAVA_CLIENT_SECRET)</string>
+	<string>$(STRAVA_CLIENT_SECRET_NO_SERVER)</string>
+	<!-- TrackStar's server, for Garmin Connect and Strava sign-in (see Config/App.xcconfig). -->
+	<key>TrackStarServer</key>
+	<string>$(TRACKSTAR_SERVER)</string>
 	<key>StravaCallbackDomain</key>
 	<string>$(STRAVA_CALLBACK_DOMAIN)</string>
 	<key>CFBundleURLTypes</key>

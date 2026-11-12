@@ -59,27 +59,34 @@ nonisolated enum StravaError: LocalizedError, Equatable {
 }
 
 /// "Connect Strava": OAuth 2 authorization code flow. Strava has no PKCE, so the token swap needs the app's client
-/// secret; it comes from Config/Local.xcconfig (not committed) and is only ever sent to Strava.
+/// secret. TrackStar's own builds send the token requests through TrackStar's server, which adds the secret, so it
+/// never ships in the app. Builds without a server (forks) can put their own secret in Config/Local.xcconfig.
 nonisolated struct StravaOAuth: Sendable {
     var clientID: String
-    var clientSecret: String
+    /// Only for builds without a server; nil when `relay` is used.
+    var clientSecret: String?
     /// Where Strava sends the athlete back. Its host must be the "Authorization Callback Domain" registered for the
     /// app on strava.com/settings/api.
     var redirectURI: String
+    /// Adds the client secret on TrackStar's server; nil to send it from the app (forks).
+    var relay: TrackStarServer? = nil
     /// Upload activities; read them to spot duplicates and name watch runs after the plan.
     static let scope = "activity:write,activity:read_all"
 
-    /// From Info.plist (STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, STRAVA_CALLBACK_DOMAIN); nil when this build has no
-    /// Strava app, which hides the option.
-    static var configured: StravaOAuth? {
+    /// From Info.plist (STRAVA_CLIENT_ID, STRAVA_CALLBACK_DOMAIN, and STRAVA_CLIENT_SECRET for builds without a
+    /// server); nil when this build has no Strava app, which hides the option.
+    static func configured(server: TrackStarServer?) -> StravaOAuth? {
         func value(_ key: String) -> String? {
             (Bundle.main.object(forInfoDictionaryKey: key) as? String)
                 .map { $0.trimmingCharacters(in: .whitespaces) }
-                .flatMap { $0.isEmpty ? nil : $0 }
+                .flatMap { $0.isEmpty || $0.hasPrefix("$(") ? nil : $0 }
         }
-        guard let id = value("StravaClientID"), let secret = value("StravaClientSecret"),
-              let domain = value("StravaCallbackDomain"), let bundleID = Bundle.main.bundleIdentifier else { return nil }
-        return StravaOAuth(clientID: id, clientSecret: secret, redirectURI: "\(bundleID.lowercased())://\(domain)/strava")
+        guard let id = value("StravaClientID"), let domain = value("StravaCallbackDomain"),
+              let bundleID = Bundle.main.bundleIdentifier else { return nil }
+        let redirect = "\(bundleID.lowercased())://\(domain)/strava"
+        if let server { return StravaOAuth(clientID: id, clientSecret: nil, redirectURI: redirect, relay: server) }
+        guard let secret = value("StravaClientSecret") else { return nil }
+        return StravaOAuth(clientID: id, clientSecret: secret, redirectURI: redirect)
     }
 
     var callbackScheme: String { String(redirectURI.prefix { $0 != ":" }) }
@@ -267,9 +274,13 @@ nonisolated struct StravaClient: Sendable {
 
     /// Ends the connection on Strava's side too.
     func revoke(_ credentials: StravaCredentials, oauth: StravaOAuth) async {
+        if let relay = oauth.relay {
+            await relay.stravaRevoke(token: credentials.refreshToken)
+            return
+        }
         var request = URLRequest(url: baseURL.appending(path: "oauth/revoke"), timeoutInterval: 20)
         request.httpMethod = "POST"
-        let basic = Data("\(oauth.clientID):\(oauth.clientSecret)".utf8).base64EncodedString()
+        let basic = Data("\(oauth.clientID):\(oauth.clientSecret ?? "")".utf8).base64EncodedString()
         request.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = Self.form(["token": credentials.refreshToken])
@@ -371,10 +382,25 @@ nonisolated struct StravaClient: Sendable {
     }
 
     private func token(_ fields: [String: String], oauth: StravaOAuth) async throws -> Data {
+        if let relay = oauth.relay {
+            let data: Data
+            let status: Int
+            do {
+                (data, status) = try await relay.stravaToken(fields)
+            } catch {
+                throw StravaError.offline
+            }
+            switch status {
+            case 200..<300: return data
+            case 429: throw StravaError.server(429)
+            case 400..<500: throw StravaError.signInFailed
+            default: throw StravaError.server(status)
+            }
+        }
         var request = URLRequest(url: baseURL.appending(path: "api/v3/oauth/token"), timeoutInterval: 30)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = Self.form(fields.merging(["client_id": oauth.clientID, "client_secret": oauth.clientSecret]) { a, _ in a })
+        request.httpBody = Self.form(fields.merging(["client_id": oauth.clientID, "client_secret": oauth.clientSecret ?? ""]) { a, _ in a })
         return try await perform(request, failure: .signInFailed)
     }
 

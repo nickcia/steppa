@@ -893,7 +893,7 @@ struct WorkoutStatusButtons: View {
                     Image(systemName: "heart.text.square.fill").foregroundStyle(.pink)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Completed").font(.headline).foregroundStyle(WorkoutKind.easy.color)
-                        Text("\(model.format.distance(run.distanceMeters)) · \(model.format.pace(run.paceSecondsPerKm)) · from Apple Health")
+                        Text("\(model.format.distance(run.distanceMeters)) · \(model.format.pace(run.paceSecondsPerKm)) · from \(model.sourceName(for: run))")
                             .font(.caption).foregroundStyle(Theme.secondaryInk)
                     }
                 }

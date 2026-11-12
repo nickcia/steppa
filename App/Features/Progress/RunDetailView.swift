@@ -32,7 +32,7 @@ struct RunDetailView: View {
         .toolbar {
             if let run = model.healthRuns.first(where: { $0.id == runID }),
                let image = RunShareCard(run: run, analysis: model.analysis(for: run), workout: model.workout(for: run),
-                                        format: model.format).image() {
+                                        format: model.format, attribution: model.garminAttribution(for: run)).image() {
                 ToolbarItem(placement: .primaryAction) {
                     ShareLink(item: RunShareImage(image: image, name: "Run \(run.date)"),
                               preview: SharePreview(model.workout(for: run)?.name ?? String(localized: "Run"),
@@ -57,8 +57,13 @@ struct RunDetailView: View {
                 Text(workout?.name ?? String(localized: "Run"))
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(Theme.ink)
-                if let source = model.dataSource(for: run) {
-                    Text(source == "intervals" ? "Data from Intervals.icu" : "Data from Apple Health")
+                if let garmin = model.garminAttribution(for: run) {
+                    // Garmin asks for "Garmin [device]" right under the title wherever its data is shown.
+                    Text(garmin)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                } else if model.dataSource(for: run) != nil {
+                    Text("Data from \(model.sourceName(for: run))")
                         .font(.caption)
                         .foregroundStyle(Theme.secondaryInk)
                 }
@@ -86,7 +91,8 @@ struct RunDetailView: View {
                 }
             }
 
-            if model.showsCoach {
+            // The coach never sees data from Garmin.
+            if model.showsCoach, !AppModel.isGarmin(run) {
                 Button { askingCoach = true } label: {
                     HStack(spacing: 12) {
                         CoachOrb(size: 34)

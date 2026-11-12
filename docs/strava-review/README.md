@@ -23,7 +23,7 @@ title watch runs. Those two screens are every place Strava appears.
 
 **What does your app do?**
 TrackStar is a free, open-source running coach for iPhone. It builds a training plan for a race (5K to marathon)
-and adapts it to the runs the athlete actually does. It has no servers or accounts: everything runs on the phone.
+and adapts it to the runs the athlete actually does. It has no accounts: everything runs on the phone, apart from a small server that completes Strava and Garmin sign-ins so the client secret stays out of the app.
 
 **How does it use the Strava API?**
 - Uploads runs the athlete records on their iPhone with TrackStar's guided runs (GPX via the uploads endpoint, or a

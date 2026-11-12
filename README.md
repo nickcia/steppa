@@ -3,7 +3,7 @@
 **A free, open-source running coach for iPhone.** Personal training plans for 5K to marathon that adapt
 to the running you actually do, with structured workouts sent straight to Apple Watch.
 
-No accounts. No servers. No ads. No tracking. Your data stays on your phone and in your own iCloud.
+No accounts. No ads. No tracking. Your data stays on your phone and in your own iCloud.
 
 
 <p>
@@ -53,22 +53,21 @@ No accounts. No servers. No ads. No tracking. Your data stays on your phone and 
   recording from Garmin and other watches.
 - **Calendar, races and progress.** Move workouts within a week, track other races and results, see
   completion, weekly distance and a predicted race time.
-- **Works with your watch.** Apple Watch, Garmin, Coros and anything else that saves runs to Apple Health.
+- **Works with your watch.** Apple Watch, Garmin (connected directly: workouts to the watch, runs back), COROS
+  and others through Intervals.icu, and anything else that saves runs to Apple Health.
 - **Your data is yours.** Export everything as JSON at any time, and import it again.
 
-### Why Intervals.icu for Garmin?
+### Garmin, and the one small server
 
-Garmin only lets approved business partners send workouts to Garmin Connect, and its developer program
-was closed to new applications for most of 2026. The Garmin Connect iPhone app has no way for other apps
-to add workouts either. Intervals.icu is an approved Garmin partner (and COROS, Suunto and Wahoo), and
-its sign-in works straight from the iPhone, so the app can use it without a server of its own. If Garmin
-approves the app directly, a one-step "Connect Garmin" will replace it.
+TrackStar is part of the Garmin Connect Developer Program, so Garmin watches connect with one sign-in: the next
+two weeks of workouts go to the Garmin Connect calendar, and finished runs come back to the app. Garmin only
+allows this through a server, so TrackStar has a small one on Cloudflare. It has no accounts; it keeps a Garmin
+sign-in and holds new runs only until the phone collects them. It also adds Strava's client secret to Strava
+sign-ins, so the secret isn't inside the app. The server's code is private because it's built from Garmin's
+confidential documentation. Everything else still runs on the phone.
 
-### Why not Strava?
-
-Strava's API now charges developers, and new apps need Strava's approval before more than a handful of
-athletes can connect. Most watches that sync to Strava can also sync to Apple Health, so the app reads
-from Health instead. That keeps the app free and server-free.
+COROS, Suunto and Wahoo connect through Intervals.icu, an approved partner of each whose sign-in works
+straight from the iPhone.
 
 ## How plans are built
 
@@ -92,10 +91,12 @@ where TrackStar falls short, and includes a review kit for a qualified coach.
 
 ## Privacy
 
-- **No servers, no accounts, no analytics or tracking SDKs.** The app doesn't send data anywhere unless you
-  connect Intervals.icu, in which case your upcoming workouts (and nothing else) go to your own Intervals.icu
-  calendar, or Strava, in which case runs you record on the iPhone are uploaded to your own Strava account, and
-  recent Strava runs are read on the phone to avoid duplicates and give watch runs the plan's name. Sign-ins are stored in the iPhone's Keychain.
+- **No accounts, no analytics or tracking SDKs.** The app doesn't send data anywhere unless you connect a
+  service: Garmin Connect (workouts to your Garmin calendar and runs back, through TrackStar's server, which
+  keeps runs only until your phone collects them), Intervals.icu (your upcoming workouts go to your own
+  calendar), or Strava (runs you record on the iPhone are uploaded to your own account, and recent Strava runs
+  are read on the phone to avoid duplicates and give watch runs the plan's name). Sign-ins are stored in the
+  iPhone's Keychain. Garmin runs are never given to the coach.
 - **Apple Health: read, plus your own runs.** The app reads running workouts and distance. The only thing it writes is a run you record on your iPhone with a guided run, saved as a running workout with its route.
 - **iCloud sync** (when enabled) uses your private iCloud database, which only you can read.
 - **Crash reports** stay on the phone: after a crash the app offers to email the report, and only sends it if
@@ -141,7 +142,8 @@ Identity and capabilities live in [`Config/App.xcconfig`](Config/App.xcconfig):
 | `BUNDLE_ID_PREFIX` | Your reverse-domain prefix. The bundle ID becomes `<prefix>.runcoach`. |
 | `DEVELOPMENT_TEAM` | Your Apple Developer team ID. Needed to run on a device; a free Apple ID works. Put it in `Config/Local.xcconfig` (copy `Config/Local.xcconfig.example`), which isn't committed. |
 | `INTERVALS_CLIENT_ID` | The client ID of your Intervals.icu OAuth app, for "Sign in with Intervals.icu". Register at intervals.icu/oauth/apply, mark it as a public client, and add the redirect URI `<bundle ID in lower case>://intervals-oauth`. Leave blank to connect with a personal API key instead. |
-| `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_CALLBACK_DOMAIN` | Your Strava API app (strava.com/settings/api), for uploading phone runs. Set its Authorization Callback Domain to `STRAVA_CALLBACK_DOMAIN`. Put the secret in `Config/Local.xcconfig`; Strava has no PKCE, so the secret ships inside the app. Leave any blank to hide Strava. |
+| `TRACKSTAR_SERVER` | TrackStar's server, for Garmin Connect and Strava sign-in. Forks should set it blank in `Config/Local.xcconfig`: Garmin is then hidden. |
+| `STRAVA_CLIENT_ID`, `STRAVA_CALLBACK_DOMAIN`, `STRAVA_CLIENT_SECRET_NO_SERVER` | Your Strava API app (strava.com/settings/api), for uploading phone runs. Set its Authorization Callback Domain to `STRAVA_CALLBACK_DOMAIN`. With a server, the secret lives only there. Without one, put it in `Config/Local.xcconfig` as `STRAVA_CLIENT_SECRET_NO_SERVER`; Strava has no PKCE, so it then ships inside the app. Leave the ID blank to hide Strava. |
 | `ENABLE_ICLOUD` | Set to `YES` to sync through iCloud. Needs a team ID and the iCloud container `iCloud.<prefix>.runcoach` registered in your developer account. |
 
 ### Project layout

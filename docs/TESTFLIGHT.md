@@ -56,7 +56,7 @@ App Store Connect › Apps › **+** › New App:
 > TrackStar is a free running coach that builds a training plan for your race, from a first 5K to a marathon, and
 > adapts it to the runs you actually do. It reads your runs from Apple Health, sends structured workouts to Apple
 > Watch or (through Intervals.icu) to Garmin, COROS, Suunto and Wahoo, and can guide you through a run on your phone
-> with spoken cues and a lock-screen display. Everything stays on your device: there are no accounts and no servers.
+> with spoken cues and a lock-screen display. Everything stays on your device: there are no accounts.
 
 **Feedback email:** your email address.
 

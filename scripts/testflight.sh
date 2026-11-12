@@ -55,8 +55,8 @@ if [[ -z $team ]]; then
     echo "Set DEVELOPMENT_TEAM in Config/Local.xcconfig first." >&2
     exit 1
 fi
-if ! grep -qE '^STRAVA_CLIENT_SECRET *= *[A-Za-z0-9]{10,}' Config/Local.xcconfig; then
-    echo "Note: no STRAVA_CLIENT_SECRET in Config/Local.xcconfig, so this build won't offer Strava."
+if grep -qE '^STRAVA_CLIENT_SECRET(_NO_SERVER)? *= *[A-Za-z0-9]{10,}' Config/Local.xcconfig; then
+    echo "Note: Config/Local.xcconfig has a Strava client secret. The server adds it now, so delete that line." >&2
 fi
 if [[ -n $(git status --porcelain) ]]; then
     echo "Note: there are uncommitted changes; they'll be in this build."

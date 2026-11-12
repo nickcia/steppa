@@ -37,6 +37,22 @@ final class AppModel {
     /// Runs that couldn't be sent yet (offline when they finished).
     private(set) var stravaQueuedCount = 0
 
+    /// TrackStar's server, for Garmin Connect; nil in builds without one (Garmin is hidden).
+    private let server: TrackStarServer?
+    private let garminStore: GarminRunStore
+    /// Garmin Connect is linked for this iPhone. Remembered on this device, so Settings knows without asking.
+    private(set) var garminConnected = false
+    private static let garminConnectedKey = "garmin.connected"
+    /// What the server last said about the connection (permissions, whether it needs reconnecting).
+    private(set) var garminStatus: GarminStatus?
+    private(set) var garminLastSync: Date?
+    private(set) var garminSyncing = false
+    /// Why the last Garmin sync didn't work, shown under Settings › Garmin Connect. nil once one works.
+    private(set) var garminProblem: String?
+    private var garminSyncedKeys: Set<String>?
+    /// Runs recorded on a Garmin, kept on this iPhone.
+    private var garminRuns: [GarminRun] = []
+
     /// The plan as shown: the stored plan with the athlete's own workouts in it.
     private(set) var plan: TrainingPlan?
     /// The plan as the engine keeps it, without custom workouts. Adaptation and edits work on this one.
@@ -99,7 +115,8 @@ final class AppModel {
          intervals: IntervalsClient? = nil, intervalsOAuth: IntervalsOAuth? = nil,
          intervalsKeychain: IntervalsKeychain = IntervalsKeychain(),
          strava: StravaClient? = nil, stravaOAuth: StravaOAuth? = nil,
-         stravaKeychain: StravaKeychain = StravaKeychain(), stravaQueue: StravaQueue = StravaQueue()) {
+         stravaKeychain: StravaKeychain = StravaKeychain(), stravaQueue: StravaQueue = StravaQueue(),
+         server: TrackStarServer? = nil, garminStore: GarminRunStore = GarminRunStore()) {
         self.container = container
         self.clock = clock
         self.runSource = runSource
@@ -120,7 +137,17 @@ final class AppModel {
             stravaAutoUpload = UserDefaults.standard.object(forKey: Self.stravaAutoUploadKey) as? Bool ?? true
             stravaQueuedCount = stravaQueue.pending.count
         }
+        self.server = server
+        self.garminStore = garminStore
+        if server != nil, UserDefaults.standard.bool(forKey: Self.garminConnectedKey) {
+            garminConnected = true
+            garminRuns = garminStore.load()
+        }
         reload()
+        if !garminRuns.isEmpty {
+            mergeRuns()
+            matchHealthRuns()
+        }
         if Persistence.syncsWithICloud {
             // Another device changed something: re-read so the UI shows it.
             remoteChanges = Task { [weak self] in
@@ -611,14 +638,16 @@ final class AppModel {
            let activities = try? await intervals.activities(from: since, through: today, credentials: account) {
             intervalsActivities = activities.filter(\.isRun)
         }
+        await collectGarminRuns()
         mergeRuns()
         matchHealthRuns()
         reviewPlan()
         await fetchRunDetails()
     }
 
-    /// Health runs plus Intervals.icu runs that aren't in Health. The same run in both (same day, distance within
-    /// 5%) counts once, using Health's record and Intervals.icu's data.
+    /// Health runs, plus Intervals.icu and Garmin runs that aren't in Health. The same run in both (same day, distance
+    /// within 5%) counts once, using Health's record and Intervals.icu's data. A Garmin run that's also in Health or on
+    /// Intervals.icu is left out, so each run counts once.
     private func mergeRuns() {
         var unmatched = intervalsActivities
         intervalsActivityForRun = [:]
@@ -630,13 +659,25 @@ final class AppModel {
                 unmatched.remove(at: index)
             }
         }
-        healthRuns = (runsFromHealth + unmatched.compactMap(\.completedRun)).sorted { $0.date < $1.date }
+        let others = runsFromHealth + unmatched.compactMap(\.completedRun)
+        let fromGarmin = garminRuns.compactMap { garmin -> CompletedRun? in
+            guard let run = garmin.completedRun, !others.contains(where: { Self.sameRun($0, run) }) else { return nil }
+            if runSeries[run.id] == nil, let series = garmin.series { runSeries[run.id] = series }
+            return run
+        }
+        healthRuns = (others + fromGarmin).sorted { $0.date < $1.date }
+    }
+
+    /// Same day, distance within 5%.
+    nonisolated static func sameRun(_ a: CompletedRun, _ b: CompletedRun) -> Bool {
+        a.date == b.date && abs(a.distanceMeters - b.distanceMeters) <= max(a.distanceMeters, b.distanceMeters) * 0.05
     }
 
     /// Recorded data for the last 8 weeks of runs, at most 12 new runs per refresh. Intervals.icu is preferred when
     /// it has the run (it keeps everything the watch recorded); Apple Health otherwise.
     private func fetchRunDetails() async {
-        let missing = healthRuns.filter { runSeries[$0.id] == nil && $0.date.days(until: today) <= 56 }.suffix(12)
+        // Garmin runs bring their own data (kept with the run, not here).
+        let missing = healthRuns.filter { runSeries[$0.id] == nil && !Self.isGarmin($0) && $0.date.days(until: today) <= 56 }.suffix(12)
         for run in missing {
             var series: RunSeries?
             var source = "health"
@@ -723,10 +764,33 @@ final class AppModel {
 
     /// Where a run's data came from, for the run screen.
     func dataSource(for run: CompletedRun) -> String? {
+        if Self.isGarmin(run) { return "garmin" }
         guard runSeries[run.id] != nil else { return nil }
         let record = try? context.fetch(FetchDescriptor<RunDetailRecord>(predicate: #Predicate { $0.runID == run.id })).first
         return record?.source
     }
+
+    nonisolated static func isGarmin(_ run: CompletedRun) -> Bool { run.id.hasPrefix("garmin-") }
+
+    /// "Garmin Forerunner 265" for a run recorded on a Garmin (Garmin asks for this wherever its data is shown); nil
+    /// for other runs.
+    func garminAttribution(for run: CompletedRun) -> String? {
+        guard Self.isGarmin(run) else { return nil }
+        return garminRuns.first { $0.runID == run.id }?.attribution ?? "Garmin"
+    }
+
+    /// Who recorded a run, in a few words: "Garmin Forerunner 265", "Intervals.icu" or "Apple Health".
+    func sourceName(for run: CompletedRun) -> String {
+        if let garmin = garminAttribution(for: run) { return garmin }
+        if run.id.hasPrefix("icu-") || dataSource(for: run) == "intervals" { return "Intervals.icu" }
+        return String(localized: "Apple Health")
+    }
+
+    /// Runs the coach may see: everything except runs from Garmin, whose data isn't given to AI.
+    var coachRuns: [CompletedRun] { healthRuns.filter { !Self.isGarmin($0) } }
+
+    /// Some of the runs shown came from a Garmin (totals and charts then say so).
+    var includesGarminRuns: Bool { healthRuns.contains(where: Self.isGarmin) }
 
     // MARK: Reminders and Apple Watch
 
@@ -797,6 +861,7 @@ final class AppModel {
     var syncableWatches: [String] {
         var names: [String] = []
         if watchSupported { names.append(String(localized: "Apple Watch")) }
+        if garminConnected { names.append("Garmin") }
         if intervalsAccount != nil { names += (intervalsAthlete?.links ?? []).filter(\.uploading).map(\.name) }
         return names
     }
@@ -821,6 +886,15 @@ final class AppModel {
                 reached.append(String(localized: "Apple Watch"))
             } else {
                 problem = watchProblem
+            }
+        }
+        if garminConnected {
+            let before = garminLastSync
+            await syncGarmin(force: true)
+            if garminLastSync != before, garminLastSync != nil, garminProblem == nil {
+                reached.append("Garmin Connect")
+            } else if problem == nil {
+                problem = garminProblem
             }
         }
         if intervalsAccount != nil {
@@ -1114,6 +1188,7 @@ final class AppModel {
     /// Whether the athlete runs with a watch: one linked through Intervals.icu, or runs from another app in Health
     /// in the last two months.
     private func hasWatch() async -> Bool {
+        if garminConnected { return true }
         if let links = intervalsAthlete?.links, !links.isEmpty { return true }
         guard let runSource else { return false }
         return !(await runSource.otherRuns(since: .now.addingTimeInterval(-60 * 86_400))).isEmpty
@@ -1145,8 +1220,9 @@ final class AppModel {
             .contains(where: { $0.overlapsMeaningfully(run) }) {
             return true
         }
-        if intervalsAccount != nil { await refreshHealth() }
+        if intervalsAccount != nil || garminConnected { await refreshHealth() }
         return intervalsActivities.contains { $0.interval?.overlapsMeaningfully(run) == true }
+            || garminRuns.contains { $0.interval?.overlapsMeaningfully(run) == true }
     }
 
     /// Checks every couple of minutes while the app is open, until no run is waiting for a watch's copy.
@@ -1290,6 +1366,131 @@ final class AppModel {
         max(plan?.workouts.last?.date ?? today, today.adding(days: 400))
     }
 
+
+    // MARK: Garmin Connect
+
+    var garminAvailable: Bool { server != nil }
+
+    /// The Garmin page for "Connect with Garmin Connect". The athlete signs in there; Garmin then sends them back to
+    /// the app through the server.
+    func garminSignInURL() async throws -> URL {
+        guard let server else { throw ServerError.server(0) }
+        return try await server.garminSignInURL()
+    }
+
+    /// The URL scheme the server sends the athlete back to after Garmin's sign-in.
+    var garminCallbackScheme: String { (Bundle.main.bundleIdentifier ?? "io.github.nickcia.runcoach").lowercased() }
+
+    /// Finishes "Connect with Garmin Connect" with the address the server sent the athlete back to
+    /// (`<scheme>://garmin?garmin=connected`).
+    func finishGarminSignIn(callback: URL) async throws {
+        let outcome = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems?
+            .first { $0.name == "garmin" }?.value
+        switch outcome {
+        case "connected": break
+        case "declined": throw GarminConnectError.declined
+        case "expired": throw GarminConnectError.expired
+        default: throw GarminConnectError.failed
+        }
+        garminConnected = true
+        UserDefaults.standard.set(true, forKey: Self.garminConnectedKey)
+        garminSyncedKeys = nil
+        garminProblem = nil
+        await refreshGarminStatus()
+        await syncGarmin(force: true)
+        await refreshHealth()
+    }
+
+    /// Asks the server how the connection stands. If the athlete removed TrackStar in Garmin Connect, this iPhone
+    /// forgets the connection and its Garmin runs too.
+    func refreshGarminStatus() async {
+        guard let server, garminConnected else { return }
+        do {
+            let status = try await server.garminStatus()
+            if !status.connected {
+                forgetGarmin()
+                return
+            }
+            garminStatus = status
+            if status.needsReconnect == true {
+                garminProblem = String(localized: "Garmin Connect stopped accepting TrackStar's connection. Disconnect and connect again.")
+            } else if status.sendsWorkouts == false {
+                garminProblem = String(localized: "Workouts can't be sent: allow TrackStar to import workouts in Garmin Connect (Settings › Connected Apps › TrackStar).")
+            }
+        } catch {
+            // Offline: keep what's known and try again next time.
+        }
+    }
+
+    /// Takes TrackStar's workouts off the Garmin calendar, ends the connection and deletes this iPhone's Garmin runs.
+    func disconnectGarmin() async {
+        guard let server else { return }
+        do {
+            try await server.disconnectGarmin()
+        } catch ServerError.notConnected {
+            // Already gone on the server.
+        } catch {
+            lastError = error.localizedDescription
+            return
+        }
+        forgetGarmin()
+    }
+
+    private func forgetGarmin() {
+        garminConnected = false
+        UserDefaults.standard.removeObject(forKey: Self.garminConnectedKey)
+        garminStore.clear()
+        for run in garminRuns { runSeries[run.runID] = nil }
+        garminRuns = []
+        garminStatus = nil
+        garminLastSync = nil
+        garminSyncedKeys = nil
+        garminProblem = nil
+        mergeRuns()
+        matchHealthRuns()
+    }
+
+    /// Makes the Garmin Connect calendar match the next two weeks of the plan. Skipped when nothing changed since the
+    /// last sync, unless `force`.
+    func syncGarmin(force: Bool = false) async {
+        guard let server, garminConnected, !garminSyncing else { return }
+        let workouts = GarminWorkoutBuilder.workouts(plan?.workouts ?? [], from: today, format: format)
+        let keys = Set(workouts.map(\.key))
+        if !force, keys == garminSyncedKeys { return }
+        garminSyncing = true
+        defer { garminSyncing = false }
+        do {
+            let result = try await server.syncGarminWorkouts(workouts)
+            if result.error == "permission" {
+                garminProblem = String(localized: "Workouts can't be sent: allow TrackStar to import workouts in Garmin Connect (Settings › Connected Apps › TrackStar).")
+                return
+            }
+            garminSyncedKeys = result.waiting == 0 ? keys : nil
+            garminLastSync = .now
+            garminProblem = result.waiting > 0
+                ? String(localized: "Some changes go to Garmin Connect tomorrow, to stay within Garmin's daily limit.") : nil
+        } catch ServerError.notConnected {
+            await refreshGarminStatus()
+            if garminConnected, garminProblem == nil {
+                garminProblem = String(localized: "Garmin Connect stopped accepting TrackStar's connection. Disconnect and connect again.")
+            }
+        } catch {
+            // Automatic syncs fail quietly; it tries again next time.
+            garminProblem = error.localizedDescription
+        }
+    }
+
+    /// Collects runs Garmin sent since last time, keeps them on this iPhone, then lets the server delete its copies.
+    private func collectGarminRuns() async {
+        guard let server, garminConnected else { return }
+        for _ in 0..<10 {
+            guard let items = try? await server.garminRuns(), !items.isEmpty else { return }
+            garminRuns = garminStore.add(items.map(\.run))
+            try? await server.acknowledgeGarminRuns(items.map(\.id))
+            if items.count < 20 { return }
+        }
+    }
+
     // MARK: Strength
 
     /// Strength sessions for the current plan (empty when turned off).
@@ -1408,6 +1609,7 @@ final class AppModel {
             await syncReminders()
             await syncWatch()
             await syncIntervals()
+            await syncGarmin()
             await syncCalendar()
         }
     }
@@ -1424,6 +1626,10 @@ final class AppModel {
             await refreshIntervalsLinks()
             await syncIntervals()
         }
+        if garminConnected {
+            await refreshGarminStatus()
+            await syncGarmin()
+        }
         await syncCalendar()
         await sendQueuedStravaUploads()
         if stravaQueue.pending.contains(where: { $0.checkWatchUntil != nil }) { watchForWatchCopies() }
@@ -1438,6 +1644,7 @@ final class AppModel {
         // Paces on Intervals.icu and in calendar notes are written per km or per mile.
         Task {
             await syncIntervals()
+            await syncGarmin()
             await syncCalendar()
         }
     }

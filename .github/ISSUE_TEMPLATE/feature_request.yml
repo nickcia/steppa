@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        The app stays free, private and server-free, so ideas needing accounts, servers or tracking
+        The app stays free and private, so ideas needing accounts or tracking
         can't be accepted (see CONTRIBUTING.md).
   - type: textarea
     id: problem

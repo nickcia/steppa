@@ -128,7 +128,7 @@ extension CoachSnapshot {
         }
 
         // Runs from the athlete's devices.
-        let runs = model.healthRuns.filter { $0.date.days(until: today) <= 56 }.sorted { $0.date > $1.date }
+        let runs = model.coachRuns.filter { $0.date.days(until: today) <= 56 }.sorted { $0.date > $1.date }
         var details: [String: String] = [:]
         let recentLines = runs.prefix(10).map { run -> String in
             let analysis = model.analysis(for: run)
@@ -223,7 +223,7 @@ extension CoachSnapshot {
 
         // Earlier runs of the same kind (or, for an unplanned run, of a similar distance), up to 8 weeks back.
         let kind = model.workout(for: run)?.kind
-        let earlier = model.healthRuns
+        let earlier = model.coachRuns
             .filter { $0.id != run.id && $0.date < run.date && $0.date.days(until: run.date) <= 56 }
             .filter { other in
                 if let kind { return model.workout(for: other)?.kind == kind }
@@ -246,12 +246,12 @@ extension CoachSnapshot {
         // Volume over the last four weeks, and the plan around the run.
         if let plan = model.plan, let week = model.week(containing: run.date) {
             let weekStart = week.startDate
-            let done = model.healthRuns.filter { $0.date >= weekStart && $0.date < weekStart.adding(days: 7) }
+            let done = model.coachRuns.filter { $0.date >= weekStart && $0.date < weekStart.adding(days: 7) }
                 .reduce(0) { $0 + $1.distanceMeters }
             var context = "Plan: \(plan.inputs.goal.name) on \(plan.inputs.raceDate.formatted(.dateTime.day().month(.wide))). This run was in week \(week.index + 1) of \(plan.weeks.count), \(week.phase.name) phase\(week.isStepBack ? " (step-back week)" : ""). That week: \(format.distance(done)) run of \(format.distance(week.plannedMeters)) planned."
             let totals = (1...4).map { back -> Double in
                 let start = weekStart.adding(days: -7 * back)
-                return model.healthRuns.filter { $0.date >= start && $0.date < start.adding(days: 7) }.reduce(0) { $0 + $1.distanceMeters }
+                return model.coachRuns.filter { $0.date >= start && $0.date < start.adding(days: 7) }.reduce(0) { $0 + $1.distanceMeters }
             }
             if totals.contains(where: { $0 > 0 }) {
                 context += " The 4 weeks before (oldest first): " + totals.reversed().map { format.distance($0) }.joined(separator: ", ") + "."

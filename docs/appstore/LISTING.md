@@ -72,7 +72,7 @@ the app changes, launch with `-demo` plus:
 >   Intelligence on your device.
 >
 > PRIVATE BY DESIGN
-> • No account, no sign-up, no servers, no ads, no analytics.
+> • No account, no sign-up, no ads, no analytics.
 > • Your plan and runs stay on your iPhone.
 > • Open source: see how every plan is built at github.com/nickcia/trackstar.
 >

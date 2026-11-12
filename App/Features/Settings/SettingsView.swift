@@ -138,6 +138,10 @@ struct SettingsView: View {
                     }
                 }
 
+                if model.garminAvailable {
+                    GarminSection()
+                }
+
                 if model.intervalsAvailable {
                     IntervalsSection()
                 }
@@ -205,7 +209,7 @@ struct SettingsView: View {
                         Label("Help and how-to", systemImage: "questionmark.circle")
                     }
                     LabeledContent("Version", value: Bundle.main.versionString)
-                    Text("Free and open source under the MIT licence. No accounts, no servers, no tracking.")
+                    Text("Free and open source under the MIT licence. No accounts, no ads, no tracking.")
                         .font(.footnote)
                         .foregroundStyle(Theme.secondaryInk)
                     NavigationLink("How plans are built") { PlanRulesSummary() }
@@ -414,6 +418,97 @@ private struct MaxHeartRateRow: View {
     }
 }
 
+/// Garmin Connect™: one sign-in, then workouts go to the watch and runs come back.
+private struct GarminSection: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+    @State private var connecting = false
+    @State private var confirmDisconnect = false
+    @State private var error: String?
+
+    var body: some View {
+        Section {
+            if model.garminConnected {
+                LabeledContent("Garmin Connect™", value: String(localized: "Connected"))
+                Button {
+                    Task { await model.syncGarmin(force: true) }
+                } label: {
+                    HStack {
+                        Text("Sync now")
+                        Spacer()
+                        if model.garminSyncing {
+                            ProgressView()
+                        } else if let last = model.garminLastSync {
+                            Text(last, format: .relative(presentation: .named))
+                                .foregroundStyle(Theme.secondaryInk)
+                        }
+                    }
+                }
+                .disabled(model.garminSyncing)
+                if let problem = model.garminProblem {
+                    Label(problem, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryInk)
+                }
+                Button("Disconnect", role: .destructive) { confirmDisconnect = true }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your Garmin watch").font(.headline).foregroundStyle(Theme.ink)
+                        Text("Workouts appear on your watch with every step and pace, and runs you finish come back to tick off your plan. Sign in once; there's nothing else to set up.")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Button { connect() } label: {
+                        HStack(spacing: 8) {
+                            if connecting { ProgressView().tint(.white) }
+                            Text("Connect with Garmin Connect™")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.primary)
+                    .disabled(connecting)
+                }
+                .padding(.vertical, 8)
+            }
+        } header: {
+            Text("Garmin")
+        } footer: {
+            Text(model.garminConnected
+                 ? "The next two weeks of workouts are on your Garmin Connect™ calendar and follow your plan as it changes. Runs from your Garmin show here, marked with your device. They're never shown to the coach."
+                 : "You'll sign in on Garmin's own page. TrackStar never sees your Garmin password.")
+        }
+        .confirmationDialog("Disconnect Garmin Connect™?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
+            Button("Disconnect", role: .destructive) { Task { await model.disconnectGarmin() } }
+        } message: {
+            Text("TrackStar's upcoming workouts are removed from your Garmin Connect™ calendar, and your Garmin runs are deleted from this iPhone and from TrackStar's server.")
+        }
+        .alert("Couldn't connect to Garmin", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(error ?? "")
+        }
+    }
+
+    private func connect() {
+        connecting = true
+        Task {
+            defer { connecting = false }
+            do {
+                let url = try await model.garminSignInURL()
+                let callback = try await webAuthenticationSession.authenticate(
+                    using: url, callbackURLScheme: model.garminCallbackScheme, preferredBrowserSession: .shared)
+                try await model.finishGarminSignIn(callback: callback)
+            } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
+                // Closed the sheet.
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+}
+
 /// Garmin, COROS and other watches, through the athlete's own (free) Intervals.icu account.
 private struct IntervalsSection: View {
     @Environment(AppModel.self) private var model
@@ -456,7 +551,8 @@ private struct IntervalsSection: View {
                     if model.intervalsOAuth != nil { signIn() } else { enteringKey = true }
                 } label: {
                     HStack {
-                        Label("Connect Garmin, COROS and others", systemImage: "applewatch.radiowaves.left.and.right")
+                        Label(model.garminAvailable ? "Connect COROS, Suunto or Wahoo" : "Connect Garmin, COROS and others",
+                              systemImage: "applewatch.radiowaves.left.and.right")
                         if signingIn { Spacer(); ProgressView() }
                     }
                 }

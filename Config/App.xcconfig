@@ -34,12 +34,17 @@ INFOPLIST_FILE = $(INFOPLIST_ICLOUD_$(ENABLE_ICLOUD))
 // set their own (or a blank one) in Local.xcconfig, since Intervals.icu only returns to the registered redirect.
 INTERVALS_CLIENT_ID = 1716
 
+// TrackStar's server (Cloudflare Workers; its code is private, as Garmin's documentation is confidential). Garmin
+// Connect needs it, and it adds the Strava client secret to Strava sign-ins so the secret isn't in the app. Leave it
+// blank in forks: Garmin Connect is then hidden. ("/$()/" because "//" starts a comment here.)
+TRACKSTAR_SERVER = https:/$()/trackstar.trackstar-server.workers.dev
+
 // Strava: phone runs upload straight to the athlete's Strava account. Register an API app at
-// strava.com/settings/api with STRAVA_CALLBACK_DOMAIN as its "Authorization Callback Domain". The client ID is public;
-// put the client secret in Config/Local.xcconfig (not committed): STRAVA_CLIENT_SECRET = ...
-// With any of the three blank, the Strava option is hidden.
+// strava.com/settings/api with STRAVA_CALLBACK_DOMAIN as its "Authorization Callback Domain". The client ID is public.
+// With a server, the client secret lives only on the server. Forks without one can put theirs in Config/Local.xcconfig
+// (not committed) as STRAVA_CLIENT_SECRET_NO_SERVER = ... ; it's then built into the app.
 STRAVA_CLIENT_ID = 295676
-STRAVA_CLIENT_SECRET =
+STRAVA_CLIENT_SECRET_NO_SERVER =
 STRAVA_CALLBACK_DOMAIN = nickcia.github.io
 
 // Shown when turning on "Show my plan in Calendar". Adding a single workout uses iOS's own sheet and needs no access.

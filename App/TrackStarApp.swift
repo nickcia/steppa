@@ -12,6 +12,7 @@ struct TrackStarApp: App {
     init() {
         let container = Persistence.makeContainer(inMemory: DemoData.usesMemoryStore)
         self.container = container
+        let server = DemoData.usesMemoryStore ? nil : TrackStarServer.configured
         let model = AppModel(container: container,
                              runSource: DemoData.usesMemoryStore ? nil : HealthKitRunSource(),
                              reminders: ReminderService(), watch: WatchService(),
@@ -19,7 +20,8 @@ struct TrackStarApp: App {
                              intervals: DemoData.usesMemoryStore ? nil : IntervalsClient(),
                              intervalsOAuth: .configured,
                              strava: DemoData.usesMemoryStore ? nil : StravaClient(),
-                             stravaOAuth: .configured)
+                             stravaOAuth: .configured(server: server),
+                             server: server)
         DemoData.seedIfRequested(model)
         #if DEBUG
         if DemoData.fakesIntervals { model.debugFakeIntervalsConnection() }

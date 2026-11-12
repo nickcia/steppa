@@ -102,15 +102,17 @@ anyone else, or used for advertising.
 **AI.** Garmin data is not processed by any AI system: TrackStar's optional coach does not see runs that came from
 Garmin, and Garmin data is never used to train, evaluate or improve AI models.
 
-**Your control.** Garmin data comes only from runs you record after connecting. You can see it in the app, and
-export it with the rest of your data in Settings. **Disconnect** in Settings revokes TrackStar's access at Garmin
+**Your control.** Garmin data comes only from runs you record after connecting, and you can see all of it in the
+app, on each run. **Disconnect** in Settings revokes TrackStar's access at Garmin
 and deletes your sign-in, tracked workouts and any waiting runs from the server; runs already on your iPhone are
 deleted with the app. You can also remove TrackStar in Garmin Connect (Settings › Connected Apps), which tells the
 server to delete the same data. To ask about or delete anything else, email the address below.
 
 ## Strava (optional)
 
-If you connect Strava, the app talks directly from your iPhone to Strava:
+If you connect Strava, the app talks directly from your iPhone to Strava. The one exception is signing in: Strava
+requires a secret that can't be kept safely inside an app, so the sign-in passes through TrackStar's server, which
+adds it and hands Strava's reply straight back to your iPhone without keeping it.
 
 - **Uploads** runs you record on your iPhone (guided runs) to your Strava account: the route (GPS points with
   times), distance, time, and a title and description from your plan ("Week 5: Threshold · 7 km" and its steps).
