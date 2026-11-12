@@ -177,9 +177,17 @@ func distribute() async throws {
     for group in targets {
         let a = attributes(group)
         let name = a["name"] as? String ?? "?"
+        // Groups set to get every build (usually the internal one) can't have builds added; App Store Connect
+        // answers 404 or 409 for them.
+        if a["hasAccessToAllBuilds"] as? Bool == true {
+            say("\(name) gets every build automatically.")
+            if !(a["isInternalGroup"] as? Bool ?? false) { external = true }
+            continue
+        }
         do {
-            try await api("POST", "/v1/builds/\(buildID)/relationships/betaGroups",
-                          ["data": [["type": "betaGroups", "id": id(group)]]])
+            // Added from the group's side: the build's own betaGroups relationship now answers 404.
+            try await api("POST", "/v1/betaGroups/\(id(group))/relationships/builds",
+                          ["data": [["type": "builds", "id": buildID]]])
             say("Added to \(name).")
         } catch let error as APIError where error.status == 409 || error.status == 422 {
             say("Already in \(name), or it gets every build anyway.")
