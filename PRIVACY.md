@@ -1,16 +1,19 @@
 # Privacy policy
 
-_Last updated: 9 November 2026_
+_Last updated: 11 November 2026_
 
 TrackStar is a free, open-source running coach for iPhone. It's built so that your data stays yours.
 
 ## The short version
 
-- There are no TrackStar accounts, servers, ads, analytics or tracking.
+- There are no TrackStar accounts, ads, analytics or tracking.
 - Your training plan and progress are stored on your iPhone (and in your own private iCloud, if sync is on).
-- Nothing is sent to the developer, ever.
+- Nothing is sent to the developer. The one exception is Garmin Connect, which needs a small TrackStar server
+  (see below); it only passes your workouts and runs between Garmin and your iPhone.
 - If you choose to connect Intervals.icu, your upcoming workouts are sent to your own Intervals.icu account so
   they can reach your Garmin, COROS, Suunto or Wahoo watch.
+- If you choose to connect Garmin Connect, your upcoming workouts go to your Garmin Connect calendar and your
+  Garmin runs come back to your iPhone, through TrackStar's server.
 - If you choose to connect Strava, runs you record on your iPhone are uploaded to your own Strava account, and your
   recent Strava runs are read on your iPhone to avoid duplicates and give watch runs your plan's name.
 
@@ -73,6 +76,37 @@ It does not read your wellness or health data from Intervals.icu. Your sign-in i
 iPhone's Keychain, on this device only. Disconnecting in the app removes its upcoming workouts from your
 calendar and deletes the sign-in from your iPhone; you can also revoke access in Intervals.icu under
 Settings › Apps. What Intervals.icu does with your data is covered by Intervals.icu's own privacy policy.
+
+## Garmin Connect (optional)
+
+Garmin only lets apps connect through a server, so this is the one feature that uses one: a small TrackStar server
+hosted on Cloudflare (Workers and D1 database). There is still no TrackStar account. When you tap **Connect with
+Garmin Connect**, your iPhone gets a random ID and key from the server, and you sign in on Garmin's own page. Then:
+
+- **Your Garmin sign-in.** The server stores the access tokens Garmin gives it, encrypted, and your Garmin user ID,
+  linked only to that random ID. Your Garmin password never reaches TrackStar.
+- **Workouts to your watch.** Your iPhone sends your next two weeks of planned workouts (date, name, description,
+  steps and pace targets) to the server, which puts them on your Garmin Connect calendar and updates or removes them
+  as your plan changes. The server remembers which Garmin workout belongs to which planned workout, so it can
+  update it.
+- **Runs back to TrackStar.** When you finish a run on your Garmin device, Garmin sends it to the server: its time,
+  distance, pace, heart rate, cadence, power and elevation over the run, and the device name. Other activity types
+  are ignored and GPS positions are not kept. The run waits on the server, compressed, until your iPhone collects
+  it, and is then deleted from the server (anything not collected within 30 days is deleted anyway). On your
+  iPhone it ticks off your planned workout, is shown in your run analysis, and helps adapt your plan, the same as a
+  run from Apple Health.
+
+**Who processes it.** Only Cloudflare, which hosts the server, and Garmin. Garmin data is never sold, shared with
+anyone else, or used for advertising.
+
+**AI.** Garmin data is not processed by any AI system: TrackStar's optional coach does not see runs that came from
+Garmin, and Garmin data is never used to train, evaluate or improve AI models.
+
+**Your control.** Garmin data comes only from runs you record after connecting. You can see it in the app, and
+export it with the rest of your data in Settings. **Disconnect** in Settings revokes TrackStar's access at Garmin
+and deletes your sign-in, tracked workouts and any waiting runs from the server; runs already on your iPhone are
+deleted with the app. You can also remove TrackStar in Garmin Connect (Settings › Connected Apps), which tells the
+server to delete the same data. To ask about or delete anything else, email the address below.
 
 ## Strava (optional)
 
