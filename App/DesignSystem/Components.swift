@@ -359,10 +359,13 @@ struct FigureText: View {
     /// Splits "9 h 32 min" into runs of number ("9", "32") and everything else (" h ", " min").
     static func parts(_ text: String) -> [(text: String, isNumber: Bool)] {
         var parts: [(text: String, isNumber: Bool)] = []
-        for character in text {
+        let characters = Array(text)
+        for (index, character) in characters.enumerated() {
             // Punctuation inside a figure ("90.7", "2:09:18", "0/3", "24%") stays full size; after a space it's a
-            // unit ("/km") and shrinks.
-            let isNumber = character.isNumber || (".,:%−-/".contains(character) && parts.last?.isNumber == true)
+            // unit ("/km") and shrinks. A sign right before a digit ("−31", "+6%") is part of the number.
+            let isSign = "+−-".contains(character) && index + 1 < characters.count && characters[index + 1].isNumber
+            let isNumber = character.isNumber || isSign
+                || (".,:%−-/".contains(character) && parts.last?.isNumber == true)
             if let last = parts.last, last.isNumber == isNumber {
                 parts[parts.count - 1].text.append(character)
             } else {

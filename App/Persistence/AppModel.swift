@@ -96,8 +96,10 @@ final class AppModel {
     private(set) var strengthEnabled = false
     private(set) var strengthPerWeek = 2
     private(set) var coachEnabled = true
-    /// Zones imported from the athlete's watch platform or typed in; nil means worked out from maximum heart rate.
+    /// Zones from the athlete's watch platform (through Intervals.icu), kept up to date; nil when there are none.
     private(set) var storedHeartRateZones: HeartRateZones?
+    /// Heart-rate suggestions the athlete said "Not now" to, so the same one doesn't come back.
+    private(set) var dismissedHeartRateSuggestions: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "heartRate.dismissed") ?? [])
     /// How workout targets are shown: pace, heart rate or treadmill speed.
     private(set) var targetDisplay: WorkoutTargetDisplay = .pace
     /// km/h or mph on the treadmill, separate from distance units.
@@ -192,6 +194,13 @@ final class AppModel {
         strengthPerWeek = profile?.strengthPerWeek ?? 2
         coachEnabled = profile?.coachEnabled ?? true
         storedHeartRateZones = profile?.heartRateZonesData.flatMap { try? JSONDecoder().decode(HeartRateZones.self, from: $0) }
+        if let stored = storedHeartRateZones, stored.source != .imported, let profile {
+            // Earlier builds let athletes type in every zone limit. Now their maximum is the one setting: keep the
+            // maximum from those zones and let the zones follow it. (Saved with the next change.)
+            if stored.source == .custom, profile.maxHeartRate == nil { profile.maxHeartRate = stored.maxHeartRate }
+            profile.heartRateZonesData = nil
+            storedHeartRateZones = nil
+        }
         targetDisplay = profile?.targetDisplayRaw.flatMap(WorkoutTargetDisplay.init(rawValue:)) ?? .pace
         treadmillUnits = profile?.treadmillUnitsRaw.flatMap(UnitSystem.init(rawValue:)) ?? units
 
@@ -219,10 +228,13 @@ final class AppModel {
         races = ((try? context.fetch(FetchDescriptor<RaceRecord>())) ?? []).sorted { $0.date < $1.date }
         loadGear()
         // Merged rather than replaced, so recordings fetched this session survive a reload.
-        let stored = Dictionary(((try? context.fetch(FetchDescriptor<RunDetailRecord>())) ?? []).compactMap { record in
+        let records = (try? context.fetch(FetchDescriptor<RunDetailRecord>())) ?? []
+        let stored = Dictionary(records.compactMap { record in
             record.series.map { (record.runID, $0) }
         }, uniquingKeysWith: { a, _ in a })
         runSeries.merge(stored) { _, saved in saved }
+        // Fetched before runs carried running form, calories and the rest: fetched once more to fill those in.
+        olderRunDetails = Set(records.filter { $0.fetchedAt < Self.fullRunDataSince }.map(\.runID))
         matchHealthRuns()
     }
 
@@ -692,9 +704,16 @@ final class AppModel {
 
     /// Recorded data for the last 8 weeks of runs, at most 12 new runs per refresh. Intervals.icu is preferred when
     /// it has the run (it keeps everything the watch recorded); Apple Health otherwise.
+    /// When run details started including everything the watch records (running form, calories, weather…).
+    static let fullRunDataSince = Date(timeIntervalSince1970: 1794528000) // 13 November 2026
+    /// Runs whose stored details are from before that.
+    @ObservationIgnored private var olderRunDetails: Set<String> = []
+
     private func fetchRunDetails() async {
         // Garmin runs bring their own data (kept with the run, not here).
-        let missing = healthRuns.filter { runSeries[$0.id] == nil && !Self.isGarmin($0) && $0.date.days(until: today) <= 56 }.suffix(12)
+        let missing = healthRuns.filter {
+            (runSeries[$0.id] == nil || olderRunDetails.contains($0.id)) && !Self.isGarmin($0) && $0.date.days(until: today) <= 56
+        }.suffix(12)
         for run in missing {
             var series: RunSeries?
             var source = "health"
@@ -707,7 +726,11 @@ final class AppModel {
                 series = try? await runSource.series(forRun: run.id)
                 source = "health"
             }
+            olderRunDetails.remove(run.id)
             guard let series else { continue }
+            let id = run.id
+            let old = (try? context.fetch(FetchDescriptor<RunDetailRecord>(predicate: #Predicate { $0.runID == id }))) ?? []
+            old.forEach(context.delete)
             context.insert(RunDetailRecord(runID: run.id, source: source, series: series))
             runSeries[run.id] = series.downsampled()
         }
@@ -724,9 +747,31 @@ final class AppModel {
     }
     #endif
 
-    /// Maximum heart rate for zones: the athlete's own setting, else worked out automatically from their runs and age.
+    // MARK: Heart rate
+
+    /// Where maximum heart rate and the zones come from. TrackStar uses the most accurate it has, in this order:
+    /// the athlete's own maximum (the one thing they can change), their watch's zones, the highest heart rate in
+    /// their recent runs, then their age.
+    enum HeartRateSource: Equatable {
+        case yourMax
+        /// Zones the watch platform set up, through Intervals.icu (e.g. "Intervals.icu").
+        case watch(provider: String)
+        /// The run where heart rate went highest in the past year.
+        case runs(CompletedRun)
+        /// From the date of birth in Apple Health.
+        case age
+    }
+
+    var heartRateSource: HeartRateSource? {
+        if fetchProfile()?.maxHeartRate != nil { return .yourMax }
+        if let watch = storedHeartRateZones { return .watch(provider: watch.provider ?? "Intervals.icu") }
+        guard let basis = automaticMaxHeartRate else { return nil }
+        return basis.run.map(HeartRateSource.runs) ?? .age
+    }
+
+    /// Maximum heart rate for zones, from the best source available (see `heartRateSource`).
     var estimatedMaxHeartRate: Double? {
-        fetchProfile()?.maxHeartRate ?? automaticMaxHeartRate?.bpm
+        fetchProfile()?.maxHeartRate ?? storedHeartRateZones?.maxHeartRate ?? automaticMaxHeartRate?.bpm
     }
 
     /// An automatic maximum heart rate and what it came from.
@@ -754,16 +799,96 @@ final class AppModel {
 
     var maxHeartRateIsSet: Bool { fetchProfile()?.maxHeartRate != nil }
 
+    /// True when the athlete's own maximum would replace numbers their watch platform set up (worth a warning first).
+    var ownMaxReplacesWatch: Bool { storedHeartRateZones != nil }
+
+    private static let watchMaxAtOverrideKey = "heartRate.watchMaxWhenOverridden"
+
+    /// The athlete's own maximum; nil goes back to the best automatic source. The zones move with it.
     func setMaxHeartRate(_ bpm: Double?) {
-        profile().maxHeartRate = bpm
+        profile().maxHeartRate = bpm.map { min(max($0.rounded(), 120), 230) }
+        // Remember the watch's maximum at this moment, so a later change on the watch can be suggested.
+        if bpm != nil, let watch = storedHeartRateZones {
+            UserDefaults.standard.set(watch.maxHeartRate, forKey: Self.watchMaxAtOverrideKey)
+        } else if bpm == nil {
+            UserDefaults.standard.removeObject(forKey: Self.watchMaxAtOverrideKey)
+        }
         save()
+    }
+
+    /// Back to the watch's zones (fetched again) when there are any, else to the automatic maximum.
+    func useWatchHeartRate() async {
+        setMaxHeartRate(nil)
+        await importHeartRateZones()
+    }
+
+    /// A nudge to update maximum heart rate, shown on Today until the athlete answers it.
+    struct HeartRateSuggestion: Equatable, Identifiable {
+        enum Reason: Equatable {
+            /// A recent run went higher than the maximum in use.
+            case higherInRun(CompletedRun, bpm: Double)
+            /// The watch platform's maximum changed since the athlete set their own.
+            case watchChanged(provider: String)
+        }
+        var reason: Reason
+        var newMax: Double
+        var current: Double
+
+        var id: String {
+            switch reason {
+            case .higherInRun: "run-\(Int(newMax))"
+            case .watchChanged: "watch-\(Int(newMax))"
+            }
+        }
+    }
+
+    /// How far back a higher heart rate counts as news.
+    static let heartRateSuggestionWindowDays = 90
+
+    /// Suggests a new maximum when the athlete's runs or their watch show it has changed. Automatic maximums follow
+    /// runs by themselves, so this is for a maximum the athlete set or their watch's. Only rises are suggested: a
+    /// lower peak usually means easier runs, not a lower maximum.
+    var heartRateSuggestion: HeartRateSuggestion? {
+        guard let current = estimatedMaxHeartRate, let source = heartRateSource else { return nil }
+        var suggestion: HeartRateSuggestion?
+        if case .yourMax = source, let watch = storedHeartRateZones,
+           let then = UserDefaults.standard.object(forKey: Self.watchMaxAtOverrideKey) as? Double,
+           abs(watch.maxHeartRate - then) >= 1, abs(watch.maxHeartRate - current) >= 1 {
+            suggestion = HeartRateSuggestion(reason: .watchChanged(provider: watch.provider ?? "Intervals.icu"),
+                                             newMax: watch.maxHeartRate, current: current)
+        }
+        switch source {
+        case .yourMax, .watch:
+            let peak = healthRuns.filter { $0.date.days(until: today) <= Self.heartRateSuggestionWindowDays }
+                .compactMap { run in runSeries[run.id].flatMap { RunAnalyzer.highestRecordedHeartRate([$0]) }.map { (run, $0) } }
+                .max { $0.1 < $1.1 }
+            if suggestion == nil, let peak, peak.1 >= current + 3 {
+                suggestion = HeartRateSuggestion(reason: .higherInRun(peak.0, bpm: peak.1), newMax: peak.1.rounded(), current: current)
+            }
+        case .runs, .age:
+            break
+        }
+        guard let suggestion, !dismissedHeartRateSuggestions.contains(suggestion.id) else { return nil }
+        return suggestion
+    }
+
+    func acceptHeartRateSuggestion(_ suggestion: HeartRateSuggestion) {
+        switch suggestion.reason {
+        case .higherInRun: setMaxHeartRate(suggestion.newMax)
+        case .watchChanged: setMaxHeartRate(nil)
+        }
+    }
+
+    func dismissHeartRateSuggestion(_ suggestion: HeartRateSuggestion) {
+        dismissedHeartRateSuggestions.insert(suggestion.id)
+        UserDefaults.standard.set(Array(dismissedHeartRateSuggestions), forKey: "heartRate.dismissed")
     }
 
     /// Splits, averages and zones for a run, in the athlete's units. nil when nothing was recorded.
     func analysis(for run: CompletedRun) -> RunAnalysis {
         RunAnalyzer.analyze(runSeries[run.id] ?? RunSeries(), distanceMeters: run.distanceMeters,
                             durationSeconds: run.durationSeconds, splitMeters: units.metersPerUnit,
-                            maxHeartRate: estimatedMaxHeartRate, zones: storedHeartRateZones)
+                            maxHeartRate: estimatedMaxHeartRate, zones: heartRateZones)
     }
 
     // MARK: Routes
@@ -802,13 +927,17 @@ final class AppModel {
 
     // MARK: Heart-rate zones and how targets are shown
 
-    /// The athlete's zones: imported or typed in, otherwise worked out from maximum heart rate. nil only when
-    /// there's no maximum to work from (no age in Health and no recorded runs).
+    /// The athlete's zones, from the best source (see `heartRateSource`). With their own maximum, a watch's zones
+    /// move in proportion (keeping the watch's shape); otherwise zones are 60, 70, 80 and 90% of the maximum. nil
+    /// only when there's nothing to work from (no age in Health, no recorded runs, no watch zones).
     var heartRateZones: HeartRateZones? {
-        storedHeartRateZones ?? estimatedMaxHeartRate.map { HeartRateZones.fromMax($0) }
+        if let own = fetchProfile()?.maxHeartRate {
+            return storedHeartRateZones?.scaled(toMax: own) ?? HeartRateZones.fromMax(own, source: .custom)
+        }
+        return storedHeartRateZones ?? automaticMaxHeartRate.map { HeartRateZones.fromMax($0.bpm) }
     }
 
-    /// nil goes back to zones worked out from maximum heart rate.
+    /// The watch platform's zones (nil: none). Only imports set these; the athlete changes their maximum instead.
     func setHeartRateZones(_ zones: HeartRateZones?) {
         profile().heartRateZonesData = zones.flatMap { try? JSONEncoder().encode($0) }
         save()
@@ -949,7 +1078,7 @@ final class AppModel {
         if garminConnected, garminSentKeys.contains(GarminWorkoutBuilder.workout(for: workout, format: format).key) {
             names.append("Garmin")
         }
-        if intervalsAccount != nil,
+        if intervalsSendsWorkouts,
            intervalsSentIDs.contains(IntervalsWorkoutBuilder.event(for: workout, format: format).external_id) {
             let links = (intervalsAthlete?.links ?? []).filter(\.uploading).map(\.name)
             names += links.isEmpty ? [String(localized: "Intervals.icu")] : links
@@ -963,7 +1092,7 @@ final class AppModel {
         var names: [String] = []
         if watchSupported { names.append(String(localized: "Apple Watch")) }
         if garminConnected { names.append("Garmin") }
-        if intervalsAccount != nil { names += (intervalsAthlete?.links ?? []).filter(\.uploading).map(\.name) }
+        if intervalsSendsWorkouts { names += (intervalsAthlete?.links ?? []).filter(\.uploading).map(\.name) }
         return names
     }
 
@@ -998,7 +1127,7 @@ final class AppModel {
                 problem = garminProblem
             }
         }
-        if intervalsAccount != nil {
+        if intervalsSendsWorkouts {
             await refreshIntervalsLinks()
             let before = intervalsLastSync
             await syncIntervals(force: true)
@@ -1054,7 +1183,7 @@ final class AppModel {
 
     /// Intervals.icu is connected but no watch receives workouts yet (Garmin and the rest are linked on Intervals.icu).
     var intervalsNeedsWatch: Bool {
-        guard intervalsAccount != nil, let athlete = intervalsAthlete else { return false }
+        guard intervalsSendsWorkouts, let athlete = intervalsAthlete else { return false }
         return !athlete.links.contains { $0.uploading }
     }
 
@@ -1120,10 +1249,10 @@ final class AppModel {
     /// Why the last Intervals.icu call didn't work, shown under Settings › Connections › Other watches. nil once one works.
     private(set) var intervalsProblem: String?
 
-    /// Keeps imported zones in step with the athlete's watch platform. Zones the athlete typed in are left alone.
+    /// Keeps the watch platform's zones up to date. An athlete's own maximum still wins; if the watch's changes,
+    /// they're offered it (see `heartRateSuggestion`).
     private func adoptImportedZones(from athlete: IntervalsAthlete) {
-        guard let imported = athlete.runningHeartRateZones, storedHeartRateZones?.source != .custom,
-              storedHeartRateZones != imported else { return }
+        guard let imported = athlete.runningHeartRateZones, storedHeartRateZones != imported else { return }
         setHeartRateZones(imported)
     }
 
@@ -1230,7 +1359,7 @@ final class AppModel {
 
     // MARK: Strava titles
 
-    /// "Week 5 · Threshold 7 km", "Week 2 · Monday VO2 session", "Week 16 · Race day".
+    /// "Week 5 - Threshold 7 km", "Week 2 - Monday VO2 session", "Week 16 - Race day".
     func stravaTitle(for workout: Workout) -> String {
         let week = plan?.weeks.firstIndex { $0.workouts.contains { $0.id == workout.id } }
             ?? plan?.weeks.firstIndex { $0.startDate == workout.date.startOfWeek }
@@ -1239,10 +1368,11 @@ final class AppModel {
         case .runWalk: WorkoutDescriber(format: format).summary(workout)
         default: format.distance(workout.totalMeters)
         }
-        // "Week 5 · Easy run 9.5 km", or a custom workout's own name: "Week 5 · Monday VO2 session".
+        // "Week 5 - Easy run 9.5 km", or a custom workout's own name: "Week 5 - Monday VO2 session". A plain hyphen:
+        // it's what athletes type in their own titles.
         let name = [workout.name, detail].compactMap { $0 }.joined(separator: " ")
         guard let week else { return name }
-        return String(localized: "Week \(week + 1) · \(name)")
+        return String(localized: "Week \(week + 1) - \(name)")
     }
 
     /// Where the workout sits in the plan: "Week 5 of 14 · Base · Half marathon on Jan 23".
@@ -1452,12 +1582,19 @@ final class AppModel {
         intervalsSentIDs = []
     }
 
-    /// Makes the Intervals.icu calendar match the plan from today on. Skipped when nothing changed since the
-    /// last sync, unless `force` (the "Sync now" button).
+    /// Whether workouts go through Intervals.icu. Not while Garmin Connect is connected directly: Intervals.icu would
+    /// pass its copies on to Garmin too, and every workout would be there twice. Intervals.icu still brings in runs,
+    /// their data and heart-rate zones.
+    var intervalsSendsWorkouts: Bool { intervalsAccount != nil && !garminConnected }
+
+    /// Makes the Intervals.icu calendar match the plan from today on (or, with Garmin connected directly, clears
+    /// TrackStar's workouts off it; the athlete's own events are never touched). Skipped when nothing changed since
+    /// the last sync, unless `force` (the "Sync now" button).
     func syncIntervals(force: Bool = false) async {
         guard let intervals, let account = intervalsAccount, !intervalsSyncing else { return }
-        let events = (plan?.workouts ?? []).filter { $0.date >= today }
-            .map { IntervalsWorkoutBuilder.event(for: $0, format: format) }
+        let events = intervalsSendsWorkouts
+            ? (plan?.workouts ?? []).filter { $0.date >= today }.map { IntervalsWorkoutBuilder.event(for: $0, format: format) }
+            : []
         let ids = Set(events.map(\.external_id))
         if !force, ids == intervalsSyncedIDs { return }
         intervalsSyncing = true
@@ -1466,7 +1603,7 @@ final class AppModel {
             _ = try await intervals.sync(events, from: today, through: intervalsSyncEnd, credentials: account)
             intervalsSyncedIDs = ids
             intervalsSentIDs = ids
-            intervalsLastSync = .now
+            if intervalsSendsWorkouts { intervalsLastSync = .now }
             intervalsProblem = nil
         } catch {
             // Automatic syncs (app opening, plan changes) fail quietly; it tries again next time.
@@ -1511,6 +1648,8 @@ final class AppModel {
         garminProblem = nil
         await refreshGarminStatus()
         await syncGarmin(force: true)
+        // Workouts now go to Garmin directly; take TrackStar's copies off Intervals.icu so they don't arrive twice.
+        await syncIntervals(force: true)
         await refreshHealth()
     }
 
@@ -1522,6 +1661,7 @@ final class AppModel {
             let status = try await server.garminStatus()
             if !status.connected {
                 forgetGarmin()
+                await syncIntervals(force: true)
                 return
             }
             garminStatus = status
@@ -1547,6 +1687,7 @@ final class AppModel {
             return
         }
         forgetGarmin()
+        await syncIntervals(force: true)
     }
 
     private func forgetGarmin() {
@@ -1562,6 +1703,8 @@ final class AppModel {
         garminProblem = nil
         mergeRuns()
         matchHealthRuns()
+        // Workouts go through Intervals.icu again, if it's connected (callers then sync it).
+        intervalsSyncedIDs = nil
     }
 
     /// Makes the Garmin Connect calendar match the next two weeks of the plan. Skipped when nothing changed since the

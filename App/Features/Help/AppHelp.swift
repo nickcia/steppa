@@ -30,7 +30,7 @@ nonisolated enum AppHelp {
                     keywords: ["strava", "upload", "share", "sync", "kudos", "segments", "duplicate", "twice", "title", "name", "description"],
                     body: """
                     Settings › Connections › Connect with Strava. If the Strava app is on your phone it opens there: tap Authorize and you're back in TrackStar. Leave both permissions ticked.
-                    Runs you record on this phone (Start on a workout) go to Strava as soon as you finish, titled like "Week 5 · Threshold 7 km", with where it sits in your plan and the workout's steps as the description. No connection? It uploads the next time you open the app.
+                    Runs you record on this phone (Start on a workout) go to Strava as soon as you finish, titled like "Week 5 - Threshold 7 km", with where it sits in your plan and the workout's steps as the description. No connection? It uploads the next time you open the app.
                     Runs from a Garmin, Apple Watch or other watch reach Strava through the watch's own app (link Strava in Garmin Connect, or turn on Health in the Strava app). TrackStar then gives them the same title and steps, as long as they still have their default name, like "Morning Run". Anything you've named yourself is left alone.
                     Recording on your watch and your phone at once? TrackStar spots the watch's copy (it waits up to 30 minutes for a Garmin to sync) and doesn't upload the phone's, so the run only appears once.
                     Only real runs go to Strava: ticking a workout off with Mark as done never uploads or changes anything there.

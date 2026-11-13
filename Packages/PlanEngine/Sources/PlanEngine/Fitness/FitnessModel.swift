@@ -13,8 +13,15 @@ import Foundation
 /// `score = VO₂(v) / f(t)`. Everything here is computed from those equations; no lookup
 /// tables are used. (The app calls this a "fitness score", not "VDOT", which is a trademark.)
 public enum FitnessModel {
-    /// Scores outside this range are treated as input errors.
-    public static let plausibleScores: ClosedRange<Double> = 20...85
+    /// The scores the model works with: from a walk-jog (a half marathon in about six and a half hours) to the
+    /// best in the world. Results outside it are capped to it, never refused: a race time far outside is more
+    /// likely a typo, so the plan says so (see `PlanWarning.unusualRaceTime`) rather than stopping the athlete.
+    public static let supportedScores: ClosedRange<Double> = 8...85
+
+    /// `score` kept within `supportedScores`.
+    public static func supported(_ score: Double) -> Double {
+        min(max(score, supportedScores.lowerBound), supportedScores.upperBound)
+    }
 
     static func oxygenCost(metersPerMinute v: Double) -> Double {
         -4.60 + 0.182258 * v + 0.000104 * v * v
@@ -108,8 +115,9 @@ public enum FitnessEstimator {
             guard (1_500...43_000).contains(race.distanceMeters), race.timeSeconds > 0 else {
                 throw .invalidPerformance
             }
-            let score = FitnessModel.score(distanceMeters: race.distanceMeters, timeSeconds: race.timeSeconds)
-            guard FitnessModel.plausibleScores.contains(score) else { throw .invalidPerformance }
+            // Slow results are as real as fast ones; extreme ones (likely typos) are capped, and the plan notes them.
+            let score = FitnessModel.supported(FitnessModel.score(distanceMeters: race.distanceMeters,
+                                                                  timeSeconds: race.timeSeconds))
             if let date = race.date, date.days(until: today) > staleAfterDays {
                 return FitnessEstimate(score: score * staleDiscount, confidence: .medium)
             }

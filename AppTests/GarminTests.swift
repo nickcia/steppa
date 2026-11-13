@@ -214,6 +214,54 @@ struct GarminTests {
         #expect(model.watches(holding: upcoming).isEmpty)
     }
 
+    // MARK: With Intervals.icu too
+
+    /// Garmin direct and Intervals.icu (with Garmin linked there) both connected.
+    func makeModelWithIntervals(_ fake: FakeServer, _ icu: FakeIntervals) throws -> AppModel {
+        UserDefaults.standard.removeObject(forKey: "garmin.connected")
+        UserDefaults.standard.removeObject(forKey: AppModel.garminSentKey)
+        let model = AppModel(container: Persistence.makeContainer(inMemory: true), clock: { Self.today },
+                             intervals: IntervalsClient(transport: icu),
+                             intervalsKeychain: IntervalsKeychain(service: "trackstar-tests-\(UUID().uuidString)"),
+                             server: makeServer(fake),
+                             garminStore: GarminRunStore(file: URL.temporaryDirectory.appending(path: "garmin-\(UUID().uuidString)/runs.json")))
+        model.appleWatchPaired = false
+        model.acceptDisclaimer()
+        model.start(try PlanBuilder.build(AppModelTests.inputs()))
+        return model
+    }
+
+    @Test func withGarminDirectWorkoutsDontAlsoGoThroughIntervals() async throws {
+        let mine = FakeIntervals.Stored(id: 900, external_id: nil, date: "\(Self.today.adding(days: 3))T00:00:00", description: "My own run")
+        let icu = FakeIntervals(events: [mine])
+        icu.linkGarmin()
+        let model = try makeModelWithIntervals(FakeServer(), icu)
+
+        // Intervals.icu alone: workouts go on its calendar, as before.
+        try await model.connectIntervals(apiKey: FakeIntervals.apiKey)
+        #expect(model.intervalsSendsWorkouts)
+        #expect(icu.events.count > 1)
+
+        // Garmin connected directly: TrackStar's copies come off Intervals.icu (the athlete's own stay), and nothing
+        // goes back on.
+        try await connect(model)
+        #expect(!model.intervalsSendsWorkouts)
+        #expect(icu.events.map(\.id) == [900])
+        await model.syncIntervals(force: true)
+        await model.becameActive()
+        #expect(icu.events.map(\.id) == [900])
+        #expect(model.syncableWatches == ["Garmin"])
+        let upcoming = try #require(model.plan?.workouts.first { $0.date > Self.today })
+        #expect(model.watches(holding: upcoming) == ["Garmin"])
+        #expect(!model.intervalsNeedsWatch)
+
+        // Garmin disconnected: workouts go through Intervals.icu again.
+        await model.disconnectGarmin()
+        #expect(model.intervalsSendsWorkouts)
+        #expect(icu.events.count > 1)
+        #expect(icu.events.contains { $0.id == 900 })
+    }
+
     @Test func unchangedPlansArentSentAgain() async throws {
         let fake = FakeServer()
         let model = try makeModel(fake)

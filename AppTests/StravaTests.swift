@@ -175,7 +175,7 @@ struct StravaTests {
         let outcome = await model.uploadToStrava(recording(), workout: workout)
         #expect(outcome == .uploaded(501))
         let upload = try #require(fake.bodies.first { $0.contains("<gpx") })
-        #expect(upload.contains("name=\"name\"\r\n\r\nWeek 1 · \(workout.name)"))
+        #expect(upload.contains("name=\"name\"\r\n\r\nWeek 1 - \(workout.name)"))
         // Uploading the same run again is recognised as already there.
         #expect(await model.uploadToStrava(recording(), workout: workout) == .uploaded(nil))
     }
@@ -258,7 +258,12 @@ struct StravaTests {
         let model = try makeModel(FakeStrava())
         let plan = try #require(model.plan)
         let easy = try #require(plan.weeks[1].workouts.first { $0.kind == .easy })
-        #expect(model.stravaTitle(for: easy) == "Week 2 · Easy run \(model.format.distance(easy.totalMeters))")
+        #expect(model.stravaTitle(for: easy) == "Week 2 - \(easy.name) \(model.format.distance(easy.totalMeters))")
+        // Easy runs that finish with strides say so.
+        let withStrides = try #require(plan.workouts.first { $0.kind == .easy && $0.hasStrides })
+        #expect(withStrides.name == "Easy run with strides")
+        let plain = try #require(plan.workouts.first { $0.kind == .easy && !$0.hasStrides })
+        #expect(plain.name == "Easy run")
         let tempo = try #require(plan.workouts.first { $0.kind == .tempo })
         let description = model.stravaDescription(for: tempo)
         #expect(description.hasPrefix("Week "))
@@ -269,7 +274,7 @@ struct StravaTests {
         #expect(description.hasSuffix("Planned with TrackStar"))
         let custom = try #require(model.addWorkout(WorkoutTemplate(name: "Hill blast", blocks: [.preset(.tempo)]),
                                                    on: model.today.adding(days: 1)))
-        #expect(model.stravaTitle(for: custom).hasSuffix(" · Hill blast"))
+        #expect(model.stravaTitle(for: custom).hasSuffix(" - Hill blast"))
     }
 
     @Test func phoneUploadsUseThePlansTitle() async throws {
@@ -279,7 +284,7 @@ struct StravaTests {
         let workout = try #require(model.plan?.workouts.first)
         _ = await model.uploadToStrava(recording(), workout: workout)
         let upload = try #require(fake.bodies.first { $0.contains("<gpx") })
-        #expect(upload.contains("name=\"name\"\r\n\r\nWeek 1 · \(workout.name)"))
+        #expect(upload.contains("name=\"name\"\r\n\r\nWeek 1 - \(workout.name)"))
     }
 
     // MARK: Duplicates

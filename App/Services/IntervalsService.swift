@@ -473,7 +473,7 @@ nonisolated struct IntervalsClient: Sendable {
     func series(activityID: String, credentials: IntervalsCredentials) async throws -> RunSeries? {
         let data = try await send(
             "api/v1/activity/\(activityID)/streams.json", method: "GET", credentials: credentials,
-            query: [URLQueryItem(name: "types", value: "time,distance,heartrate,watts,cadence,altitude")])
+            query: [URLQueryItem(name: "types", value: "time,distance,heartrate,watts,cadence,altitude,temp")])
         let streams = try JSONDecoder().decode([Stream].self, from: data)
         return Self.series(from: Dictionary(streams.map { ($0.type, $0.data ?? []) }, uniquingKeysWith: { a, _ in a }))
     }
@@ -495,7 +495,7 @@ nonisolated struct IntervalsClient: Sendable {
             cadence = cadence.map { .init($0.t, $0.v * 2) }
         }
         let series = RunSeries(distance: points("distance"), heartRate: points("heartrate"), power: points("watts"),
-                               cadence: cadence, altitude: points("altitude"))
+                               cadence: cadence, altitude: points("altitude"), temperature: points("temp"))
         return series.isEmpty ? nil : series
     }
 

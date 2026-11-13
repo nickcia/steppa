@@ -24,7 +24,7 @@ public enum RacePredictor {
                     && $0.durationSeconds > 0
             }
             .map { FitnessModel.score(distanceMeters: $0.distanceMeters, timeSeconds: $0.durationSeconds) }
-            .filter { FitnessModel.plausibleScores.contains($0) }
+            .filter { FitnessModel.supportedScores.contains($0) }
             .max()
     }
 

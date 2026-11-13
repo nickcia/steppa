@@ -242,25 +242,6 @@ private struct WorkoutSummaryStrip: View {
     let paces: PaceTable
     @Environment(AppModel.self) private var model
 
-    private struct Segment: Identifiable {
-        let id: Int
-        let seconds: Double
-        let effort: Effort
-    }
-
-    private var segments: [Segment] {
-        var result: [Segment] = []
-        for block in template.blocks {
-            let parts = [block.main] + (block.role == .repeats ? [block.recovery].compactMap { $0 } : [])
-            for _ in 0..<(block.role == .repeats ? max(1, block.repeats) : 1) {
-                for part in parts {
-                    result.append(Segment(id: result.count, seconds: part.step(paces).estimatedSeconds, effort: part.effort))
-                }
-            }
-        }
-        return result
-    }
-
     var body: some View {
         let workout = template.workout(on: model.today, id: "preview", paces: paces)
         VStack(alignment: .leading, spacing: 10) {
@@ -268,38 +249,11 @@ private struct WorkoutSummaryStrip: View {
                 Metric(value: "~\(DisplayFormat.shortDuration(workout.totalSeconds))", label: String(localized: "time"))
                 Metric(value: "~\(model.format.distance(workout.totalMeters))", label: String(localized: "distance"))
             }
-            shape
+            WorkoutShapeView(workout: workout, height: 44)
         }
         .padding(.vertical, 4)
     }
 
-    private var shape: some View {
-        let parts = segments
-        let total = max(1, parts.reduce(0) { $0 + $1.seconds })
-        return GeometryReader { proxy in
-            HStack(alignment: .bottom, spacing: 2) {
-                ForEach(parts) { part in
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(part.effort.color)
-                        .frame(width: max(3, (proxy.size.width - CGFloat(parts.count) * 2) * part.seconds / total),
-                               height: height(part.effort))
-                }
-            }
-            .frame(maxHeight: .infinity, alignment: .bottom)
-        }
-        .frame(height: 36)
-        .accessibilityHidden(true)
-    }
-
-    private func height(_ effort: Effort) -> CGFloat {
-        switch effort {
-        case .open, .recovery: 10
-        case .easy: 16
-        case .steady: 22
-        case .threshold, .racePace: 28
-        case .vo2max, .speed: 36
-        }
-    }
 }
 
 private struct BlockRow: View {

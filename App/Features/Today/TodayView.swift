@@ -21,6 +21,7 @@ struct TodayView: View {
                     header.revealed(0, revealStep)
                     PlanChangeBanner()
                     WatchSetupNudge()
+                    HeartRateSuggestionCard()
                     ShoeReplacementNudge()
                     WeekCard(selected: $selected).revealed(1, revealStep)
                     HeroCard(date: selected).revealed(2, revealStep)
@@ -509,6 +510,7 @@ private struct HeroCard: View {
             }
 
             if let workout {
+                WorkoutShapeView(workout: workout, height: 40, onDark: true)
                 HStack(spacing: 0) {
                     heroMetric(model.format.distance(workout.totalMeters), String(localized: "distance"))
                     heroMetric("~" + DisplayFormat.duration(workout.totalSeconds), String(localized: "time"))
@@ -792,6 +794,7 @@ struct WorkoutCard: View {
                     }
                     .accessibilityLabel("Workout details")
                 }
+                WorkoutShapeView(workout: workout, height: 44)
                 WorkoutMetrics(workout: workout)
                 Text(workout.kind.purpose).font(.subheadline).foregroundStyle(Theme.secondaryInk)
                 Divider()

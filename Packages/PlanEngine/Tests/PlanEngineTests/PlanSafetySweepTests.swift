@@ -90,4 +90,27 @@ import Testing
         }
         #expect(failures.isEmpty, "\(failures.joined(separator: "\n"))")
     }
+
+    /// Slower runners (fitness from a walk-jog up to about a 2:45 half marathon): every goal, a few schedules and
+    /// starting volumes, each plan built and passing every safety rule.
+    @Test func slowRunnersGetSafePlans() throws {
+        var checked = 0
+        for score in stride(from: 8.0, through: 24, by: 2) {
+            for goal in RaceDistance.allCases {
+                let raceTime = FitnessModel.raceTimeSeconds(distanceMeters: RaceDistance.halfMarathon.meters, score: score)
+                for current in [5_000.0, 15_000, 30_000] {
+                    for days: Set<Weekday> in [[.tuesday, .thursday, .sunday], [.monday, .wednesday, .friday, .sunday]] {
+                        let inputs = sampleInputs(goal: goal, weeks: 16, current: current,
+                                                  fitness: .recentRace(.init(.halfMarathon, timeSeconds: raceTime)),
+                                                  runDays: days, longRunDay: .sunday, experience: .beginner)
+                        let plan = try PlanBuilder.build(inputs)
+                        let violations = PlanValidator.validate(plan)
+                        #expect(violations.isEmpty, "score \(score), \(goal), \(current) m, \(days.count) days: \(violations)")
+                        checked += 1
+                    }
+                }
+            }
+        }
+        #expect(checked == 9 * 4 * 3 * 2)
+    }
 }

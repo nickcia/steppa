@@ -47,9 +47,20 @@ final class HealthKitRunSource: RunSource {
     /// Workouts and distance tick off the plan; the rest (heart rate, power, cadence) is for run analysis.
     /// Asking again after an update only prompts for the new types.
     private var readTypes: Set<HKObjectType> {
-        [HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning), HKQuantityType(.heartRate),
-         HKQuantityType(.runningPower), HKQuantityType(.stepCount), HKCharacteristicType(.dateOfBirth),
-         HKSeriesType.workoutRoute()]
+        var types: Set<HKObjectType> = [
+            HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning), HKQuantityType(.heartRate),
+            HKQuantityType(.runningPower), HKQuantityType(.stepCount), HKCharacteristicType(.dateOfBirth),
+            HKSeriesType.workoutRoute(),
+            // Run analysis: running form, calories and heart-rate recovery.
+            HKQuantityType(.runningStrideLength), HKQuantityType(.runningVerticalOscillation),
+            HKQuantityType(.runningGroundContactTime), HKQuantityType(.activeEnergyBurned),
+            HKQuantityType(.heartRateRecoveryOneMinute),
+        ]
+        if #available(iOS 18.0, *) {
+            types.insert(HKQuantityType(.workoutEffortScore))
+            types.insert(HKQuantityType(.estimatedWorkoutEffortScore))
+        }
+        return types
     }
 
     func needsAccessRequest() async -> Bool {
@@ -109,8 +120,48 @@ final class HealthKitRunSource: RunSource {
             let mid = sample.startDate.addingTimeInterval(length / 2)
             return .init(seconds(mid), sample.quantity.doubleValue(for: .count()) / length * 60)
         }
-        let series = RunSeries(distance: distance, heartRate: heartRate, power: power, cadence: cadence)
+        let stride = try await samples(.runningStrideLength).map { RunSeries.Point(seconds($0.startDate), $0.quantity.doubleValue(for: .meter())) }
+        let oscillation = try await samples(.runningVerticalOscillation)
+            .map { RunSeries.Point(seconds($0.startDate), $0.quantity.doubleValue(for: .meterUnit(with: .centi))) }
+        let contact = try await samples(.runningGroundContactTime)
+            .map { RunSeries.Point(seconds($0.startDate), $0.quantity.doubleValue(for: .secondUnit(with: .milli))) }
+        let extras = await extras(for: workout)
+        let series = RunSeries(distance: distance, heartRate: heartRate, power: power, cadence: cadence,
+                               strideLength: stride, verticalOscillation: oscillation, groundContactTime: contact,
+                               extras: extras.isEmpty ? nil : extras)
         return series.isEmpty ? nil : series
+    }
+
+    /// Totals and conditions Health keeps with the workout: calories, climb, weather, indoor, and (from samples
+    /// just after it) heart-rate recovery and effort.
+    private func extras(for workout: HKWorkout) async -> RunExtras {
+        var extras = RunExtras()
+        extras.activeCalories = workout.statistics(for: HKQuantityType(.activeEnergyBurned))?.sumQuantity()?
+            .doubleValue(for: .kilocalorie())
+        let metadata = workout.metadata ?? [:]
+        extras.elevationGainMeters = (metadata[HKMetadataKeyElevationAscended] as? HKQuantity)?.doubleValue(for: .meter())
+        extras.temperatureCelsius = (metadata[HKMetadataKeyWeatherTemperature] as? HKQuantity)?.doubleValue(for: .degreeCelsius())
+        extras.humidity = (metadata[HKMetadataKeyWeatherHumidity] as? HKQuantity).map { $0.doubleValue(for: .percent()) * 100 }
+        extras.indoor = (metadata[HKMetadataKeyIndoorWorkout] as? NSNumber)?.boolValue
+
+        func first(_ type: HKQuantityTypeIdentifier, from start: Date, to end: Date, unit: HKUnit) async -> Double? {
+            let window = HKQuery.predicateForSamples(withStart: start, end: end)
+            let descriptor = HKSampleQueryDescriptor(predicates: [.quantitySample(type: HKQuantityType(type), predicate: window)],
+                                                     sortDescriptors: [SortDescriptor(\.startDate)], limit: 1)
+            return try? await descriptor.result(for: store).first?.quantity.doubleValue(for: unit)
+        }
+        // Apple Watch measures recovery in the minutes after a workout ends.
+        extras.heartRateRecovery = await first(.heartRateRecoveryOneMinute, from: workout.endDate,
+                                               to: workout.endDate.addingTimeInterval(15 * 60),
+                                               unit: .count().unitDivided(by: .minute()))
+        if #available(iOS 18.0, *) {
+            // The athlete's own rating if they gave one, else Apple's estimate.
+            for type in [HKQuantityTypeIdentifier.workoutEffortScore, .estimatedWorkoutEffortScore] where extras.effortScore == nil {
+                extras.effortScore = await first(type, from: workout.startDate.addingTimeInterval(-60),
+                                                 to: workout.endDate.addingTimeInterval(60 * 60), unit: .appleEffortScore())
+            }
+        }
+        return extras
     }
 
     /// Only what a guided run records: the workout, its distance and its route.

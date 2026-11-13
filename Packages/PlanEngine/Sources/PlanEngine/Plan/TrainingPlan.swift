@@ -37,6 +37,9 @@ public enum PlanWarning: Codable, Hashable, Sendable {
     case volumeLimitedByAvailability
     /// The goal time needs noticeably more fitness than the athlete currently shows.
     case ambitiousGoal(predictedSeconds: Double)
+    /// The race result entered is outside what the model covers (faster than world-record pace, or slower than a
+    /// walk), so it was capped. Most likely a typo; the athlete can go back and fix it.
+    case unusualRaceTime(distanceMeters: Double, timeSeconds: Double)
     /// Fewer run days than this goal usually needs (e.g. a 3-hour marathon on two days a week).
     case fewRunDays(recommended: Int)
     /// No race result was given, so paces are an estimate until real runs come in.

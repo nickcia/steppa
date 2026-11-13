@@ -188,6 +188,8 @@ nonisolated struct GarminRun: Codable, Hashable, Sendable, Identifiable {
             series.cadence = series.cadence.map { .init($0.t, $0.v * 2) }
         }
         if series.power.allSatisfy({ $0.v == 0 }) { series.power = [] }
+        // Garmin's own climb total, for runs without an altitude recording.
+        if let elevationGain, elevationGain >= 0 { series.extras = RunExtras(elevationGainMeters: elevationGain) }
         return series.isEmpty ? nil : series.downsampled()
     }
 }

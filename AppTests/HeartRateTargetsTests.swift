@@ -47,29 +47,97 @@ struct HeartRateTargetsTests {
                         intervals: IntervalsClient(transport: fake), intervalsKeychain: keychain)
     }
 
-    @Test func watchZonesAreImportedButYourOwnAreKept() async throws {
+    /// Clears what heart-rate suggestions remember between launches, so tests don't leak into each other.
+    func resetHeartRateMemory() {
+        UserDefaults.standard.removeObject(forKey: "heartRate.dismissed")
+        UserDefaults.standard.removeObject(forKey: "heartRate.watchMaxWhenOverridden")
+    }
+
+    /// A run on `day` whose heart rate peaked at `peak` (twice, so it isn't treated as a spike).
+    func run(_ id: String, day: LocalDate, peak: Double) -> (CompletedRun, RunSeries) {
+        (CompletedRun(id: id, date: day, distanceMeters: 8_000, durationSeconds: 2_700),
+         RunSeries(heartRate: [.init(0, 120), .init(600, peak), .init(1200, peak), .init(1800, 150)]))
+    }
+
+    @Test func watchZonesComeFirstAndYourMaxScalesThem() async throws {
+        resetHeartRateMemory()
         let fake = FakeIntervals()
         fake.set("sportSettings", [["types": ["Run", "VirtualRun"], "hr_zones": [120, 140, 158, 172, 188], "max_hr": 188]])
         let model = intervalsModel(fake)
         try await model.connectIntervals(apiKey: FakeIntervals.apiKey)
         await model.refreshIntervalsLinks()
-        #expect(model.storedHeartRateZones?.source == .imported)
+        #expect(model.heartRateSource == .watch(provider: "Intervals.icu"))
         #expect(model.heartRateZones?.upperLimits == [120, 140, 158, 172])
+        #expect(model.ownMaxReplacesWatch)
 
-        // The athlete edits a limit: later imports leave it alone.
-        var custom = try #require(model.heartRateZones)
-        custom.upperLimits[1] = 145
-        custom.source = .custom
-        model.setHeartRateZones(custom)
+        // Their own maximum: the watch's zones keep their shape and scale to it.
+        model.setMaxHeartRate(198)
+        #expect(model.heartRateSource == .yourMax)
+        #expect(model.heartRateZones?.maxHeartRate == 198)
+        #expect(model.heartRateZones?.upperLimits == [126, 147, 166, 181])
+        #expect(model.heartRateSuggestion == nil)
+
+        // The watch's maximum changes later: their own still wins, and they're offered the watch's.
+        fake.set("sportSettings", [["types": ["Run"], "hr_zones": [121, 141, 159, 173, 190], "max_hr": 190]])
         await model.refreshIntervalsLinks()
-        #expect(model.heartRateZones?.upperLimits[1] == 145)
+        #expect(model.heartRateZones?.maxHeartRate == 198)
+        let suggestion = try #require(model.heartRateSuggestion)
+        #expect(suggestion.reason == .watchChanged(provider: "Intervals.icu"))
+        #expect(suggestion.newMax == 190)
+        model.acceptHeartRateSuggestion(suggestion)
+        #expect(model.heartRateSource == .watch(provider: "Intervals.icu"))
+        #expect(model.heartRateZones?.upperLimits == [121, 141, 159, 173])
 
-        // Importing on purpose replaces them.
-        #expect(await model.importHeartRateZones())
-        #expect(model.heartRateZones?.upperLimits[1] == 140)
+        // Re-syncing goes back to the watch's zones; no zones there leaves the last ones.
+        model.setMaxHeartRate(200)
+        await model.useWatchHeartRate()
+        #expect(!model.maxHeartRateIsSet)
+        #expect(model.heartRateZones?.maxHeartRate == 190)
+    }
 
-        // No zones on Intervals.icu: nothing to import.
-        fake.set("sportSettings", nil)
-        #expect(await model.importHeartRateZones() == false)
+    @Test func aHigherRunIsSuggestedOnceUntilAnswered() throws {
+        resetHeartRateMemory()
+        let model = try AppModelTests.startedModel(today: AppModelTests.start.adding(days: 30))
+        model.setMaxHeartRate(185)
+        let (high, series) = run("r1", day: model.today.adding(days: -3), peak: 194)
+        model.loadDemoRuns([high], series: ["r1": series])
+        let suggestion = try #require(model.heartRateSuggestion)
+        #expect(suggestion.newMax == 194)
+        #expect(suggestion.current == 185)
+
+        // Not now: it stays away, even after the app reopens.
+        model.dismissHeartRateSuggestion(suggestion)
+        #expect(model.heartRateSuggestion == nil)
+
+        // Accepting a new one sets the maximum and the zones follow.
+        let (higher, more) = run("r2", day: model.today.adding(days: -1), peak: 199)
+        model.loadDemoRuns([high, higher], series: ["r1": series, "r2": more])
+        let next = try #require(model.heartRateSuggestion)
+        model.acceptHeartRateSuggestion(next)
+        #expect(model.estimatedMaxHeartRate == 199)
+        #expect(model.heartRateZones?.upperLimits.last == (0.9 * 199).rounded())
+        #expect(model.heartRateSuggestion == nil)
+    }
+
+    @Test func automaticMaximumsFollowRunsWithoutAsking() throws {
+        resetHeartRateMemory()
+        let model = try AppModelTests.startedModel(today: AppModelTests.start.adding(days: 30))
+        let (high, series) = run("r1", day: model.today.adding(days: -3), peak: 191)
+        model.loadDemoRuns([high], series: ["r1": series])
+        #expect(model.heartRateSource == .runs(high))
+        #expect(model.estimatedMaxHeartRate == 191)
+        #expect(model.heartRateSuggestion == nil)
+    }
+
+    @Test func zonesTypedInByHandBecomeYourMaximum() throws {
+        resetHeartRateMemory()
+        let container = Persistence.makeContainer(inMemory: true)
+        let model = AppModel(container: container, clock: { AppModelTests.start })
+        // How earlier builds stored zones the athlete typed in.
+        model.setHeartRateZones(HeartRateZones(upperLimits: [118, 139, 155, 170], maxHeartRate: 186, source: .custom))
+        let reopened = AppModel(container: container, clock: { AppModelTests.start })
+        #expect(reopened.storedHeartRateZones == nil)
+        #expect(reopened.heartRateSource == .yourMax)
+        #expect(reopened.estimatedMaxHeartRate == 186)
     }
 }

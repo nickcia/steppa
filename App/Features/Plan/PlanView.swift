@@ -232,6 +232,7 @@ struct WorkoutDetailView: View {
                 }
                 Card {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                        WorkoutShapeView(workout: workout, height: 64)
                         WorkoutMetrics(workout: workout)
                         Text(workout.kind.purpose).font(.subheadline).foregroundStyle(Theme.secondaryInk)
                     }

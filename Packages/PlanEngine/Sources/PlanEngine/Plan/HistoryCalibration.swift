@@ -81,7 +81,7 @@ public enum HistoryCalibration {
             let best = window
                 .filter { (3_000...43_000).contains($0.distanceMeters) && $0.durationSeconds > 0 }
                 .map { (run: $0, score: FitnessModel.score(distanceMeters: $0.distanceMeters, timeSeconds: $0.durationSeconds)) }
-                .filter { FitnessModel.plausibleScores.contains($0.score) }
+                .filter { FitnessModel.supportedScores.contains($0.score) }
                 .max { $0.score < $1.score }
             if let best, let estimate, best.score > estimate.score {
                 calibrated.fitness = .recentRace(RacePerformance(distanceMeters: best.run.distanceMeters,

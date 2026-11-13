@@ -238,7 +238,7 @@ struct PlanUpdateView: View {
                                     Label(reason, systemImage: "arrow.triangle.2.circlepath").font(.subheadline).foregroundStyle(Theme.ink)
                                 }
                                 ForEach(plan.warnings, id: \.self) { warning in
-                                    Label(warning.message(format), systemImage: "info.circle").font(.subheadline).foregroundStyle(Theme.ink)
+                                    Label(warning.message(format, goalSeconds: plan.inputs.goalTimeSeconds), systemImage: "info.circle").font(.subheadline).foregroundStyle(Theme.ink)
                                 }
                             }
                         }

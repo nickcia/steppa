@@ -109,7 +109,6 @@ struct SettingsView: View {
                     } label: {
                         LabeledContent("Heart-rate zones", value: zonesSourceName)
                     }
-                    MaxHeartRateRow()
                     Picker("Show targets as", selection: Binding(get: { model.targetDisplay }, set: { model.setTargetDisplay($0) })) {
                         ForEach(WorkoutTargetDisplay.allCases) { Text($0.name).tag($0) }
                     }
@@ -245,22 +244,19 @@ nonisolated struct ExportFile: Transferable {
 
 /// Maximum heart rate for zones: estimated by default, or the athlete's own (e.g. from a lab or field test).
 extension SettingsView {
+    /// "Max 188 bpm", or "Not set" when there's nothing to work from yet.
     fileprivate var zonesSourceName: String {
-        switch model.heartRateZones?.source {
-        case .imported?: String(localized: "From your watch")
-        case .custom?: String(localized: "Your own")
-        case .estimated?: String(localized: "Automatic")
-        case nil: String(localized: "Not set")
-        }
+        model.estimatedMaxHeartRate.map { String(localized: "Max \(Int($0.rounded())) bpm") } ?? String(localized: "Not set")
     }
 }
 
-/// The athlete's five heart-rate zones: imported from their watch platform (through Intervals.icu), typed in, or
-/// estimated from maximum heart rate.
+/// The athlete's five heart-rate zones, from the most accurate source TrackStar has. They can see the zones and
+/// change one thing, their maximum heart rate; the zones follow it.
 private struct HeartRateZonesView: View {
     @Environment(AppModel.self) private var model
-    @State private var importing = false
-    @State private var importMessage: String?
+    @State private var syncing = false
+    /// A maximum waiting for the athlete to confirm it replaces their watch's.
+    @State private var pendingMax: Double?
 
     private static let colors: [Color] = [Color(hex: 0xA9C6FF), Theme.green, Theme.amber, Color(hex: 0xF5894A), Theme.red]
     private static let names = [String(localized: "Recovery"), String(localized: "Easy"), String(localized: "Steady"),
@@ -270,6 +266,11 @@ private struct HeartRateZonesView: View {
         Form {
             if let zones = model.heartRateZones {
                 Section {
+                    maxRow(zones.maxHeartRate)
+                } footer: {
+                    Text(sourceText)
+                }
+                Section("Your zones") {
                     ForEach(0..<5, id: \.self) { zone in
                         let range = zones.range(ofZone: zone)
                         HStack {
@@ -280,130 +281,95 @@ private struct HeartRateZonesView: View {
                                 .monospacedDigit().foregroundStyle(Theme.secondaryInk)
                         }
                     }
-                } header: {
-                    Text(sourceText(zones.source))
-                } footer: {
-                    if zones.source == .estimated, let basis = basisText { Text(basis) }
-                }
-
-                Section {
-                    ForEach(0..<4, id: \.self) { index in
-                        Stepper(value: limitBinding(index, zones), in: 60...230) {
-                            LabeledContent("Top of zone \(index + 1)", value: "\(Int(zones.upperLimits[index])) bpm")
-                        }
-                    }
-                    Stepper(value: maxBinding(zones), in: 120...240) {
-                        LabeledContent("Maximum", value: "\(Int(zones.maxHeartRate)) bpm")
-                    }
-                } header: {
-                    Text("Set your own")
-                } footer: {
-                    Text("Changing a limit makes these your own zones, which an import never overwrites.")
                 }
             } else {
                 Section {
-                    Text("Zones need your maximum heart rate. Add your date of birth in Apple Health, record a run with heart rate, or set your maximum heart rate in Settings, under Heart rate and treadmill.")
+                    Text("Zones need your maximum heart rate. Add your date of birth in Apple Health, record a run with heart rate, or set your maximum here.")
                         .font(.subheadline)
+                    Button("Set my maximum heart rate") { model.setMaxHeartRate(185) }
                 }
             }
 
             Section {
-                if model.intervalsAccount != nil {
-                    Button {
-                        importing = true
-                        Task {
-                            let found = await model.importHeartRateZones()
-                            importMessage = found ? String(localized: "Imported your zones.")
-                                                  : String(localized: "No running zones on Intervals.icu yet. Set them on your watch or on Garmin Connect, let them sync, then try again.")
-                            importing = false
-                        }
-                    } label: {
-                        HStack {
-                            Label("Import from your watch", systemImage: "arrow.down.circle")
-                            Spacer()
-                            if importing { ProgressView() }
-                        }
-                    }
-                    .disabled(importing)
-                } else {
-                    Text("Connect Intervals.icu in Settings to bring in the zones from your Garmin, COROS, Polar or Suunto watch. They stay up to date on their own after that.")
-                        .font(.subheadline).foregroundStyle(Theme.secondaryInk)
-                }
-                if model.storedHeartRateZones != nil {
-                    Button("Use automatic zones instead") { model.setHeartRateZones(nil) }
-                }
+                resyncButton
             } footer: {
-                VStack(alignment: .leading, spacing: 6) {
-                    if let importMessage { Text(importMessage) }
-                    Text("Apple Watch doesn't share its zones with other apps, so with Apple Watch, zones are worked out automatically from your runs unless you set your own.")
-                }
+                Text("TrackStar uses the most accurate source it has: your watch's own zones (Garmin, COROS, Polar and others, through Intervals.icu), then the highest heart rate in your recent runs, then your age from Apple Health. Apple Watch and Garmin Connect don't share zone settings with other apps, so with those, zones come from your runs.")
             }
         }
         .navigationTitle("Heart-rate zones")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func sourceText(_ source: HeartRateZones.Source) -> String {
-        switch source {
-        case .imported: String(localized: "From your watch, through Intervals.icu")
-        case .custom: String(localized: "Your own zones")
-        case .estimated: String(localized: "Automatic, from your runs")
-        }
-    }
-
-    /// How the automatic maximum was found: "Your maximum is 187 bpm, the highest your heart reached in the past year
-    /// (Long run, Oct 24). Zones update as you run."
-    private var basisText: String? {
-        if model.maxHeartRateIsSet, let bpm = model.estimatedMaxHeartRate {
-            return String(localized: "Based on the maximum of \(Int(bpm.rounded())) bpm you set. Zones are 60, 70, 80 and 90% of it.")
-        }
-        guard let basis = model.automaticMaxHeartRate else { return nil }
-        let bpm = Int(basis.bpm.rounded())
-        if let run = basis.run {
-            let name = model.workout(for: run)?.name ?? String(localized: "a run")
-            return String(localized: "Your maximum is \(bpm) bpm, the highest your heart reached in the past year (\(name), \(run.date.formatted(.dateTime.month(.abbreviated).day()))). Zones are 60, 70, 80 and 90% of it, and update as you run.")
-        }
-        return String(localized: "Your maximum is about \(bpm) bpm, worked out from your age until a hard run shows a higher one. Zones are 60, 70, 80 and 90% of it, and update as you run.")
-    }
-
-    /// Edits a limit, keeping the zones in order; the result is the athlete's own.
-    private func limitBinding(_ index: Int, _ zones: HeartRateZones) -> Binding<Double> {
-        Binding(get: { zones.upperLimits[index] }, set: { value in
-            var edited = zones
-            edited.upperLimits[index] = value.rounded()
-            edited.source = .custom
-            if edited.isValid { model.setHeartRateZones(edited) }
-        })
-    }
-
-    private func maxBinding(_ zones: HeartRateZones) -> Binding<Double> {
-        Binding(get: { zones.maxHeartRate }, set: { value in
-            var edited = zones
-            edited.maxHeartRate = value.rounded()
-            edited.source = .custom
-            if edited.isValid { model.setHeartRateZones(edited) }
-        })
-    }
-}
-
-private struct MaxHeartRateRow: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let estimate = model.estimatedMaxHeartRate
-        Stepper {
-            LabeledContent("Max heart rate") {
-                Text(estimate.map { "\(Int($0.rounded())) bpm\(model.maxHeartRateIsSet ? "" : String(localized: " (automatic)"))" }
-                     ?? String(localized: "Not known yet"))
+        .alert("Replace your watch's maximum?", isPresented: Binding(get: { pendingMax != nil }, set: { if !$0 { pendingMax = nil } })) {
+            Button("Use \(Int(pendingMax ?? 0)) bpm") {
+                if let pendingMax { model.setMaxHeartRate(pendingMax) }
+                pendingMax = nil
             }
-        } onIncrement: {
-            model.setMaxHeartRate(min((estimate ?? 180).rounded() + 1, 230))
-        } onDecrement: {
-            model.setMaxHeartRate(max((estimate ?? 180).rounded() - 1, 120))
+            Button("Keep my watch's", role: .cancel) { pendingMax = nil }
+        } message: {
+            Text("Your zones come from your watch through Intervals.icu, with a maximum of \(Int(model.storedHeartRateZones?.maxHeartRate ?? 0)) bpm. Setting your own changes them in TrackStar only; your watch keeps its settings. You can switch back here any time.")
         }
-        if model.maxHeartRateIsSet {
-            Button("Use automatic instead") { model.setMaxHeartRate(nil) }
-                .font(.subheadline)
+    }
+
+    /// The one setting. Changing it moves every zone; the first change over a watch's numbers asks first.
+    private func maxRow(_ current: Double) -> some View {
+        Stepper {
+            LabeledContent("Max heart rate", value: "\(Int(current.rounded())) bpm")
+        } onIncrement: {
+            change(to: current.rounded() + 1)
+        } onDecrement: {
+            change(to: current.rounded() - 1)
+        }
+    }
+
+    private func change(to bpm: Double) {
+        if model.ownMaxReplacesWatch, !model.maxHeartRateIsSet {
+            pendingMax = bpm
+        } else {
+            model.setMaxHeartRate(bpm)
+        }
+    }
+
+    /// Back to the watch's zones, or to the automatic maximum.
+    @ViewBuilder private var resyncButton: some View {
+        if model.intervalsAccount != nil {
+            Button {
+                syncing = true
+                Task {
+                    await model.useWatchHeartRate()
+                    syncing = false
+                }
+            } label: {
+                HStack {
+                    Label(model.maxHeartRateIsSet ? "Use my watch's zones again" : "Sync zones from my watch", systemImage: "arrow.triangle.2.circlepath")
+                    Spacer()
+                    if syncing { ProgressView() }
+                }
+            }
+            .disabled(syncing)
+        } else if model.maxHeartRateIsSet {
+            Button {
+                model.setMaxHeartRate(nil)
+            } label: {
+                Label("Work it out from my runs again", systemImage: "arrow.triangle.2.circlepath")
+            }
+        }
+    }
+
+    /// Where the maximum comes from, in plain words.
+    private var sourceText: String {
+        switch model.heartRateSource {
+        case .yourMax?:
+            return model.ownMaxReplacesWatch
+                ? String(localized: "Your own maximum, in place of your watch's. Your watch's zone shape is kept and scaled to it.")
+                : String(localized: "Your own maximum. Zones are 60, 70, 80 and 90% of it.")
+        case .watch?:
+            return String(localized: "From your watch (synced through Intervals.icu), and kept up to date. If a run goes higher, TrackStar will suggest an update.")
+        case .runs(let run)?:
+            let name = model.workout(for: run)?.name ?? String(localized: "a run")
+            return String(localized: "The highest your heart reached in the past year (\(name), \(run.date.formatted(.dateTime.month(.abbreviated).day()))). It updates by itself as you run.")
+        case .age?:
+            return String(localized: "Worked out from your age until a hard run shows a higher maximum. It updates by itself as you run.")
+        case nil:
+            return ""
         }
     }
 }

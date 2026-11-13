@@ -41,6 +41,20 @@ struct OnboardingView: View {
                 draft.acceptedDisclaimer = true
                 go(to: .review)
             }
+            // `-slowRunner`: a recent 3:25 half and a 3:00 goal (slower times are accepted; the goal shows as a stretch).
+            // Add `-typoRace` for an 8-minute 5K instead, which is capped and noted as a likely typo.
+            if ProcessInfo.processInfo.arguments.contains("-slowRunner") {
+                draft.acceptedDisclaimer = true
+                draft.goal = .halfMarathon
+                draft.experience = .beginner
+                draft.weeklyDistance = 15
+                draft.hasRecentRace = true
+                draft.recentDistance = ProcessInfo.processInfo.arguments.contains("-typoRace") ? .fiveK : .halfMarathon
+                draft.recentTimeSeconds = ProcessInfo.processInfo.arguments.contains("-typoRace") ? 8 * 60 : 3 * 3600 + 25 * 60
+                draft.hasGoalTime = true
+                draft.goalTimeSeconds = 3 * 3600
+                go(to: .review)
+            }
             // `-newRunner`: build a run/walk plan for a 5K in 14 weeks.
             if ProcessInfo.processInfo.arguments.contains("-newRunner") {
                 draft.acceptedDisclaimer = true
@@ -894,7 +908,7 @@ private struct ReviewStep: View {
                         Card {
                             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                                 ForEach(plan.warnings, id: \.self) { warning in
-                                    Label(warning.message(format), systemImage: "info.circle")
+                                    Label(warning.message(format, goalSeconds: plan.inputs.goalTimeSeconds), systemImage: "info.circle")
                                         .font(.subheadline)
                                         .foregroundStyle(Theme.ink)
                                 }

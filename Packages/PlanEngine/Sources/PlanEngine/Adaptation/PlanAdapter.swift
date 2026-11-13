@@ -219,6 +219,8 @@ public enum PlanAdapter {
             newScore = max(newScore, min(best, score * (1 + maxBestEffortIncrease)))
         }
 
+        // Repeated slow-downs never take paces below what the model covers.
+        newScore = FitnessModel.supported(newScore)
         guard abs(newScore - score) > 0.01 else { return nil }
         let confidence: FitnessEstimate.Confidence = plan.fitness.confidence == .low ? .medium : plan.fitness.confidence
         return FitnessEstimate(score: newScore, confidence: confidence)

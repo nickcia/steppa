@@ -287,7 +287,7 @@ enum DemoData {
     /// Demo mode and `-newRunner` (onboarding as a new runner) never touch real data.
     static var usesMemoryStore: Bool {
         #if DEBUG
-        isRequested || ProcessInfo.processInfo.arguments.contains("-newRunner")
+        isRequested || ["-newRunner", "-slowRunner"].contains { ProcessInfo.processInfo.arguments.contains($0) }
         #else
         false
         #endif
@@ -353,7 +353,12 @@ enum DemoData {
                 heartRate: times.map { .init($0, baseHR + rise * $0 / duration + 4 * sin($0 / 90) - (($0 < 300) ? (300 - $0) / 10 : 0)) },
                 power: times.map { .init($0, 245 + 12 * sin($0 / 150)) },
                 cadence: times.map { .init($0, 166 + 3 * sin($0 / 200)) },
-                altitude: times.map { .init($0, 40 + 12 * sin($0 / 400)) })
+                altitude: times.map { .init($0, 40 + 12 * sin($0 / 400)) },
+                strideLength: times.map { .init($0, 1.08 + 0.04 * sin($0 / 180)) },
+                verticalOscillation: times.map { .init($0, 8.6 + 0.4 * sin($0 / 220)) },
+                groundContactTime: times.map { .init($0, 248 + 8 * sin($0 / 160)) },
+                extras: RunExtras(activeCalories: meters / 1000 * 68, temperatureCelsius: 11, humidity: 72, indoor: false,
+                                  heartRateRecovery: 31, effortScore: workout.kind == .easy ? 4 : 7))
             runs.append(CompletedRun(id: id, date: workout.date, distanceMeters: meters, durationSeconds: duration,
                                      start: Calendar.current.date(bySettingHour: 7, minute: 10, second: 0, of: workout.date.date())))
         }

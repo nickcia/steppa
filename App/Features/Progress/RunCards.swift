@@ -207,13 +207,14 @@ struct AllRunsView: View {
 
 struct AllRunsRoute: Hashable {}
 
-/// Asks once for route access, for people who connected Health before TrackStar showed maps.
+/// Asks once for what Health access was added after someone connected: routes for maps, and running form, calories,
+/// recovery and effort for run analysis.
 struct RouteAccessPrompt: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         Button { Task { await model.allowRoutes() } } label: {
-            Label("Show your routes on a map", systemImage: "map")
+            Label("Show your routes and more run data", systemImage: "map")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.secondary)

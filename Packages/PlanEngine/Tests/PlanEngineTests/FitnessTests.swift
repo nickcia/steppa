@@ -62,16 +62,43 @@ func paceString(_ secondsPerKm: Double) -> String {
         }
     }
 
-    @Test func estimatorRejectsImplausibleRaces() {
+    @Test func slowRacesAreAcceptedAsTheyAre() throws {
         let today = LocalDate(year: 2026, month: 11, day: 6)
-        #expect(throws: PlanError.invalidPerformance) {
-            try FitnessEstimator.estimate(.recentRace(.init(.fiveK, timeSeconds: 8 * 60)),
-                                          experience: .advanced, weeklyMeters: 50_000, asOf: today)
-        }
+        // A 3:25 half marathon is a real result, not a typo.
+        let half = try FitnessEstimator.estimate(.recentRace(.init(.halfMarathon, timeSeconds: 3 * 3600 + 25 * 60)),
+                                                 experience: .beginner, weeklyMeters: 10_000, asOf: today)
+        #expect(half.score < 20)
+        #expect(abs(FitnessModel.raceTimeSeconds(distanceMeters: RaceDistance.halfMarathon.meters, score: half.score)
+                    - (3 * 3600 + 25 * 60)) < 60)
+    }
+
+    @Test func extremeRacesAreCappedNotRefused() throws {
+        let today = LocalDate(year: 2026, month: 11, day: 6)
+        // An 8-minute 5K (a typo) is capped at the fastest the model covers.
+        let fast = try FitnessEstimator.estimate(.recentRace(.init(.fiveK, timeSeconds: 8 * 60)),
+                                                 experience: .advanced, weeklyMeters: 50_000, asOf: today)
+        #expect(fast.score == FitnessModel.supportedScores.upperBound)
+        // A 9-hour half (also a typo, or walked very slowly) is capped at the slowest.
+        let slow = try FitnessEstimator.estimate(.recentRace(.init(.halfMarathon, timeSeconds: 9 * 3600)),
+                                                 experience: .beginner, weeklyMeters: 5_000, asOf: today)
+        #expect(slow.score == FitnessModel.supportedScores.lowerBound)
+        // Distances that aren't races are still refused (the app only offers race distances).
         #expect(throws: PlanError.invalidPerformance) {
             try FitnessEstimator.estimate(.recentRace(.init(distanceMeters: 400, timeSeconds: 90)),
                                           experience: .advanced, weeklyMeters: 50_000, asOf: today)
         }
+    }
+
+    @Test func onlyExtremeRacesGetANote() throws {
+        func warnings(_ race: RacePerformance) throws -> [PlanWarning] {
+            try PlanBuilder.build(sampleInputs(goal: .halfMarathon, current: 15_000, fitness: .recentRace(race),
+                                               experience: .beginner)).warnings
+        }
+        func unusual(_ w: [PlanWarning]) -> Bool { w.contains { if case .unusualRaceTime = $0 { true } else { false } } }
+        #expect(!unusual(try warnings(.init(.halfMarathon, timeSeconds: 3 * 3600 + 25 * 60))))
+        #expect(!unusual(try warnings(.init(.tenK, timeSeconds: 50 * 60))))
+        #expect(unusual(try warnings(.init(.fiveK, timeSeconds: 8 * 60))))
+        #expect(unusual(try warnings(.init(.halfMarathon, timeSeconds: 9 * 3600))))
     }
 
     @Test func staleRacesAreDiscounted() throws {

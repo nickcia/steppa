@@ -11,7 +11,7 @@ public struct HeartRateZones: Codable, Hashable, Sendable {
         case estimated
         /// Imported from the athlete's watch platform, through Intervals.icu.
         case imported
-        /// Typed in by the athlete.
+        /// From a maximum heart rate the athlete set (the only setting they change).
         case custom
     }
 
@@ -19,11 +19,22 @@ public struct HeartRateZones: Codable, Hashable, Sendable {
     public var upperLimits: [Double]
     public var maxHeartRate: Double
     public var source: Source
+    /// Where imported zones came from, e.g. "Intervals.icu"; nil otherwise.
+    public var provider: String?
 
-    public init(upperLimits: [Double], maxHeartRate: Double, source: Source) {
+    public init(upperLimits: [Double], maxHeartRate: Double, source: Source, provider: String? = nil) {
         self.upperLimits = upperLimits
         self.maxHeartRate = maxHeartRate
         self.source = source
+        self.provider = provider
+    }
+
+    /// The same zones for a different maximum: every limit moves in proportion, so zones a watch set up (which may
+    /// not be simple percentages) keep their shape.
+    public func scaled(toMax newMax: Double, source: Source = .custom) -> HeartRateZones {
+        let ratio = newMax / maxHeartRate
+        return HeartRateZones(upperLimits: upperLimits.map { ($0 * ratio).rounded() }, maxHeartRate: newMax.rounded(),
+                              source: source, provider: provider)
     }
 
     /// Zone limits as a share of maximum heart rate: Z1 < 60%, Z2 60–70%, Z3 70–80%, Z4 80–90%, Z5 ≥ 90%.
@@ -42,7 +53,8 @@ public struct HeartRateZones: Codable, Hashable, Sendable {
         let limits = upperLimits.filter { (60...240).contains($0) }
         guard limits.count >= 5, zip(limits, limits.dropFirst()).allSatisfy({ $0 < $1 }) else { return nil }
         let top = max(maxHeartRate ?? 0, limits.last!)
-        return HeartRateZones(upperLimits: Array(limits.prefix(4)), maxHeartRate: top, source: .imported)
+        return HeartRateZones(upperLimits: Array(limits.prefix(4)), maxHeartRate: top, source: .imported,
+                              provider: "Intervals.icu")
     }
 
     public var isValid: Bool {

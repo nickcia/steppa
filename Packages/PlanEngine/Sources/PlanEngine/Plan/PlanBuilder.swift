@@ -48,6 +48,10 @@ public enum PlanBuilder {
             warnings.append(.ambitiousGoal(predictedSeconds: predicted))
         }
         if fitness.confidence == .low { warnings.append(.estimatedFitness) }
+        if case .recentRace(let race) = inputs.fitness,
+           !FitnessModel.supportedScores.contains(FitnessModel.score(distanceMeters: race.distanceMeters, timeSeconds: race.timeSeconds)) {
+            warnings.append(.unusualRaceTime(distanceMeters: race.distanceMeters, timeSeconds: race.timeSeconds))
+        }
 
         return TrainingPlan(engineVersion: engineVersion, inputs: inputs, fitness: fitness, paces: paces,
                             weeks: weeks, warnings: warnings)

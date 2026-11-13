@@ -204,22 +204,11 @@ struct IntervalsSection: View {
         Section {
             if let account = model.intervalsAccount {
                 LabeledContent("Intervals.icu", value: account.athleteName.isEmpty ? String(localized: "Connected") : account.athleteName)
-                watchRows
-                Button {
-                    Task { await model.syncIntervals(force: true) }
-                } label: {
-                    HStack {
-                        Text("Sync now")
-                        Spacer()
-                        if model.intervalsSyncing {
-                            ProgressView()
-                        } else if let last = model.intervalsLastSync {
-                            Text(last, format: .relative(presentation: .named))
-                                .foregroundStyle(Theme.secondaryInk)
-                        }
-                    }
+                // With Garmin connected directly, Intervals.icu brings in runs and zones but doesn't send workouts.
+                if model.intervalsSendsWorkouts {
+                    watchRows
+                    syncRow
                 }
-                .disabled(model.intervalsSyncing)
                 if let problem = model.intervalsProblem {
                     Label(problem, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
@@ -245,8 +234,10 @@ struct IntervalsSection: View {
                 Text(model.garminAvailable
                      ? "Workouts are sent through Intervals.icu, a free training site that passes them on to COROS, Suunto and Wahoo. You'll sign in to Intervals.icu (or create a free account), then link your watch there once."
                      : "Workouts are sent through Intervals.icu, a free training site that passes them on to Garmin Connect, COROS, Suunto and Wahoo. You'll sign in to Intervals.icu (or create a free account), then link your watch there once.")
-            } else {
+            } else if model.intervalsSendsWorkouts {
                 Text("Your upcoming workouts are on your Intervals.icu calendar and are kept in step with your plan. Linked watches get them a few days ahead.")
+            } else {
+                Text("Runs and heart-rate zones come in from Intervals.icu.")
             }
         }
         .sheet(isPresented: $enteringKey) { IntervalsAPIKeyView() }
@@ -261,6 +252,24 @@ struct IntervalsSection: View {
         } message: {
             Text(signInError ?? "")
         }
+    }
+
+    private var syncRow: some View {
+        Button {
+            Task { await model.syncIntervals(force: true) }
+        } label: {
+            HStack {
+                Text("Sync now")
+                Spacer()
+                if model.intervalsSyncing {
+                    ProgressView()
+                } else if let last = model.intervalsLastSync {
+                    Text(last, format: .relative(presentation: .named))
+                        .foregroundStyle(Theme.secondaryInk)
+                }
+            }
+        }
+        .disabled(model.intervalsSyncing)
     }
 
     /// One row per linked watch service, or a prompt to link one.

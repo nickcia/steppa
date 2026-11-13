@@ -252,8 +252,15 @@ extension Experience {
 }
 
 extension Workout {
-    /// The athlete's name for a custom workout, else the kind of run.
-    var name: String { title.flatMap { $0.isEmpty ? nil : $0 } ?? kind.name }
+    /// The athlete's name for a custom workout, else the kind of run ("Easy run with strides" when it has them).
+    var name: String {
+        if let title, !title.isEmpty { return title }
+        if kind == .easy, hasStrides { return String(localized: "Easy run with strides") }
+        return kind.name
+    }
+
+    /// Whether any step is a stride.
+    var hasStrides: Bool { blocks.contains { $0.steps.contains { $0.step.target?.zone == .stride } } }
 }
 
 extension Workout {

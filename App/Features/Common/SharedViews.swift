@@ -182,7 +182,8 @@ private struct StepRow: View {
 }
 
 extension PlanWarning {
-    func message(_ format: DisplayFormat) -> String {
+    /// `goalSeconds`: the athlete's goal time, so a stretch goal can say how far off it is.
+    func message(_ format: DisplayFormat, goalSeconds: Double? = nil) -> String {
         switch self {
         case .shortPlan(let weeks, let recommended):
             String(localized: "You have \(weeks) weeks; \(recommended) is ideal for this distance. The plan is compressed, so aim to arrive healthy rather than chase a time.")
@@ -191,12 +192,42 @@ extension PlanWarning {
         case .volumeLimitedByAvailability:
             String(localized: "Your available days limit how much the plan can build. Adding a run day would allow more volume.")
         case .ambitiousGoal(let predicted):
-            String(localized: "Your goal is faster than your current fitness suggests (around \(DisplayFormat.clock(predicted))). Paces start from where you are now and adjust as you get fitter.")
+            Self.stretchGoal(goal: goalSeconds, predicted: predicted)
+        case .unusualRaceTime(let meters, let seconds):
+            Self.unusualRace(meters: meters, seconds: seconds, format: format)
         case .fewRunDays(let recommended):
             String(localized: "This goal usually needs at least \(recommended) runs a week. With fewer, it's unlikely to be realistic: the plan keeps you safe, but it can't build enough distance. Add run days or choose a gentler goal.")
         case .estimatedFitness:
             String(localized: "Without a recent race, your paces are an estimate. They'll adjust as you complete runs.")
         }
+    }
+
+    /// Names the gap between the goal and today's fitness, and keeps it encouraging: a stretch is allowed.
+    private static func stretchGoal(goal: Double?, predicted: Double) -> String {
+        guard let goal, goal > 0, predicted > goal else {
+            return String(localized: "Your goal is a stretch from where your fitness is today (around \(DisplayFormat.clock(predicted))). That's okay: paces start from where you are and speed up as you get fitter.")
+        }
+        let gap = predicted - goal
+        // Round the gap to something a person would say: seconds under 2 minutes, then whole minutes.
+        let gapText = gap < 120 ? String(localized: "\(Int(gap.rounded())) seconds")
+            : String(localized: "\(Int((gap / 60).rounded())) minutes")
+        let share = gap / predicted
+        let size = share > 0.10 ? String(localized: "That's a big jump for one training block, and it's worth going for.")
+            : String(localized: "That's a real stretch, and very doable with steady training.")
+        return String(localized: "Your goal of \(DisplayFormat.clock(goal)) is about \(gapText) faster than the \(DisplayFormat.clock(predicted)) your fitness points to today. \(size) Your paces start from where you are now and get faster as you do, so training stays safe; watch your predicted time close the gap.")
+    }
+
+    /// A race result outside what the model covers: says what looked off, and that it's fixable.
+    private static func unusualRace(meters: Double, seconds: Double, format: DisplayFormat) -> String {
+        // "5K", "10K", but "half marathon" in the middle of a sentence.
+        let race = RaceDistance.allCases.first { abs($0.meters - meters) < 1 }
+            .map { $0 == .fiveK || $0 == .tenK ? $0.name : $0.name.lowercased() } ?? format.distance(meters)
+        let time = DisplayFormat.clock(seconds)
+        let pace = format.pace(seconds / (meters / 1000))
+        if FitnessModel.score(distanceMeters: meters, timeSeconds: seconds) > FitnessModel.supportedScores.upperBound {
+            return String(localized: "Your \(race) time of \(time) works out to \(pace), faster than the world record, so it might be a typo. If it is, go back and fix it. Otherwise your paces start at elite level and adjust after your first few runs.")
+        }
+        return String(localized: "Your \(race) time of \(time) works out to \(pace), about walking pace, so it might be a typo. If it is, go back and fix it. If not, that's a fine place to start: your paces begin gently and adjust after your first few runs.")
     }
 }
 
@@ -206,5 +237,81 @@ struct DisclaimerText: View {
         Text("This app gives general training guidance, not medical advice. Talk to a doctor before starting a new training programme, especially if you have a health condition, an injury or are returning after a long break. Stop and seek advice if you feel pain, dizziness or chest discomfort.")
             .font(.footnote)
             .foregroundStyle(Theme.secondaryInk)
+    }
+}
+
+/// A workout's shape at a glance: one bar per step, as wide as it lasts and as tall as it's hard, in its zone's
+/// colour. Easy running is a long low bar; intervals are a row of tall bars with low recoveries between.
+struct WorkoutShapeView: View {
+    let workout: Workout
+    var height: CGFloat = 48
+    /// On the dark Today card: no-target steps (walks, jogs) show in white rather than grey.
+    var onDark = false
+
+    struct Bar: Identifiable, Equatable {
+        let id: Int
+        let seconds: Double
+        /// 0–1: how hard, for the bar's height.
+        let intensity: Double
+        let zone: PaceZone?
+        let isRecovery: Bool
+    }
+
+    /// Every step in order, repeats laid out in full.
+    static func bars(_ workout: Workout) -> [Bar] {
+        var steps: [(step: Step, recovery: Bool)] = []
+        if let warmup = workout.warmup { steps.append((warmup, false)) }
+        for block in workout.blocks {
+            for _ in 0..<max(1, block.iterations) {
+                steps += block.steps.map { ($0.step, $0.purpose == .recovery) }
+            }
+        }
+        if let cooldown = workout.cooldown { steps.append((cooldown, false)) }
+        // Run/walk: walking breaks are the low bars, running the slightly taller ones.
+        let runWalk = workout.isRunWalkSession
+        return steps.enumerated().map { index, item in
+            let zone = item.step.target?.zone
+            var intensity = Self.intensity(zone)
+            if item.recovery { intensity = min(intensity, 0.22) }
+            if runWalk { intensity = item.recovery || index == 0 || index == steps.count - 1 ? 0.18 : 0.4 }
+            return Bar(id: index, seconds: max(1, item.step.estimatedSeconds), intensity: intensity,
+                       zone: runWalk && intensity < 0.3 ? nil : zone, isRecovery: item.recovery)
+        }
+    }
+
+    static func intensity(_ zone: PaceZone?) -> Double {
+        switch zone {
+        case nil: 0.2
+        case .easy?: 0.36
+        case .marathon?: 0.55
+        case .race?: 0.66
+        case .threshold?: 0.72
+        case .interval?, .hill?: 0.88
+        case .repetition?, .stride?: 1
+        }
+    }
+
+    var body: some View {
+        let bars = Self.bars(workout)
+        let total = bars.reduce(0) { $0 + $1.seconds }
+        let gap: CGFloat = bars.count > 40 ? 1 : 2
+        GeometryReader { proxy in
+            let usable = proxy.size.width - gap * CGFloat(max(0, bars.count - 1))
+            HStack(alignment: .bottom, spacing: gap) {
+                ForEach(bars) { bar in
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(color(bar))
+                        .frame(width: max(2, usable * bar.seconds / total), height: max(6, height * bar.intensity))
+                }
+            }
+            .frame(width: proxy.size.width, height: height, alignment: .bottomLeading)
+        }
+        .frame(height: height)
+        .accessibilityHidden(true)
+    }
+
+    private func color(_ bar: Bar) -> Color {
+        guard let zone = bar.zone else { return onDark ? .white.opacity(0.35) : Theme.subtle }
+        return bar.isRecovery ? zone.color.opacity(0.55) : zone.color
     }
 }

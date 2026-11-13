@@ -12,6 +12,16 @@ public struct RunSeries: Codable, Hashable, Sendable {
     public var cadence: [Point]
     /// Metres above sea level.
     public var altitude: [Point]
+    /// Metres per step (Apple Watch; Garmin with a running sensor).
+    public var strideLength: [Point]
+    /// Centimetres of bounce per step.
+    public var verticalOscillation: [Point]
+    /// Milliseconds each foot spends on the ground.
+    public var groundContactTime: [Point]
+    /// Degrees Celsius (watches with a temperature sensor).
+    public var temperature: [Point]
+    /// Totals and conditions the watch saved with the run, rather than over time.
+    public var extras: RunExtras?
 
     public struct Point: Codable, Hashable, Sendable {
         public var t: Double
@@ -20,16 +30,40 @@ public struct RunSeries: Codable, Hashable, Sendable {
     }
 
     public init(distance: [Point] = [], heartRate: [Point] = [], power: [Point] = [],
-                cadence: [Point] = [], altitude: [Point] = []) {
+                cadence: [Point] = [], altitude: [Point] = [], strideLength: [Point] = [],
+                verticalOscillation: [Point] = [], groundContactTime: [Point] = [], temperature: [Point] = [],
+                extras: RunExtras? = nil) {
         self.distance = distance
         self.heartRate = heartRate
         self.power = power
         self.cadence = cadence
         self.altitude = altitude
+        self.strideLength = strideLength
+        self.verticalOscillation = verticalOscillation
+        self.groundContactTime = groundContactTime
+        self.temperature = temperature
+        self.extras = extras
+    }
+
+    // Series added after the first release are missing from runs saved before them.
+    private enum CodingKeys: String, CodingKey {
+        case distance, heartRate, power, cadence, altitude, strideLength, verticalOscillation, groundContactTime,
+             temperature, extras
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func series(_ key: CodingKeys) throws -> [Point] { try c.decodeIfPresent([Point].self, forKey: key) ?? [] }
+        self.init(distance: try series(.distance), heartRate: try series(.heartRate), power: try series(.power),
+                  cadence: try series(.cadence), altitude: try series(.altitude), strideLength: try series(.strideLength),
+                  verticalOscillation: try series(.verticalOscillation), groundContactTime: try series(.groundContactTime),
+                  temperature: try series(.temperature), extras: try c.decodeIfPresent(RunExtras.self, forKey: .extras))
     }
 
     public var isEmpty: Bool {
         distance.isEmpty && heartRate.isEmpty && power.isEmpty && cadence.isEmpty && altitude.isEmpty
+            && strideLength.isEmpty && verticalOscillation.isEmpty && groundContactTime.isEmpty && temperature.isEmpty
+            && (extras?.isEmpty ?? true)
     }
 
     /// At most `limit` points per series, keeping the shape, so stored runs stay small.
@@ -40,8 +74,43 @@ public struct RunSeries: Codable, Hashable, Sendable {
             return (0..<limit).map { points[Int((Double($0) * step).rounded())] }
         }
         return RunSeries(distance: thin(distance), heartRate: thin(heartRate), power: thin(power),
-                         cadence: thin(cadence), altitude: thin(altitude))
+                         cadence: thin(cadence), altitude: thin(altitude), strideLength: thin(strideLength),
+                         verticalOscillation: thin(verticalOscillation), groundContactTime: thin(groundContactTime),
+                         temperature: thin(temperature), extras: extras)
     }
+}
+
+/// Single numbers a watch saves with a run (Apple Health's workout totals and metadata, for example).
+public struct RunExtras: Codable, Hashable, Sendable {
+    /// Active calories (kcal).
+    public var activeCalories: Double?
+    /// The watch's own climb and descent, used when there's no altitude recording.
+    public var elevationGainMeters: Double?
+    public var elevationLossMeters: Double?
+    public var temperatureCelsius: Double?
+    /// Relative humidity, 0–100.
+    public var humidity: Double?
+    /// Treadmill or indoor track.
+    public var indoor: Bool?
+    /// How far heart rate fell in the minute after stopping, in bpm (Apple Watch).
+    public var heartRateRecovery: Double?
+    /// The athlete's (or Apple's estimated) effort, 1–10.
+    public var effortScore: Double?
+
+    public init(activeCalories: Double? = nil, elevationGainMeters: Double? = nil, elevationLossMeters: Double? = nil,
+                temperatureCelsius: Double? = nil, humidity: Double? = nil, indoor: Bool? = nil,
+                heartRateRecovery: Double? = nil, effortScore: Double? = nil) {
+        self.activeCalories = activeCalories
+        self.elevationGainMeters = elevationGainMeters
+        self.elevationLossMeters = elevationLossMeters
+        self.temperatureCelsius = temperatureCelsius
+        self.humidity = humidity
+        self.indoor = indoor
+        self.heartRateRecovery = heartRateRecovery
+        self.effortScore = effortScore
+    }
+
+    public var isEmpty: Bool { self == RunExtras() }
 }
 
 /// What a run's data says: splits, averages, heart-rate zones and how steady it was.
@@ -73,6 +142,40 @@ public struct RunAnalysis: Codable, Hashable, Sendable {
     /// Spread of full-split paces (coefficient of variation). Low = even pacing.
     public var paceVariability: Double?
 
+    // Everything else the watch recorded. nil when it wasn't.
+    /// Time spent moving (stops at crossings and pauses left out).
+    public var movingSeconds: Double?
+    public var maxPower: Double?
+    public var maxCadence: Double?
+    /// Metres per step.
+    public var averageStrideLength: Double?
+    /// Centimetres.
+    public var averageVerticalOscillation: Double?
+    /// Milliseconds.
+    public var averageGroundContactTime: Double?
+    /// Vertical oscillation as a share of stride length, in percent. Lower is more efficient.
+    public var verticalRatio: Double?
+    public var elevationLossMeters: Double?
+    public var highestAltitude: Double?
+    public var lowestAltitude: Double?
+    public var averageTemperature: Double?
+    /// Fastest stretches inside the run (e.g. the quickest kilometre), shortest first.
+    public var bestEfforts: [BestEffort] = []
+    /// Metres a minute per heartbeat while moving. Rises as aerobic fitness improves (compare like with like).
+    public var efficiency: Double?
+    /// Training load: minutes in each heart-rate zone weighted by the zone (1–5) (Edwards' TRIMP).
+    public var trainingLoad: Double?
+    public var extras: RunExtras?
+
+    public struct BestEffort: Codable, Hashable, Sendable {
+        public var meters: Double
+        public var seconds: Double
+        public var secondsPerKm: Double { seconds / meters * 1000 }
+    }
+
+    /// Moving time when known, else the whole time.
+    public var movingSecondsPerKm: Double { (movingSeconds ?? durationSeconds) / max(distanceMeters, 1) * 1000 }
+
     public var secondsPerKm: Double { durationSeconds / max(distanceMeters, 1) * 1000 }
 }
 
@@ -89,7 +192,7 @@ public enum RunAnalyzer {
                                zones: HeartRateZones? = nil) -> RunAnalysis {
         let zones = zones ?? maxHeartRate.map { HeartRateZones.fromMax($0) }
         let heart = series.heartRate.filter { (30...230).contains($0.v) }
-        return RunAnalysis(
+        var analysis = RunAnalysis(
             distanceMeters: distanceMeters,
             durationSeconds: durationSeconds,
             averageHeartRate: timeWeightedAverage(heart),
@@ -101,6 +204,68 @@ public enum RunAnalyzer {
             heartRateZoneSeconds: zones.flatMap { timeInZones(heart, zones: $0) },
             heartRateDrift: drift(series.distance, heart),
             paceVariability: variability(splits(series.distance, heartRate: [], every: splitMeters)))
+        addEverythingElse(to: &analysis, series: series, heart: heart)
+        return analysis
+    }
+
+    /// The fuller picture: moving time, best efforts, running form, power, elevation, conditions and load.
+    static func addEverythingElse(to analysis: inout RunAnalysis, series: RunSeries, heart: [RunSeries.Point]) {
+        let extras = series.extras
+        analysis.extras = extras
+        analysis.movingSeconds = movingTime(series.distance)
+        analysis.maxPower = series.power.map(\.v).filter { $0 > 0 }.max()
+        analysis.maxCadence = series.cadence.map(\.v).filter { (100...260).contains($0) }.max()
+        analysis.averageStrideLength = timeWeightedAverage(series.strideLength.filter { (0.3...3).contains($0.v) })
+        analysis.averageVerticalOscillation = timeWeightedAverage(series.verticalOscillation.filter { (2...20).contains($0.v) })
+        analysis.averageGroundContactTime = timeWeightedAverage(series.groundContactTime.filter { (100...500).contains($0.v) })
+        if let oscillation = analysis.averageVerticalOscillation, let stride = analysis.averageStrideLength, stride > 0 {
+            analysis.verticalRatio = oscillation / (stride * 100) * 100
+        }
+        if analysis.elevationGainMeters == nil { analysis.elevationGainMeters = extras?.elevationGainMeters }
+        analysis.elevationLossMeters = elevationGain(series.altitude.map { .init($0.t, -$0.v) }) ?? extras?.elevationLossMeters
+        analysis.highestAltitude = series.altitude.map(\.v).max()
+        analysis.lowestAltitude = series.altitude.map(\.v).min()
+        analysis.averageTemperature = timeWeightedAverage(series.temperature) ?? extras?.temperatureCelsius
+        analysis.bestEfforts = bestEfforts(series.distance)
+        if let hr = analysis.averageHeartRate, hr > 0, analysis.distanceMeters > 0 {
+            let minutes = (analysis.movingSeconds ?? analysis.durationSeconds) / 60
+            if minutes > 0 { analysis.efficiency = analysis.distanceMeters / minutes / hr }
+        }
+        if let zones = analysis.heartRateZoneSeconds {
+            analysis.trainingLoad = zones.enumerated().reduce(0) { $0 + Double($1.offset + 1) * $1.element / 60 }
+        }
+    }
+
+    /// Time when moving faster than a slow walk (0.5 m/s); pauses longer than 30 s between samples don't count.
+    static func movingTime(_ distance: [RunSeries.Point]) -> Double? {
+        guard distance.count > 2 else { return nil }
+        var moving = 0.0
+        for (a, b) in zip(distance, distance.dropFirst()) {
+            let dt = b.t - a.t
+            guard dt > 0, dt <= 30, (b.v - a.v) / dt >= 0.5 else { continue }
+            moving += dt
+        }
+        return moving > 0 ? moving : nil
+    }
+
+    /// Distances worth knowing a best for, shortest first.
+    public static let bestEffortDistances: [Double] = [400, 1000, 1609.344, 5000, 10000, 21097.5]
+
+    /// The fastest time for each distance anywhere inside the run, from the distance recording.
+    static func bestEfforts(_ distance: [RunSeries.Point]) -> [RunAnalysis.BestEffort] {
+        guard let total = distance.last?.v, distance.count > 2 else { return [] }
+        return bestEffortDistances.filter { $0 <= total + 1 }.compactMap { meters in
+            var best: Double?
+            for start in distance where start.v + meters <= total + 1 {
+                // The whole run can be a hair short of a round distance; count it as reaching it.
+                guard let end = time(at: min(start.v + meters, total), in: distance) else { break }
+                let seconds = end - start.t
+                if seconds > 0, seconds < (best ?? .infinity) { best = seconds }
+            }
+            // Faster than world-record pace means GPS trouble, not a best.
+            guard let best, meters / best < 7 else { return nil }
+            return RunAnalysis.BestEffort(meters: meters, seconds: best)
+        }
     }
 
     /// The time at which `meters` was reached, interpolated between samples.

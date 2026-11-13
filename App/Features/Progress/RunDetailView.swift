@@ -70,23 +70,38 @@ struct RunDetailView: View {
             }
             .padding(.top, Theme.Spacing.s)
 
-            // Headline numbers.
-            Grid(horizontalSpacing: 12, verticalSpacing: 12) {
-                GridRow {
-                    tile(format.distance(analysis.distanceMeters), String(localized: "distance"))
-                    tile(DisplayFormat.duration(analysis.durationSeconds), String(localized: "time"))
-                    tile(DisplayFormat.clock(format.paceSeconds(analysis.secondsPerKm)),
-                         String(localized: "avg pace /\(model.units.distanceUnit)"))
-                }
-                if analysis.averageHeartRate != nil || analysis.averagePower != nil || analysis.averageCadence != nil {
-                    GridRow {
-                        tile(analysis.averageHeartRate.map { "\(Int($0.rounded()))" } ?? "–", String(localized: "avg bpm"))
-                        if let power = analysis.averagePower {
-                            tile("\(Int(power.rounded())) W", String(localized: "avg power"))
-                        } else {
-                            tile(analysis.maxHeartRate.map { "\(Int($0.rounded()))" } ?? "–", String(localized: "max bpm"))
+            // What most people want, first: where, how far, how fast, how it felt, and how it compared.
+            RunRouteMap(run: run)
+            headline(analysis)
+
+            if let workout {
+                PlanComparisonCard(workout: workout, analysis: analysis)
+            }
+
+            if let series {
+                RunSeriesChartsCard(series: series, units: model.units, set: .main)
+            }
+
+            if !analysis.splits.isEmpty {
+                SplitsCard(splits: analysis.splits, units: model.units)
+            }
+
+            if let zones = analysis.heartRateZoneSeconds, zones.reduce(0, +) > 60 {
+                ZonesCard(zones: zones, heartRateZones: model.heartRateZones, maxIsSet: model.maxHeartRateIsSet)
+            }
+
+            let notes = RunNotes.make(analysis: analysis, workout: workout, format: format)
+            if !notes.isEmpty {
+                Card(padding: 18) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("What this run tells you").font(.headline).foregroundStyle(Theme.ink)
+                        ForEach(notes, id: \.self) { note in
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: "lightbulb").foregroundStyle(Theme.amber)
+                                Text(note).font(.subheadline).foregroundStyle(Theme.ink)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
-                        tile(analysis.averageCadence.map { "\(Int($0.rounded()))" } ?? "–", String(localized: "steps /min"))
                     }
                 }
             }
@@ -113,40 +128,16 @@ struct RunDetailView: View {
                 }
             }
 
-            if let workout {
-                PlanComparisonCard(workout: workout, analysis: analysis)
-            }
-
             RunShoesRow(run: run)
 
-            let notes = RunNotes.make(analysis: analysis, workout: workout, format: format)
-            if !notes.isEmpty {
-                Card(padding: 18) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("What this run tells you").font(.headline).foregroundStyle(Theme.ink)
-                        ForEach(notes, id: \.self) { note in
-                            HStack(alignment: .top, spacing: 10) {
-                                Image(systemName: "lightbulb").foregroundStyle(Theme.amber)
-                                Text(note).font(.subheadline).foregroundStyle(Theme.ink)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-                }
+            // The detail, for anyone who wants it.
+            if hasMoreDetail(analysis, series) {
+                Text("More details")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.top, Theme.Spacing.m)
+                RunMetricsCard(analysis: analysis, units: model.units, series: series)
             }
-
-            if let series, !series.distance.isEmpty || !series.heartRate.isEmpty {
-                RunChartsCard(series: series, units: model.units)
-            }
-
-            if !analysis.splits.isEmpty {
-                SplitsCard(splits: analysis.splits, units: model.units)
-            }
-
-            if let zones = analysis.heartRateZoneSeconds, zones.reduce(0, +) > 60 {
-                ZonesCard(zones: zones, heartRateZones: model.heartRateZones, maxIsSet: model.maxHeartRateIsSet)
-            }
-
 
             if series == nil {
                 Card(padding: 18) {
@@ -157,6 +148,44 @@ struct RunDetailView: View {
                 }
             }
         }
+    }
+
+    /// Six numbers: distance, time and pace, then heart rate, climb and calories (or cadence and power when those
+    /// aren't recorded).
+    private func headline(_ analysis: RunAnalysis) -> some View {
+        let format = model.format
+        let extra = secondRow(analysis)
+        return Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+            GridRow {
+                tile(format.distance(analysis.distanceMeters), String(localized: "distance"))
+                tile(DisplayFormat.duration(analysis.durationSeconds), String(localized: "time"))
+                tile(DisplayFormat.clock(format.paceSeconds(analysis.secondsPerKm)),
+                     String(localized: "avg pace /\(model.units.distanceUnit)"))
+            }
+            if !extra.isEmpty {
+                GridRow {
+                    ForEach(extra, id: \.1) { tile($0.0, $0.1) }
+                }
+            }
+        }
+    }
+
+    private func secondRow(_ analysis: RunAnalysis) -> [(String, String)] {
+        var items: [(String, String)] = []
+        if let hr = analysis.averageHeartRate { items.append(("\(Int(hr.rounded()))", String(localized: "avg bpm"))) }
+        if let gain = analysis.elevationGainMeters {
+            let value = model.units == .metric ? "\(Int(gain.rounded())) m" : "\(Int((gain * 3.28084).rounded())) ft"
+            items.append((value, String(localized: "climb")))
+        }
+        if let calories = analysis.extras?.activeCalories { items.append(("\(Int(calories.rounded()))", String(localized: "kcal"))) }
+        if let cadence = analysis.averageCadence { items.append(("\(Int(cadence.rounded()))", String(localized: "steps /min"))) }
+        if let power = analysis.averagePower { items.append(("\(Int(power.rounded())) W", String(localized: "avg power"))) }
+        return Array(items.prefix(3))
+    }
+
+    private func hasMoreDetail(_ analysis: RunAnalysis, _ series: RunSeries?) -> Bool {
+        RunMetricsCard.groups(analysis, units: model.units).contains { !$0.rows.isEmpty }
+            || series.map { !RunSeriesChartsCard.metrics($0, units: model.units, set: .more).filter { $0.samples.count > 2 }.isEmpty } ?? false
     }
 
     private func tile(_ value: String, _ label: String) -> some View {
@@ -219,78 +248,6 @@ private struct PlanComparisonCard: View {
         case .onTarget: String(localized: "On target")
         case .faster: String(localized: "Faster than planned")
         case .slower: String(localized: "Slower than planned")
-        }
-    }
-}
-
-/// Pace and heart rate over the run.
-private struct RunChartsCard: View {
-    let series: RunSeries
-    let units: UnitSystem
-
-    private struct Sample: Identifiable {
-        let id: Int
-        let minutes: Double
-        let value: Double
-    }
-
-    /// Pace in seconds per display unit, smoothed over about a minute so GPS noise doesn't dominate.
-    private var pace: [Sample] {
-        let points = series.distance
-        guard points.count > 2 else { return [] }
-        var result: [Sample] = []
-        var j = 0
-        for (i, point) in points.enumerated() {
-            while j < i, point.t - points[j].t > 60 { j += 1 }
-            let dt = point.t - points[j].t, dd = point.v - points[j].v
-            guard dt >= 20, dd > 5 else { continue }
-            let secondsPerKm = dt / dd * 1000
-            guard (150...900).contains(secondsPerKm) else { continue }
-            result.append(Sample(id: i, minutes: point.t / 60, value: secondsPerKm * units.metersPerUnit / 1000))
-        }
-        return result
-    }
-
-    private var heart: [Sample] {
-        series.heartRate.enumerated().map { Sample(id: $0.offset, minutes: $0.element.t / 60, value: $0.element.v) }
-    }
-
-    var body: some View {
-        Card(padding: 18) {
-            VStack(alignment: .leading, spacing: 16) {
-                if !pace.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Pace").font(.headline).foregroundStyle(Theme.ink)
-                        Chart(pace) {
-                            LineMark(x: .value("Minutes", $0.minutes), y: .value("Pace", $0.value))
-                                .foregroundStyle(WorkoutKind.long.color)
-                                .interpolationMethod(.catmullRom)
-                        }
-                        .chartYScale(domain: .automatic(includesZero: false, reversed: true))
-                        .chartYAxis {
-                            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                                AxisGridLine()
-                                AxisValueLabel { Text(value.as(Double.self).map { DisplayFormat.clock($0) } ?? "") }
-                            }
-                        }
-                        .chartXAxisLabel("min")
-                        .frame(height: 140)
-                    }
-                }
-                if !heart.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Heart rate").font(.headline).foregroundStyle(Theme.ink)
-                        Chart(heart) {
-                            LineMark(x: .value("Minutes", $0.minutes), y: .value("bpm", $0.value))
-                                .foregroundStyle(Theme.red)
-                                .interpolationMethod(.catmullRom)
-                        }
-                        .chartYScale(domain: .automatic(includesZero: false))
-                        .chartXAxisLabel("min")
-                        .frame(height: 120)
-                    }
-                }
-            }
         }
     }
 }
