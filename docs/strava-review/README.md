@@ -27,13 +27,14 @@ and adapts it to the runs the athlete actually does. It has no accounts: everyth
 
 **How does it use the Strava API?**
 - Uploads runs the athlete records on their iPhone with TrackStar's guided runs (GPX via the uploads endpoint, or a
-  manual activity when GPS was off), titled from their plan, for example "Week 5: Threshold · 7 km", with the
+  manual activity when GPS was off), titled from their plan, for example "Week 5 - Threshold 7 km", with the
   workout's steps in the description.
 - Reads the athlete's recent activities (last few days) on the phone, for two things: to skip uploading a phone run
   when their watch already recorded it (no duplicates), and to give watch runs that completed a planned workout the
   plan's title and steps, only while the activity still has its default name and an empty description.
-- Scopes: activity:write, activity:read_all. No Strava data is shown to other users, stored off the device, or sent
-  to any server; there is no TrackStar server.
+- Scopes: activity:write, activity:read_all. No Strava data is shown to other users or stored off the device. The
+  only server involved is TrackStar's own small sign-in relay, which adds the client secret to the token request
+  and passes Strava's reply straight back to the phone without keeping it.
 
 **Expected number of athletes:** a small beta at first (tens), growing with an App Store release.
 

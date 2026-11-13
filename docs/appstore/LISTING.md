@@ -40,7 +40,7 @@ the app changes, launch with `-demo` plus:
 **Description** (4,000)
 
 > TrackStar builds a training plan for your race and adapts it as you go, from a first 5K to a marathon. It's free,
-> it has no ads or subscriptions, and your data never leaves your phone.
+> it has no ads or subscriptions, and your data stays yours.
 >
 > A PLAN THAT FITS YOUR LIFE
 > • Pick your race and date, the days you can run and how much you run now. TrackStar builds week-by-week training
@@ -63,17 +63,22 @@ the app changes, launch with `-demo` plus:
 >
 > WORKOUTS ON YOUR WATCH
 > • Send structured workouts to Apple Watch with one tap.
-> • Garmin, COROS, Suunto or Wahoo? Connect your free Intervals.icu account and your workouts reach your watch
+> • Garmin? Connect Garmin Connect in one tap: workouts go to your watch with every step and pace, and your runs
+>   come back to TrackStar.
+> • COROS, Suunto or Wahoo? Connect your free Intervals.icu account and your workouts reach your watch
 >   automatically.
 >
 > LEARN FROM EVERY RUN
-> • Pace, heart rate, power and cadence, with heart-rate zones and splits.
+> • Your route on a map, best efforts, pace, heart rate, power, cadence and running form, with heart-rate zones
+>   and splits.
+> • Fitness, fatigue and form over time, and a gel plan for long runs.
 > • Plain-language notes on what each run tells you, and a coach to ask about your training, powered by Apple
 >   Intelligence on your device.
 >
 > PRIVATE BY DESIGN
 > • No account, no sign-up, no ads, no analytics.
-> • Your plan and runs stay on your iPhone.
+> • Your plan and runs stay on your iPhone. The one exception is Garmin Connect, which only works through a small
+>   server that passes your workouts and Garmin runs between Garmin and your phone.
 > • Open source: see how every plan is built at github.com/nickcia/trackstar.
 >
 > TrackStar is a training tool, not medical advice. Check with a doctor before starting a new exercise program.
@@ -97,17 +102,35 @@ the app changes, launch with `-demo` plus:
 
 ## App Privacy (App Store Connect › App Privacy)
 
-Answer **"No, we do not collect data from this app."** The label then reads **Data Not Collected**.
+Since Garmin Connect (build 6), TrackStar has a server that stores some data, so the answer is no longer "Data Not
+Collected". Answer **"Yes, we collect data from this app"** and declare exactly this:
 
-Why that's accurate under Apple's definitions ("collect" means sent off the device in a way the developer or
-partners can access):
-- Plans, runs, Health data and location stay on the device. The Coach uses Apple's on-device model.
-- Intervals.icu: workouts go to the user's own Intervals.icu account, only if they choose to connect it. That's
-  optional, user-initiated and clearly disclosed in the app, which Apple's guidance lets you leave out.
-- Strava: phone runs go to the user's own Strava account, and recent Strava runs are read on the phone (to avoid
-  duplicates and rename watch runs), only if they connect it. Same reasoning as Intervals.icu: optional,
-  user-initiated, clearly disclosed, processed on the device, and the developer never sees any of it.
-- Bug reports open a GitHub issue the user writes and sends themselves; nothing is sent automatically.
-- If analytics or a server are ever added, this answer has to change first.
+| Data type | Purpose | Linked to the user? | Used for tracking? |
+|---|---|---|---|
+| **Health & Fitness › Fitness** | App Functionality | Yes | No |
+| **Identifiers › User ID** | App Functionality | Yes | No |
+
+The label then reads **Data Linked to You: Health & Fitness, Identifiers**, and no **Data Used to Track You**.
+
+What each one covers:
+- **Fitness:** for athletes who connect Garmin Connect, their planned workouts (sent to Garmin) and the runs Garmin
+  sends back (time, distance, heart rate, cadence, power, elevation over the run, device name) pass through and are
+  stored on TrackStar's server until the iPhone collects them (at most 30 days). Strictly, heart rate is health
+  data, but it's collected here as part of a workout, which Apple counts as Fitness.
+- **User ID:** the server keeps the athlete's Garmin user ID (and encrypted Garmin tokens) to talk to Garmin for them,
+  linked to a random ID the app makes on first use. It's linked to the user because it identifies their Garmin
+  account.
+
+Not declared, and why:
+- **Strava sign-in** passes through the server only to add the client secret; nothing is stored. Apple doesn't count
+  data that's only processed in real time and not kept.
+- **Plans, Health data, routes, location, gear and coach chats** stay on the device (and the user's own iCloud).
+  Map images and place names come from Apple Maps; Apple, not the developer, receives those requests.
+- **Intervals.icu and Strava** data goes straight between the iPhone and the athlete's own accounts, so the developer
+  never receives it.
+- **Photos:** add-only, and only the image the athlete chooses to save.
+- **Bug and crash reports** are emails the user writes and sends themselves.
+
+If anything else ever goes to the server, or analytics are added, update this table first.
 
 Privacy policy URL: https://github.com/nickcia/trackstar/blob/main/PRIVACY.md

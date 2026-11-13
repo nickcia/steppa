@@ -10,7 +10,7 @@ jobs:
     name: Plan engine
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run engine tests
         working-directory: Packages/PlanEngine
         run: swift test
@@ -19,7 +19,7 @@ jobs:
     name: App builds
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build for the iOS Simulator
         run: |
           xcodebuild build -project TrackStar.xcodeproj -scheme TrackStar \

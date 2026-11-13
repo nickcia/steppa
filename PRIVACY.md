@@ -1,6 +1,6 @@
 # Privacy policy
 
-_Last updated: 11 November 2026_
+_Last updated: 13 November 2026_
 
 TrackStar is a free, open-source running coach for iPhone. It's built so that your data stays yours.
 
@@ -8,8 +8,9 @@ TrackStar is a free, open-source running coach for iPhone. It's built so that yo
 
 - There are no TrackStar accounts, ads, analytics or tracking.
 - Your training plan and progress are stored on your iPhone (and in your own private iCloud, if sync is on).
-- Nothing is sent to the developer. The one exception is Garmin Connect, which needs a small TrackStar server
-  (see below); it only passes your workouts and runs between Garmin and your iPhone.
+- Nothing is sent to the developer. The one exception is a small TrackStar server (see below), which Garmin Connect
+  needs to pass your workouts and runs between Garmin and your iPhone, and which completes Strava sign-in without
+  keeping anything.
 - If you choose to connect Intervals.icu, your upcoming workouts are sent to your own Intervals.icu account so
   they can reach your Garmin, COROS, Suunto or Wahoo watch.
 - If you choose to connect Garmin Connect, your upcoming workouts go to your Garmin Connect calendar and your
@@ -19,17 +20,41 @@ TrackStar is a free, open-source running coach for iPhone. It's built so that yo
 
 ## What the app stores
 
-Your training plan, which workouts you've done or skipped, races, and preferences. This is kept on your
-iPhone. If iCloud sync is on, it is also kept in your private iCloud database, which only you can read. You can
+Your training plan, which workouts you've done or skipped, races, gear (such as your shoes and the distance on
+them), and preferences. This is kept on your iPhone. If iCloud sync is on, it is also kept in your private iCloud database, which only you can read. You can
 export all of it as a file and delete it at any time by deleting the app.
 
 ## Apple Health
 
-With your permission, the app reads from Apple Health: running workouts and distance (to tick off workouts and
-adapt your plan), heart rate, running power and step counts during runs (for run analysis: splits, heart-rate
-zones, cadence), and your date of birth (only to estimate your maximum heart rate). The only thing it writes is a
-run you record on your iPhone with a guided run (Start): it's saved as a running workout with its distance and
-route, so it counts in Health and ticks off your plan. Health data never leaves your iPhone. You can change access in the Health app under Sharing › Apps.
+With your permission, the app reads from Apple Health:
+
+- running workouts and distance, to tick off workouts and adapt your plan;
+- during runs: heart rate, running power, step counts, stride length, vertical oscillation, ground contact time,
+  active energy, heart-rate recovery and effort scores, plus what the workout recorded about itself (elevation
+  climbed, weather temperature and humidity, indoors or outdoors), for run analysis;
+- workout routes, to show each run on a map;
+- your date of birth, only to estimate your maximum heart rate.
+
+The only thing it writes is a run you record on your iPhone with a guided run (Start): it's saved as a running
+workout with its distance and route, so it counts in Health and ticks off your plan. Health data never leaves your
+iPhone, apart from what's described under Maps below. You can change access in the Health app under Sharing › Apps.
+
+## Maps
+
+Runs with a route are shown on a map. The map is drawn by Apple Maps (MapKit), which downloads map images for the
+area around the route, and the app asks Apple Maps for the name of the town or city where the run started. Apple
+handles those requests under Apple's own privacy policy; the route itself is not sent to the developer or anyone
+else.
+
+## Photos (optional)
+
+**Save to Photos** on a run's share image asks for permission to add photos. The app can only add the image you
+chose to save; it can't see or read anything in your photo library.
+
+## Sharing a workout (optional)
+
+**Share** on a workout makes a small file with the workout's name and steps, which you send yourself with the
+iPhone's share sheet. It contains nothing about you or your runs.
 
 ## Apple Watch and reminders
 
@@ -64,7 +89,9 @@ close the coach. You can hide the coach in Settings.
 If you connect Intervals.icu, the app talks directly from your iPhone to Intervals.icu. It:
 
 - **Sends** your upcoming planned workouts (date, name, steps and pace targets) to your Intervals.icu
-  calendar, and updates or removes them when your plan changes.
+  calendar, and updates or removes them when your plan changes. If Garmin Connect is also connected directly
+  (below), workouts go to Garmin that way instead, and TrackStar takes its own workouts off your Intervals.icu
+  calendar so they don't reach your watch twice.
 - **Reads** your athlete name and which watch services (Garmin, COROS, Suunto, Wahoo) are linked to your
   Intervals.icu account, and **turns on** workout upload for linked services so workouts reach your watch.
 
@@ -115,7 +142,8 @@ requires a secret that can't be kept safely inside an app, so the sign-in passes
 adds it and hands Strava's reply straight back to your iPhone without keeping it.
 
 - **Uploads** runs you record on your iPhone (guided runs) to your Strava account: the route (GPS points with
-  times), distance, time, and a title and description from your plan ("Week 5: Threshold · 7 km" and its steps).
+  times), distance, time, and a title and description from your plan ("Week 5 - Threshold 7 km", where the
+  workout sits in your plan, and its steps).
   You can turn this off in Settings.
 - **Reads** your recent Strava activities (their times, distances, names and descriptions, from the last few days)
   for two things: to spot when your watch recorded the same run as your phone, so it isn't uploaded twice, and to

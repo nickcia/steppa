@@ -27,7 +27,7 @@ No accounts. No ads. No tracking. Your data stays on your phone and in your own 
 - **Your own workouts.** Build a structured workout from blocks (warm-up, Zone 2, tempo, intervals, cool-down)
   with paces filled in from your fitness, put it on any day from the calendar, and keep it to reuse.
 - **Strava, named after your plan.** Connect Strava and runs recorded on your iPhone upload with their route as
-  soon as you finish, titled "Week 5: Threshold · 7 km" with the workout's steps. Watch runs get the same title and
+  soon as you finish, titled "Week 5 - Threshold 7 km" with the workout's steps. Watch runs get the same title and
   steps, and a run recorded on both the watch and the phone only appears once.
 - **Send to Apple Watch.** Workouts appear in the Workout app with every step and pace alerts.
 - **Send to Garmin, COROS, Suunto and Wahoo.** Sign in to Intervals.icu (free) and link your watch there

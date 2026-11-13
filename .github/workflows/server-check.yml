@@ -1,0 +1,26 @@
+# Checks every hour that TrackStar's server (Garmin Connect and Strava sign-in) answers and is fully set up. When a
+# scheduled run fails, GitHub emails the repository owner. Details: OPERATIONS.md in the server repository.
+name: Server check
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ask the server
+        run: |
+          for attempt in 1 2 3; do
+            if curl --fail --silent --show-error --max-time 15 https://trackstar.trackstar-server.workers.dev/health; then
+              echo; echo "Server is healthy."; exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::TrackStar's server failed its health check three times. See Cloudflare › Workers › trackstar › Logs."
+          exit 1

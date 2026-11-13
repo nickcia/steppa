@@ -1,0 +1,33 @@
+# Re-runs a Tests run whose jobs never started because GitHub had no macOS runner free ("The job was not acquired
+# by Runner"). Real test failures are left alone: only jobs that failed without running a single step are retried,
+# at most twice.
+name: Retry unstarted jobs
+
+on:
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+
+permissions:
+  actions: write
+
+jobs:
+  retry:
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 3
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Re-run if a job never started
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          unstarted=$(gh api "repos/$REPO/actions/runs/$RUN/jobs" \
+            --jq '[.jobs[] | select(.conclusion == "failure" and ((.steps // []) | length) == 0)] | length')
+          if [ "$unstarted" -gt 0 ]; then
+            echo "$unstarted job(s) never got a runner; re-running the failed jobs."
+            gh run rerun "$RUN" --failed --repo "$REPO"
+          else
+            echo "The failure came from the tests themselves; not re-running."
+          fi
