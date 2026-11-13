@@ -35,6 +35,8 @@ nonisolated enum StravaError: LocalizedError, Equatable {
     /// Strava couldn't read the activity (its own message).
     case rejected(String)
     case signInFailed
+    /// Strava allows TrackStar only so many connected athletes until it approves a higher limit.
+    case athleteLimit
     case keychain(OSStatus)
 
     var errorDescription: String? {
@@ -45,6 +47,7 @@ nonisolated enum StravaError: LocalizedError, Equatable {
         case .server(let code): String(localized: "Strava couldn't take the run right now (error \(code)). It'll try again later.")
         case .rejected(let message): String(localized: "Strava couldn't use this run: \(message)")
         case .signInFailed: String(localized: "Connecting to Strava didn't finish. Please try again.")
+        case .athleteLimit: String(localized: "TrackStar's Strava connections are full for now, while Strava reviews the app. Your runs are still saved to Apple Health, and your watch's own Strava sync still works.")
         case .keychain: String(localized: "Couldn't save your Strava connection on this iPhone.")
         }
     }
@@ -393,6 +396,7 @@ nonisolated struct StravaClient: Sendable {
             switch status {
             case 200..<300: return data
             case 429: throw StravaError.server(429)
+            case 403 where Self.isAthleteLimit(data): throw StravaError.athleteLimit
             case 400..<500: throw StravaError.signInFailed
             default: throw StravaError.server(status)
             }
@@ -422,12 +426,18 @@ nonisolated struct StravaClient: Sendable {
         }
         switch response.statusCode {
         case 200..<300: return data
+        case 403 where failure == .signInFailed && Self.isAthleteLimit(data): throw StravaError.athleteLimit
         case 401, 403: throw failure
         // Strava's rate limit (per app, shared by every TrackStar user): wait and try again later.
         case 429: throw StravaError.server(429)
         case 400..<500: throw failure == .signInFailed ? failure : StravaError.rejected(Self.message(in: data))
         default: throw StravaError.server(response.statusCode)
         }
+    }
+
+    /// Strava's reply when the app is at its connected-athlete limit: 403, "Limit of connected athletes exceeded".
+    static func isAthleteLimit(_ data: Data) -> Bool {
+        String(decoding: data, as: UTF8.self).lowercased().contains("limit of connected athletes")
     }
 
     /// Strava's error replies carry a message; fall back to a generic one.

@@ -277,6 +277,20 @@ struct StravaTests {
         #expect(model.stravaTitle(for: custom).hasSuffix(" - Hill blast"))
     }
 
+    @Test func whileStravaIsPausedPhoneRunsWait() async throws {
+        UserDefaults.standard.set(true, forKey: AppModel.stravaPausedKey)
+        defer { UserDefaults.standard.removeObject(forKey: AppModel.stravaPausedKey) }
+        let fake = FakeStrava()
+        let model = try makeModel(fake)
+        try await connect(model)
+        #expect(await model.uploadToStrava(recording(), workout: try #require(model.plan?.workouts.first)) == .paused)
+        #expect(!fake.requests.contains("POST /api/v3/uploads"))
+        #expect(model.stravaQueuedCount == 1)
+        // Nothing is sent from the queue either until it's back.
+        await model.sendQueuedStravaUploads()
+        #expect(!fake.requests.contains("POST /api/v3/uploads"))
+    }
+
     @Test func phoneUploadsUseThePlansTitle() async throws {
         let fake = FakeStrava()
         let model = try makeModel(fake)

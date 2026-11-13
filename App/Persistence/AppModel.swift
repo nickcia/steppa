@@ -1292,6 +1292,23 @@ final class AppModel {
 
     var stravaAvailable: Bool { strava != nil && stravaOAuth != nil }
 
+    /// TrackStar's server can switch Strava off (if Strava ever withdraws access). While it's off, nothing is sent to
+    /// or read from Strava; phone runs wait and upload once it's back. Remembered, so it holds offline too.
+    private(set) var stravaPausedByServer = UserDefaults.standard.bool(forKey: AppModel.stravaPausedKey) {
+        didSet { UserDefaults.standard.set(stravaPausedByServer, forKey: Self.stravaPausedKey) }
+    }
+    static let stravaPausedKey = "strava.pausedByServer"
+
+    /// Reads the server's switches. Fails quietly offline, keeping the last answer.
+    func refreshServerConfig() async {
+        guard let server, let config = try? await server.config() else { return }
+        let wasPaused = stravaPausedByServer
+        stravaPausedByServer = !config.strava
+        if wasPaused, !stravaPausedByServer {
+            await sendQueuedStravaUploads()
+        }
+    }
+
     /// Finishes "Connect Strava" with the URL Strava sent the athlete back to.
     func finishStravaSignIn(callback: URL, attempt: StravaOAuth.Attempt) async throws {
         guard let strava, let stravaOAuth else { return }
@@ -1354,6 +1371,8 @@ final class AppModel {
         case waitingForWatch
         /// The watch recorded this run, so its copy goes to Strava instead (named after the plan when it's there).
         case fromWatch
+        /// Strava is switched off in TrackStar for now; the run waits and uploads once it's back.
+        case paused
         case failed(String)
     }
 
@@ -1408,6 +1427,11 @@ final class AppModel {
     func uploadToStrava(_ recording: GuidedRunRecording, workout: Workout) async -> StravaOutcome {
         var upload = StravaUpload(recording: recording, name: stravaTitle(for: workout),
                                   description: stravaDescription(for: workout))
+        if stravaPausedByServer {
+            stravaQueue.add(upload)
+            stravaQueuedCount = stravaQueue.pending.count
+            return .paused
+        }
         // Garmin and other watches sync a few minutes after the run: give the watch's copy time to show up.
         if await hasWatch() { upload.checkWatchUntil = recording.end.addingTimeInterval(stravaWatchWait) }
         let outcome = await process(upload)
@@ -1420,7 +1444,7 @@ final class AppModel {
 
     /// Tries runs left over from earlier (no connection, or waiting for a watch's copy).
     func sendQueuedStravaUploads() async {
-        guard stravaAccount != nil else { return }
+        guard stravaAccount != nil, !stravaPausedByServer else { return }
         for upload in stravaQueue.pending {
             if await process(upload) == .queued { break }
         }
@@ -1532,7 +1556,8 @@ final class AppModel {
     /// Only activities that still have their default name are renamed, and a description is only added where there
     /// is none, so nothing the athlete wrote is ever replaced.
     func nameWatchRunsOnStrava() async {
-        guard stravaNamesWatchRuns, let account = stravaAccount, account.canRead, let strava, let plan else { return }
+        guard stravaNamesWatchRuns, !stravaPausedByServer, let account = stravaAccount, account.canRead, let strava,
+              let plan else { return }
         let since = today.adding(days: -3)
         let handled = stravaHandledRuns
         let candidates = healthMatches.compactMap { workoutID, run -> (Workout, CompletedRun)? in
@@ -1876,6 +1901,7 @@ final class AppModel {
     /// Everything to do when the app comes to the foreground.
     func becameActive() async {
         reload()
+        await refreshServerConfig()
         await refreshHealth()
         await checkRouteAccess()
         reviewPlan()

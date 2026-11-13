@@ -152,7 +152,9 @@ adds it and hands Strava's reply straight back to your iPhone without keeping it
   while they still have their default name (like "Morning Run") and an empty description. Anything you named or
   wrote yourself is left alone. You can turn this off in Settings.
 
-What's read stays on your iPhone; nothing is sent anywhere else. If you're offline when a run finishes, it waits on
+When the app opens, it asks TrackStar's server whether Strava is available (so Strava can be paused for everyone if
+Strava ever withdraws access); that request carries nothing about you. What's read stays on your iPhone; nothing is
+sent anywhere else. If you're offline when a run finishes, it waits on
 your iPhone and uploads the next time you open the app. Your Strava sign-in is stored in your iPhone's Keychain.
 Disconnecting in Settings revokes the app's access and deletes the sign-in and any waiting runs from your iPhone;
 you can also revoke access on Strava under Settings › My Apps. What Strava does with your runs is covered by

@@ -281,7 +281,8 @@ private struct GuidedRunSummary: View {
         }
     }
 
-    private var stravaConnected: Bool { model.stravaAccount != nil }
+    /// Connected, and Strava isn't switched off in TrackStar.
+    private var stravaConnected: Bool { model.stravaAccount != nil && !model.stravaPausedByServer }
 
     /// Save (uploading to Strava when connected, in the order the athlete's setting prefers), or delete.
     @ViewBuilder private var choices: some View {
@@ -396,6 +397,9 @@ private struct GuidedRunSummary: View {
                 .foregroundStyle(.white.opacity(0.7))
         case .done(.queued):
             Label("No connection. It'll upload to Strava when you're back online.", systemImage: "icloud.slash")
+                .foregroundStyle(.white.opacity(0.7))
+        case .done(.paused):
+            Label("Strava is paused in TrackStar for now. This run will upload once it's back.", systemImage: "pause.circle")
                 .foregroundStyle(.white.opacity(0.7))
         case .done(.failed(let message)):
             Label(message, systemImage: "exclamationmark.triangle").foregroundStyle(.white.opacity(0.7))

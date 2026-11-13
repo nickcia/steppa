@@ -425,7 +425,19 @@ struct StravaSection: View {
 
     var body: some View {
         Section {
-            if let account = model.stravaAccount {
+            if model.stravaPausedByServer {
+                // Switched off on TrackStar's server, e.g. if Strava withdraws access: nothing to connect to for now.
+                Label("Strava isn't available in TrackStar right now. Your runs are still saved to Apple Health, and your watch's own Strava sync still works.",
+                      systemImage: "pause.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryInk)
+                if model.stravaAccount != nil {
+                    if model.stravaQueuedCount > 0 {
+                        LabeledContent("Waiting to upload", value: "\(model.stravaQueuedCount)")
+                    }
+                    Button("Disconnect", role: .destructive) { confirmDisconnect = true }
+                }
+            } else if let account = model.stravaAccount {
                 LabeledContent("Strava", value: account.athleteName.isEmpty ? String(localized: "Connected") : account.athleteName)
                 Toggle("Upload phone runs", isOn: Binding(get: { model.stravaAutoUpload }, set: { model.setStravaAutoUpload($0) }))
                 if account.canRead {

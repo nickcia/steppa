@@ -118,6 +118,23 @@ actor TrackStarServer {
         return TrackStarServer(baseURL: url)
     }
 
+    // MARK: Switches
+
+    /// What the server says the app may use. Asked without a device ID, so it identifies nobody.
+    struct Config: Decodable, Equatable, Sendable {
+        var strava: Bool
+    }
+
+    func config() async throws -> Config {
+        var request = URLRequest(url: baseURL.appending(path: "v1/config"), timeoutInterval: 20)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let data: Data
+        let response: HTTPURLResponse
+        do { (data, response) = try await transport.send(request) } catch { throw ServerError.offline }
+        guard (200..<300).contains(response.statusCode) else { throw ServerError.server(response.statusCode) }
+        return try JSONDecoder().decode(Config.self, from: data)
+    }
+
     // MARK: Garmin Connect
 
     /// The Garmin page to open for "Connect with Garmin Connect".

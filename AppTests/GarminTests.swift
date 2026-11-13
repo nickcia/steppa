@@ -11,6 +11,8 @@ nonisolated final class FakeServer: HTTPTransport, @unchecked Sendable {
     private var _inbox: [(id: String, run: String)] = []
     private var _connected = true
     private var _stravaBodies: [String] = []
+    private var _stravaFull = false
+    private var _stravaEnabled = true
     private var registrations = 0
 
     var requests: [String] { lock.withLock { _requests } }
@@ -20,6 +22,9 @@ nonisolated final class FakeServer: HTTPTransport, @unchecked Sendable {
     var registrationCount: Int { lock.withLock { registrations } }
     func addRun(_ json: String) { lock.withLock { _inbox.append((UUID().uuidString, json)) } }
     func setConnected(_ connected: Bool) { lock.withLock { _connected = connected } }
+    /// Strava answers sign-ins as it does when the app is at its connected-athlete limit.
+    func setStravaFull(_ full: Bool) { lock.withLock { _stravaFull = full } }
+    func setStravaEnabled(_ enabled: Bool) { lock.withLock { _stravaEnabled = enabled } }
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         lock.withLock { handle(request) }
@@ -32,6 +37,10 @@ nonisolated final class FakeServer: HTTPTransport, @unchecked Sendable {
         if method == "POST", path == "/v1/devices" {
             registrations += 1
             return reply(201, #"{"id":"device-\#(registrations)-aaaaaaaaaaaa","secret":"secret-secret-secret-secret-secret-1"}"#)
+        }
+        // The switches need no device, as on the real server.
+        if method == "GET", path == "/v1/config" {
+            return reply(200, #"{"strava":\#(_stravaEnabled)}"#)
         }
         guard request.value(forHTTPHeaderField: "Authorization")?.hasPrefix("Device device-") == true else {
             return reply(401, #"{"error":"Unknown device"}"#)
@@ -56,6 +65,9 @@ nonisolated final class FakeServer: HTTPTransport, @unchecked Sendable {
             return reply(200, #"{"ok":true}"#)
         case ("POST", "/v1/strava/token"):
             _stravaBodies.append(String(decoding: request.httpBody ?? Data(), as: UTF8.self))
+            if _stravaFull {
+                return reply(403, #"{"message":"Limit of connected athletes exceeded","errors":[]}"#)
+            }
             return reply(200, #"{"access_token":"token-1","refresh_token":"refresh-1","expires_at":\#(Int(Date.now.timeIntervalSince1970) + 21600),"athlete":{"id":7,"firstname":"Test","lastname":"Runner"}}"#)
         default:
             return reply(404, #"{"error":"Not found"}"#)
@@ -337,5 +349,32 @@ struct GarminTests {
         let body = try #require(server.stravaBodies.first)
         #expect(body.contains("good-code") && body.contains("authorization_code"))
         #expect(!body.contains("secret"))
+    }
+
+    @Test func aFullStravaSaysSoInsteadOfAGenericError() async throws {
+        let server = FakeServer()
+        server.setStravaFull(true)
+        let oauth = StravaOAuth(clientID: "42", clientSecret: nil, redirectURI: "io.github.nickcia.runcoach://nickcia.github.io/strava",
+                                relay: makeServer(server))
+        await #expect(throws: StravaError.athleteLimit) {
+            try await StravaClient(transport: FakeStrava()).signIn(code: "good-code", oauth: oauth)
+        }
+        #expect(StravaError.athleteLimit.errorDescription?.contains("full") == true)
+    }
+
+    @Test func theServerCanPauseStravaAndRunsWaitUntilItsBack() async throws {
+        UserDefaults.standard.removeObject(forKey: AppModel.stravaPausedKey)
+        defer { UserDefaults.standard.removeObject(forKey: AppModel.stravaPausedKey) }
+        let server = FakeServer()
+        let model = try makeModel(server)
+        #expect(!model.stravaPausedByServer)
+        server.setStravaEnabled(false)
+        await model.refreshServerConfig()
+        #expect(model.stravaPausedByServer)
+        server.setStravaEnabled(true)
+        await model.refreshServerConfig()
+        #expect(!model.stravaPausedByServer)
+        // The switch is read without registering this iPhone: it identifies nobody.
+        #expect(server.registrationCount == 0)
     }
 }
