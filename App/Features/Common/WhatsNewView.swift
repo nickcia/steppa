@@ -15,22 +15,19 @@ nonisolated struct WhatsNew: Sendable {
     var id: String
     var items: [Item]
 
-    static let current = WhatsNew(id: "2026-11-trends", items: [
-        Item(symbol: "waveform.path.ecg",
-             title: String(localized: "Fitness, fatigue and form"),
-             detail: String(localized: "Progress now shows how your fitness is building, how tired you are, and your fitness score and threshold pace over time.")),
-        Item(symbol: "map",
-             title: String(localized: "Your runs, with maps"),
-             detail: String(localized: "Recent runs show their route. After a run, save a picture of it sized for Strava, or share it anywhere.")),
-        Item(symbol: "drop",
-             title: String(localized: "Fuel on the run"),
-             detail: String(localized: "Runs over 75 minutes come with a gel plan: how many, and when to take them.")),
-        Item(symbol: "shoe",
-             title: String(localized: "Gear and shared workouts"),
-             detail: String(localized: "Track the distance on your shoes in Settings › Gear, and share a workout with a friend so you can run it together.")),
-        Item(symbol: "link",
-             title: String(localized: "Connections in one place"),
-             detail: String(localized: "Apple Health, your watch and Strava now live in Settings › Connections. Heart-rate zones now update from your runs.")),
+    static let current = WhatsNew(id: "2026-11-run-analytics", items: [
+        Item(symbol: "chart.xyaxis.line",
+             title: String(localized: "Much more on every run"),
+             detail: String(localized: "Open a run for its route, best efforts, heart rate, running form, power, elevation and conditions, each with its own chart.")),
+        Item(symbol: "heart",
+             title: String(localized: "Smarter heart-rate zones"),
+             detail: String(localized: "Zones come from your watch, your runs or your own maximum heart rate, and Today lets you know when a run suggests they need a change.")),
+        Item(symbol: "chart.bar",
+             title: String(localized: "See a workout's shape"),
+             detail: String(localized: "Workouts show a small chart of their steps, so you can see warm-up, efforts and recoveries at a glance.")),
+        Item(symbol: "figure.run",
+             title: String(localized: "Clearer names"),
+             detail: String(localized: "Easy runs that end with strides are called \"Easy run with strides\", and Strava titles read \"Week 5 - Easy run 9.5 km\".")),
     ])
 
     static let seenKey = "whatsNew.seen"
